@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 
     for (const run of queries) {
       const r = await run();
-      if (!r.error) { wordbooks = r.data as WbRow[]; break; }
+      if (!r.error) { wordbooks = r.data as WbRow[]; dbError = null; break; }
       dbError = r.error.message;
     }
 
