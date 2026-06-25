@@ -83,53 +83,22 @@ async function insertWordbook(
   }
 ) {
   const { title, description, coverImage, visibility } = input;
-  const withAllColumns = {
-    owner_id: null,
-    title,
-    description: description || null,
-    cover_image: coverImage || null,
-    is_official: true,
-    visibility,
-  };
-  const withoutCover = {
-    owner_id: null,
-    title,
-    description: description || null,
-    is_official: true,
-    visibility,
-  };
-  const withoutOfficial = {
-    owner_id: null,
-    title,
-    description: description || null,
-    cover_image: coverImage || null,
-    visibility,
-  };
-  const withoutOfficialAndCover = {
-    owner_id: null,
-    title,
-    description: description || null,
-    visibility,
-  };
-  const withoutOwner = {
-    title,
-    description: description || null,
-    cover_image: coverImage || null,
-    visibility,
-  };
-  const minimal = {
-    title,
-    description: description || null,
-    visibility,
-  };
 
-  const attempts = [
-    withAllColumns,
-    withoutCover,
-    withoutOfficial,
-    withoutOfficialAndCover,
-    withoutOwner,
-    minimal,
+  // 存在するカラムに応じて段階的にフォールバック
+  const attempts: Record<string, unknown>[] = [
+    { owner_id: null, title, description: description || null, cover_image: coverImage || null, is_official: true, visibility },
+    { owner_id: null, title, description: description || null, is_official: true, visibility },
+    { owner_id: null, title, description: description || null, cover_image: coverImage || null, visibility },
+    { owner_id: null, title, description: description || null, visibility },
+    { title, description: description || null, cover_image: coverImage || null, visibility },
+    { title, description: description || null, visibility },
+    // visibility カラムがない場合のフォールバック
+    { owner_id: null, title, description: description || null, cover_image: coverImage || null, is_official: true },
+    { owner_id: null, title, description: description || null, is_official: true },
+    { owner_id: null, title, description: description || null, cover_image: coverImage || null },
+    { owner_id: null, title, description: description || null },
+    { title, description: description || null, cover_image: coverImage || null },
+    { title, description: description || null },
   ];
 
   let lastError: DbError = null;
@@ -137,7 +106,7 @@ async function insertWordbook(
     const result = await supabase
       .from("wordbooks")
       .insert(payload)
-      .select("id,title,visibility")
+      .select("id,title")
       .single();
 
     if (!result.error) return result;
@@ -147,8 +116,10 @@ async function insertWordbook(
       isMissingColumnError(result.error, "cover_image") ||
       isMissingColumnError(result.error, "is_official") ||
       isMissingColumnError(result.error, "owner_id") ||
+      isMissingColumnError(result.error, "visibility") ||
       result.error.message.includes("null value") ||
-      result.error.message.includes("violates not-null");
+      result.error.message.includes("violates not-null") ||
+      result.error.message.includes("does not exist");
 
     if (!expectedSchemaMismatch) return result;
   }

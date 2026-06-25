@@ -341,7 +341,8 @@ export default function AdminPage() {
   }
 
   useEffect(() => { if (unlocked) { fetchBooks(); } }, [unlocked]);
-  useEffect(() => { if (unlocked && (tab === "manage" || tab === "pdf")) { fetchBooks(); } }, [tab]);
+  // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
+  useEffect(() => { if (unlocked && (tab === "manage" || tab === "pdf")) { fetchBooks({ silent: true }); } }, [tab]);
   useEffect(() => {
     if (!pdfBookId && books.length > 0) {
       setPdfBookId(books[0].id);
