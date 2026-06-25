@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
-import { fallbackOfficialWordbooksForApi, mergeWordbooksById } from "@/lib/official-wordbooks";
 
 function checkAdminPassword(request: Request) {
   const adminPassword = process.env.ADMIN_PASSWORD;
@@ -13,24 +12,23 @@ function checkAdminPassword(request: Request) {
 export async function GET(request: Request) {
   const unauthorized = checkAdminPassword(request);
   if (unauthorized) return unauthorized;
-  const fallbackBooks = fallbackOfficialWordbooksForApi();
 
   if (!isSupabaseServerConfigured()) {
     return NextResponse.json({
-      ok: true,
-      wordbooks: fallbackBooks,
+      ok: false,
+      supabaseConfigured: false,
+      wordbooks: [],
+      message: "Supabaseが未設定のため、単語帳を読み込めません。VercelにSUPABASE_SERVICE_ROLE_KEYとNEXT_PUBLIC_SUPABASE_URLを設定してください。",
     });
   }
 
   try {
     const supabase = getSupabaseAdmin();
 
-    // カラムが存在しない場合のフォールバック付きクエリ
     type WbRow = { id: string; title: string; description: string | null; visibility?: string | null; cover_image?: string | null };
     let wordbooks: WbRow[] | null = null;
-    let wbErr: { message: string } | null = null;
+    let dbError: string | null = null;
 
-    // 管理者画面はPW保護済みなので is_official フィルタ不要 — DB内の全単語帳を表示
     const r1 = await supabase
       .from("wordbooks")
       .select("id,title,description,visibility,cover_image")
@@ -38,47 +36,48 @@ export async function GET(request: Request) {
 
     if (!r1.error) {
       wordbooks = r1.data as WbRow[];
-    } else if (r1.error.message.includes("cover_image") || r1.error.message.includes("does not exist")) {
-      // cover_imageカラムがない場合
+    } else {
       const r2 = await supabase
         .from("wordbooks")
         .select("id,title,description,visibility")
         .order("created_at", { ascending: false });
       if (!r2.error) {
         wordbooks = r2.data as WbRow[];
-      } else if (r2.error.message.includes("visibility") || r2.error.message.includes("does not exist")) {
+      } else {
         const r3 = await supabase
           .from("wordbooks")
           .select("id,title,description")
           .order("created_at", { ascending: false });
-        wordbooks = r3.data as WbRow[];
-        wbErr = r3.error;
-      } else {
-        wbErr = r2.error;
+        if (!r3.error) {
+          wordbooks = r3.data as WbRow[];
+        } else {
+          dbError = r3.error.message;
+        }
       }
-    } else {
-      wbErr = r1.error;
     }
 
-    if (wbErr) {
+    if (dbError) {
       return NextResponse.json({
-        ok: true,
-        wordbooks: fallbackBooks,
-        message: wbErr.message,
+        ok: false,
+        supabaseConfigured: true,
+        wordbooks: [],
+        message: `DBエラー: ${dbError}`,
       });
     }
+
     if (!wordbooks?.length) {
       return NextResponse.json({
         ok: true,
-        wordbooks: fallbackBooks,
+        supabaseConfigured: true,
+        wordbooks: [],
+        message: "Supabaseに単語帳がまだ登録されていません。",
       });
     }
 
     const ids = wordbooks.map((w) => w.id);
 
-    // wordsテーブルもカラム存在確認付き
     type WordRow = { wordbook_id: string; number: string | number | null; english: string | null; japanese: string | null; unit?: string | null };
-    let words: WordRow[] | null = null;
+    let words: WordRow[] = [];
 
     const rw1 = await supabase
       .from("words")
@@ -89,7 +88,6 @@ export async function GET(request: Request) {
     if (!rw1.error) {
       words = rw1.data as WordRow[];
     } else {
-      // unitカラムがない or numberでのsortが失敗した場合
       const rw2 = await supabase
         .from("words")
         .select("wordbook_id,number,english,japanese")
@@ -97,7 +95,6 @@ export async function GET(request: Request) {
       if (!rw2.error) {
         words = rw2.data as WordRow[];
       } else {
-        // numberカラムもない場合
         const rw3 = await supabase
           .from("words")
           .select("wordbook_id,english,japanese")
@@ -107,7 +104,7 @@ export async function GET(request: Request) {
     }
 
     const byBook = new Map<string, Array<{ no: number; english: string; japanese: string; unit: string | null }>>();
-    for (const w of words ?? []) {
+    for (const w of words) {
       const bucket = byBook.get(w.wordbook_id) ?? [];
       bucket.push({
         no: Number(w.number) || bucket.length + 1,
@@ -137,12 +134,14 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      wordbooks: mergeWordbooksById(liveBooks, fallbackBooks),
+      supabaseConfigured: true,
+      wordbooks: liveBooks,
     });
   } catch (e) {
     return NextResponse.json({
-      ok: true,
-      wordbooks: fallbackBooks,
+      ok: false,
+      supabaseConfigured: true,
+      wordbooks: [],
       message: e instanceof Error ? e.message : "Unknown error",
     });
   }

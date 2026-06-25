@@ -331,12 +331,15 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/all-wordbooks", {
       headers: { "x-admin-password": pw },
     }).catch(() => null);
-    if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); if (!options?.silent) setLoadingBooks(false); return; }
+    if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); setLoadingBooks(false); return; }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { setManageMsg(`⚠️ API エラー (${res.status}): ${data?.message ?? "不明なエラー"}`); if (!options?.silent) setLoadingBooks(false); return; }
     const list = Array.isArray(data?.wordbooks) ? data.wordbooks : [];
-    setBooks(mergeWordbooksById(list, initialAdminBooks));
-    if (list.length === 0 && data?.ok) setManageMsg("単語帳が見つかりません。まだ登録されていないか、Supabaseのテーブルを確認してください。");
+    // Supabaseのデータだけ使う（テンプレートと混合しない）
+    setBooks(list);
+    if (!options?.preserveMessage) {
+      if (data?.message) setManageMsg(data.message);
+      else if (list.length === 0) setManageMsg("Supabaseに単語帳がありません。「単語帳を登録」タブから追加してください。");
+    }
     setLoadingBooks(false);
   }
 
