@@ -203,7 +203,7 @@ export async function PATCH(request: Request) {
     const id = typeof body.id === "string" ? body.id.trim() : "";
     if (!id) {
       return NextResponse.json(
-        { ok: false, message: "IDが必要です。" },
+        { ok: false, message: `[PATCH] IDが必要です。受け取ったbody.id=${JSON.stringify(body.id)}, keys=${Object.keys(body).join(",")}` },
         { status: 400 }
       );
     }
@@ -368,7 +368,7 @@ export async function DELETE(request: Request) {
     const id = typeof body.id === "string" ? body.id.trim() : "";
     if (!id) {
       return NextResponse.json(
-        { ok: false, message: "IDが必要です。" },
+        { ok: false, message: `[DELETE] IDが必要です。受け取ったbody.id=${JSON.stringify(body.id)}, keys=${Object.keys(body).join(",")}` },
         { status: 400 }
       );
     }
