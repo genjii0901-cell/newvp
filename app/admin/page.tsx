@@ -450,7 +450,11 @@ export default function AdminPage() {
         };
       }),
     );
-    setManageMsg(editMode === "words" ? `✅ 単語を更新しました（${result.wordCount}語）` : "✅ メタデータを更新しました");
+    if (result.warning) {
+      setManageMsg(`⚠️ ${result.warning} — Supabaseのwordbooksテーブルにカラムを追加してください。`);
+    } else {
+      setManageMsg(editMode === "words" ? `✅ 単語を更新しました（${result.wordCount}語）` : "✅ メタデータを更新しました");
+    }
     setEditId(null);
     // wordsモードのみDBから再取得（metaはローカルstateが正しいため上書きしない）
     if (editMode === "words") await fetchBooks({ silent: true, preserveMessage: true });

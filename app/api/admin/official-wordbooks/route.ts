@@ -326,6 +326,7 @@ export async function PATCH(request: Request) {
       metaUpdate.visibility = body.visibility;
     }
 
+    const skippedColumns: string[] = [];
     if (Object.keys(metaUpdate).length > 0) {
       // 存在しないカラムは自動的に除外して再試行
       let updatePayload = { ...metaUpdate };
@@ -339,6 +340,7 @@ export async function PATCH(request: Request) {
         const colMatch = error.message.match(/column ['"]([\w]+)['"]\s*(of relation .*)? does not exist/i)
           ?? error.message.match(/"([\w]+)" does not exist/i);
         if (colMatch) {
+          skippedColumns.push(colMatch[1]);
           delete updatePayload[colMatch[1]];
           continue;
         }
@@ -366,7 +368,10 @@ export async function PATCH(request: Request) {
       }
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({
+      ok: true,
+      ...(skippedColumns.length > 0 ? { skippedColumns, warning: `DBにカラムが存在しないため保存されませんでした: ${skippedColumns.join(", ")}` } : {}),
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, message: error instanceof Error ? error.message : "Unknown error" },
