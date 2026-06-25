@@ -452,7 +452,8 @@ export default function AdminPage() {
     );
     setManageMsg(editMode === "words" ? `✅ 単語を更新しました（${result.wordCount}語）` : "✅ メタデータを更新しました");
     setEditId(null);
-    await fetchBooks({ silent: true, preserveMessage: true });
+    // wordsモードのみDBから再取得（metaはローカルstateが正しいため上書きしない）
+    if (editMode === "words") await fetchBooks({ silent: true, preserveMessage: true });
   }
 
   async function deleteBook(id: string, bookTitle: string) {
