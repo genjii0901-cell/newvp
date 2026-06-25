@@ -200,10 +200,10 @@ export async function PATCH(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const id = typeof body.id === "string" ? body.id.trim() : "";
+    const id = typeof body.id === "string" ? body.id.trim() : typeof body.id === "number" ? String(body.id) : "";
     if (!id) {
       return NextResponse.json(
-        { ok: false, message: `[PATCH] IDが必要です。受け取ったbody.id=${JSON.stringify(body.id)}, keys=${Object.keys(body).join(",")}` },
+        { ok: false, message: "IDが必要です。" },
         { status: 400 }
       );
     }
@@ -365,10 +365,10 @@ export async function DELETE(request: Request) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const id = typeof body.id === "string" ? body.id.trim() : "";
+    const id = typeof body.id === "string" ? body.id.trim() : typeof body.id === "number" ? String(body.id) : "";
     if (!id) {
       return NextResponse.json(
-        { ok: false, message: `[DELETE] IDが必要です。受け取ったbody.id=${JSON.stringify(body.id)}, keys=${Object.keys(body).join(",")}` },
+        { ok: false, message: "IDが必要です。" },
         { status: 400 }
       );
     }
