@@ -63,37 +63,47 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     let wordbooks: WordbookRow[] = [];
 
-    const queries = [
-      () =>
-        supabase
-          .from("wordbooks")
-          .select("id,title,description,visibility,cover_image")
-          .eq("is_official", true)
-          .order("created_at", { ascending: false }),
-      () =>
-        supabase
-          .from("wordbooks")
-          .select("id,title,description,visibility,cover_image")
-          .order("created_at", { ascending: false }),
-      () =>
-        supabase
-          .from("wordbooks")
-          .select("id,title,description,visibility")
-          .order("created_at", { ascending: false }),
-      () =>
-        supabase
-          .from("wordbooks")
-          .select("id,title,description")
-          .order("created_at", { ascending: false }),
-    ];
+    // is_official=true で取得を試み、0件なら全件から visibility でフィルタ
+    const withOfficial = await supabase
+      .from("wordbooks")
+      .select("id,title,description,visibility,cover_image")
+      .eq("is_official", true)
+      .order("created_at", { ascending: false });
 
-    for (const run of queries) {
-      const result = await run();
-      if (!result.error) {
-        wordbooks = ((result.data as WordbookRow[] | null) ?? []).filter((book) =>
-          isPubliclyVisible(book.visibility)
-        );
-        break;
+    if (!withOfficial.error && (withOfficial.data?.length ?? 0) > 0) {
+      wordbooks = ((withOfficial.data as WordbookRow[]) ?? []).filter((book) =>
+        isPubliclyVisible(book.visibility)
+      );
+    }
+
+    // is_official が存在しない or 0件 → 全件から visibility で絞る
+    if (wordbooks.length === 0) {
+      const queries = [
+        () =>
+          supabase
+            .from("wordbooks")
+            .select("id,title,description,visibility,cover_image")
+            .order("created_at", { ascending: false }),
+        () =>
+          supabase
+            .from("wordbooks")
+            .select("id,title,description,visibility")
+            .order("created_at", { ascending: false }),
+        () =>
+          supabase
+            .from("wordbooks")
+            .select("id,title,description")
+            .order("created_at", { ascending: false }),
+      ];
+
+      for (const run of queries) {
+        const result = await run();
+        if (!result.error) {
+          wordbooks = ((result.data as WordbookRow[] | null) ?? []).filter((book) =>
+            isPubliclyVisible(book.visibility)
+          );
+          if (wordbooks.length > 0) break;
+        }
       }
     }
 
