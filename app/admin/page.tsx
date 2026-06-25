@@ -398,14 +398,52 @@ export default function AdminPage() {
   async function saveEdit() {
     if (!editId) return;
     const targetBook = books.find((book) => book.id === editId) ?? null;
-    const body: Record<string, unknown> = { id: editId };
     let parsedWords: ParsedWord[] | null = null;
+    if (editMode === "words") {
+      parsedWords = parseWords(editPaste);
+      if (!parsedWords.length) { setManageMsg("有効な単語データがありません。"); return; }
+    }
+
+    // Supabaseに未登録のテンプレート単語帳は先にPOSTで登録してIDを取得
+    let actualId = editId;
+    if (!isPersistedBookId(editId)) {
+      const postRes = await fetch("/api/admin/official-wordbooks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": password },
+        body: JSON.stringify({
+          title: editMode === "meta" ? editMeta.title : (targetBook?.title ?? ""),
+          description: editMode === "meta" ? editMeta.desc : (targetBook?.description ?? ""),
+          cover_image: editMode === "meta" ? editMeta.coverImage : (targetBook?.coverImage ?? null),
+          visibility: editMode === "meta" ? editMeta.visibility : (targetBook?.visibility ?? "public"),
+          words: parsedWords ?? (targetBook?.words.map((w) => ({ number: w.no, english: w.english, japanese: w.japanese, unit: w.unit })) ?? []),
+        }),
+      });
+      const postResult = await postRes.json().catch(() => ({}));
+      if (!postRes.ok) { setManageMsg(postResult.message ?? "Supabaseへの登録失敗"); return; }
+      actualId = postResult.wordbook?.id ?? actualId;
+      // wordsも一緒に登録済みなのでPATCHは不要
+      setBooks((prev) => prev.map((book) => {
+        if (book.id !== editId) return book;
+        return {
+          ...book,
+          id: actualId,
+          title: editMode === "meta" ? editMeta.title : book.title,
+          description: editMode === "meta" ? editMeta.desc : book.description,
+          coverImage: editMode === "meta" ? (editMeta.coverImage || null) : book.coverImage,
+          visibility: editMode === "meta" ? editMeta.visibility : book.visibility,
+          words: parsedWords ? parsedWords.map((w, i) => ({ no: Number(w.number) || i + 1, english: w.english, japanese: w.japanese, unit: w.unit || null })) : book.words,
+        };
+      }));
+      setManageMsg("✅ Supabaseに登録して保存しました");
+      setEditId(null);
+      return;
+    }
+
+    const body: Record<string, unknown> = { id: actualId };
     if (editMode === "meta") {
       body.title = editMeta.title; body.description = editMeta.desc;
       body.cover_image = editMeta.coverImage; body.visibility = editMeta.visibility;
     } else {
-      parsedWords = parseWords(editPaste);
-      if (!parsedWords.length) { setManageMsg("有効な単語データがありません。"); return; }
       body.words = parsedWords;
     }
     const res = await fetch("/api/admin/official-wordbooks", {
@@ -415,7 +453,7 @@ export default function AdminPage() {
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) { setManageMsg(result.message ?? "更新失敗"); return; }
-    const nextId = typeof result?.wordbook?.id === "string" && result.wordbook.id ? result.wordbook.id : editId;
+    const nextId = typeof result?.wordbook?.id === "string" && result.wordbook.id ? result.wordbook.id : actualId;
     setBooks((prev) =>
       prev.map((book) => {
         const titleMatch = targetBook ? book.title === targetBook.title : false;
