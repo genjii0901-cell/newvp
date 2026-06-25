@@ -47,8 +47,6 @@ function cleanWordList(words: IncomingWord[]) {
       english: String(word.english ?? "").trim(),
       japanese: String(word.japanese ?? "").trim(),
       unit: String(word.unit ?? "").trim() || null,
-      page: String(word.page ?? "").trim() || null,
-      memo: String(word.memo ?? "").trim() || null,
     }))
     .filter((word) => word.english && word.japanese);
 }
@@ -314,9 +312,10 @@ export async function PATCH(request: Request) {
           break;
         }
         lastError = error;
-        // "column X does not exist" → Xを除外して再試行
+        // "column X does not exist" or "Could not find the 'X' column" → Xを除外して再試行
         const colMatch = error.message.match(/column ['"]([\w]+)['"]\s*(of relation .*)? does not exist/i)
-          ?? error.message.match(/"([\w]+)" does not exist/i);
+          ?? error.message.match(/"([\w]+)" does not exist/i)
+          ?? error.message.match(/Could not find the ['"]?([\w]+)['"]? column/i);
         if (colMatch) {
           skippedColumns.push(colMatch[1]);
           delete updatePayload[colMatch[1]];

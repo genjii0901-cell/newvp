@@ -352,19 +352,19 @@ export default function Home() {
 
       const officialBooks = result.wordbooks
         .filter((book: { id?: unknown; title?: unknown; words?: unknown }) =>
-          typeof book?.id === "string" &&
+          book?.id != null &&
           typeof book?.title === "string" &&
           Array.isArray(book?.words)
         )
         .map(
           (book: {
-            id: string;
+            id: string | number;
             title: string;
             description?: string;
             requiredPlan?: Plan;
             words: Array<{ no?: number; english?: string; japanese?: string }>;
           }) => ({
-            id: book.id,
+            id: String(book.id),
             title: book.title,
             description: book.description,
             level:

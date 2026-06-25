@@ -123,33 +123,34 @@ export async function GET() {
     >();
 
     for (const word of words) {
-      const bucket = wordsByBookId.get(word.wordbook_id) ?? [];
+      const key = String(word.wordbook_id);
+      const bucket = wordsByBookId.get(key) ?? [];
       bucket.push({
         no: Number(word.number) || bucket.length + 1,
         english: word.english ?? "",
         japanese: word.japanese ?? "",
         unit: word.unit ?? null,
       });
-      wordsByBookId.set(word.wordbook_id, bucket);
+      wordsByBookId.set(key, bucket);
     }
 
     const liveBooks = wordbooks.map((wordbook) => {
       const visibility = normalizeVisibility(wordbook.visibility);
       return {
-        id: wordbook.id,
+        id: String(wordbook.id),
         title: wordbook.title,
         description: wordbook.description ?? "",
         coverImage: wordbook.cover_image ?? null,
         requiredPlan: requiredPlanFromVisibility(visibility),
         visibility: visibility === "private" || visibility === "admin" ? "public" : visibility,
         level: levelFromVisibility(visibility),
-        words: wordsByBookId.get(wordbook.id) ?? [],
+        words: wordsByBookId.get(String(wordbook.id)) ?? [],
       };
     });
 
     return NextResponse.json({
       ok: true,
-      wordbooks: mergeWordbooksById(liveBooks, fallbackBooks),
+      wordbooks: liveBooks,
     });
   } catch (error) {
     return fallbackResponse(error instanceof Error ? error.message : "Unknown error");

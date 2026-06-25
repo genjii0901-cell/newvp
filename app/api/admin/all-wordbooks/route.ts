@@ -93,14 +93,15 @@ export async function GET(request: Request) {
 
     const byBook = new Map<string, Array<{ no: number; english: string; japanese: string; unit: string | null }>>();
     for (const w of words) {
-      const bucket = byBook.get(w.wordbook_id) ?? [];
+      const key = String(w.wordbook_id);
+      const bucket = byBook.get(key) ?? [];
       bucket.push({
         no: Number(w.number) || bucket.length + 1,
         english: w.english ?? "",
         japanese: w.japanese ?? "",
         unit: (w as { unit?: string | null }).unit ?? null,
       });
-      byBook.set(w.wordbook_id, bucket);
+      byBook.set(key, bucket);
     }
 
     function planFromVisibility(v: string | null | undefined) {
@@ -111,13 +112,13 @@ export async function GET(request: Request) {
     }
 
     const liveBooks = wordbooks.map((wb) => ({
-      id: wb.id,
+      id: String(wb.id),
       title: wb.title,
       description: wb.description ?? "",
       coverImage: wb.cover_image ?? null,
       requiredPlan: planFromVisibility(wb.visibility),
       visibility: wb.visibility ?? "public",
-      words: byBook.get(wb.id) ?? [],
+      words: byBook.get(String(wb.id)) ?? [],
     }));
 
     return NextResponse.json({
