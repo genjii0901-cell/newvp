@@ -345,9 +345,11 @@ export async function PATCH(request: Request) {
       }
     }
 
+    // cover_image, is_official, owner_id などオプションカラムのスキップは正常扱い
+    const requiredSkipped = skippedColumns.filter((c) => !["cover_image", "is_official", "owner_id", "visibility"].includes(c));
     return NextResponse.json({
       ok: true,
-      ...(skippedColumns.length > 0 ? { skippedColumns, warning: `DBにカラムが存在しないため保存されませんでした: ${skippedColumns.join(", ")}` } : {}),
+      ...(requiredSkipped.length > 0 ? { skippedColumns: requiredSkipped, warning: `DBにカラムが存在しないため保存されませんでした: ${requiredSkipped.join(", ")}` } : {}),
     });
   } catch (error) {
     return NextResponse.json(
