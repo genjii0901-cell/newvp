@@ -29,31 +29,19 @@ export async function GET(request: Request) {
     let wordbooks: WbRow[] | null = null;
     let dbError: string | null = null;
 
-    const r1 = await supabase
-      .from("wordbooks")
-      .select("id,title,description,visibility,cover_image")
-      .order("created_at", { ascending: false });
+    // created_at が存在しない場合もあるのでフォールバック付き
+    const queries = [
+      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image").order("created_at", { ascending: false }),
+      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image"),
+      () => supabase.from("wordbooks").select("id,title,description,visibility").order("created_at", { ascending: false }),
+      () => supabase.from("wordbooks").select("id,title,description,visibility"),
+      () => supabase.from("wordbooks").select("id,title,description"),
+    ];
 
-    if (!r1.error) {
-      wordbooks = r1.data as WbRow[];
-    } else {
-      const r2 = await supabase
-        .from("wordbooks")
-        .select("id,title,description,visibility")
-        .order("created_at", { ascending: false });
-      if (!r2.error) {
-        wordbooks = r2.data as WbRow[];
-      } else {
-        const r3 = await supabase
-          .from("wordbooks")
-          .select("id,title,description")
-          .order("created_at", { ascending: false });
-        if (!r3.error) {
-          wordbooks = r3.data as WbRow[];
-        } else {
-          dbError = r3.error.message;
-        }
-      }
+    for (const run of queries) {
+      const r = await run();
+      if (!r.error) { wordbooks = r.data as WbRow[]; break; }
+      dbError = r.error.message;
     }
 
     if (dbError) {
