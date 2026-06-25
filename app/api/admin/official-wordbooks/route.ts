@@ -304,8 +304,15 @@ export async function PATCH(request: Request) {
       let lastError: DbError = null;
       for (let attempt = 0; attempt < 5; attempt++) {
         if (Object.keys(updatePayload).length === 0) break;
-        const { error } = await supabase.from("wordbooks").update(updatePayload).eq("id", id);
-        if (!error) { lastError = null; break; }
+        const { data: updatedRows, error } = await supabase.from("wordbooks").update(updatePayload).eq("id", id).select("id,title,visibility");
+        if (!error) {
+          lastError = null;
+          // 0件更新 = IDが存在しない
+          if (!updatedRows || updatedRows.length === 0) {
+            return NextResponse.json({ ok: false, message: `ID "${id}" の単語帳がDBに存在しません。` }, { status: 404 });
+          }
+          break;
+        }
         lastError = error;
         // "column X does not exist" → Xを除外して再試行
         const colMatch = error.message.match(/column ['"]([\w]+)['"]\s*(of relation .*)? does not exist/i)
