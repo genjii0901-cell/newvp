@@ -56,6 +56,13 @@ export async function POST(request: Request) {
     }
 
     const profile = await tryEnsureProfile(auth.user);
+
+    // 1ヶ月無料トライアル: personalプランのみ・未利用の人だけ付与（乱用防止）
+    const TRIAL_DAYS = 30;
+    const trialAlreadyUsed =
+      Boolean((profile as { trial_used?: unknown } | null)?.trial_used);
+    const grantTrial = plan === "personal" && !trialAlreadyUsed;
+
     const body = new URLSearchParams({
       mode: "subscription",
       success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
@@ -70,6 +77,15 @@ export async function POST(request: Request) {
     body.append("metadata[plan]", plan);
     body.append("subscription_data[metadata][user_id]", auth.user.id);
     body.append("subscription_data[metadata][plan]", plan);
+
+    if (grantTrial) {
+      body.append("subscription_data[trial_period_days]", String(TRIAL_DAYS));
+      // カードは任意。トライアル終了時にカード未登録なら自動でフリーへ（勝手に課金しない）
+      body.append("payment_method_collection", "if_required");
+      body.append("subscription_data[trial_settings][end_behavior][missing_payment_method]", "cancel");
+      body.append("metadata[trial]", "1");
+      body.append("subscription_data[metadata][trial]", "1");
+    }
 
     if (profile?.stripe_customer_id) {
       body.append("customer", profile.stripe_customer_id);

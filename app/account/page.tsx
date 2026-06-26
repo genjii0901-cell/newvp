@@ -30,10 +30,11 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
+    const sb = supabase;
     let cancelled = false;
 
     async function loadProfile() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await sb.auth.getUser();
       const nextUser = data.user ?? null;
       if (!cancelled) setUser(nextUser);
       if (!nextUser) {
@@ -41,7 +42,7 @@ export default function AccountPage() {
         return;
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await sb.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) {
         if (!cancelled) setLoading(false);

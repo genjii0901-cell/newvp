@@ -219,6 +219,16 @@ export async function POST(request: Request) {
           status: "active",
           currentPeriodEnd: null,
         });
+
+        // 無料トライアルを利用したら trial_used を立てて再利用を防ぐ（保険）
+        if (getString(metadata.trial) === "1") {
+          try {
+            const supabase = getSupabaseAdmin();
+            await supabase.from("profiles").update({ trial_used: true }).eq("id", userId);
+          } catch (error) {
+            console.error("Failed to mark trial_used", error);
+          }
+        }
       }
     }
 

@@ -20,8 +20,8 @@ const plans = [
     id: "personal",
     title: "Personal",
     price: "¥780/月",
-    description: "個人学習向けの有料プランです。",
-    features: ["Pro単語帳を利用", "自作単語帳を保存", "PDF履歴を保存"],
+    description: "個人学習向けの有料プラン。初月無料でお試しいただけます。",
+    features: ["初月無料（30日）", "Pro単語帳を利用", "マイ単語帳を保存", "PDF履歴を保存", "印刷ページ数無制限"],
   },
   {
     id: "teacher",

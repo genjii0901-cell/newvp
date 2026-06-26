@@ -75,11 +75,22 @@ function formatPrintDate(date = new Date()) {
   return date.toLocaleDateString("ja-JP");
 }
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+function formatPrintDateTime(date = new Date()) {
+  return date.toLocaleString("ja-JP", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
+
+function addHours(date: Date, hours: number) {
+  return new Date(date.getTime() + hours * 60 * 60 * 1000);
+}
+
+// 印刷有効期限（時間）。発行からこの時間だけ印刷可能（ドキュメントに明示）
+const PRINT_VALIDITY_HOURS = 24;
 
 function localUsageKey(userId: string, plan: Plan) {
   const now = new Date();
@@ -525,6 +536,7 @@ export default function Home() {
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
   const locked = selectedBook ? planRank(plan) < planRank(selectedBook.requiredPlan) : false;
   const outputWords = useMemo(() => {
+    if (!selectedBook) return [];
     let list = selectedBook.words.filter(
       (word) => word.no >= Number(startNo) && word.no <= Number(endNo)
     );
@@ -603,6 +615,15 @@ export default function Home() {
   }
 
   function addCustomBook() {
+    if (!user) {
+      alert("マイ単語帳の保存にはログインが必要です。");
+      return;
+    }
+    if (plan === "free") {
+      alert("マイ単語帳の保存はPersonal以上のプランでご利用いただけます。Freeプランでは貼り付けてそのまま印刷できます。");
+      return;
+    }
+
     const rows = parsePastedWords(pasteText);
 
     if (rows.length === 0) {
@@ -681,7 +702,7 @@ export default function Home() {
     }
 
     const now = new Date();
-    const expiresAt = addDays(now, 7);
+    const expiresAt = addHours(now, PRINT_VALIDITY_HOURS);
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const printWordsList = plan === "free" ? words.slice(0, 50) : words;
     const fullTitle = pdfTitle.trim() || autoTitle;
@@ -717,7 +738,10 @@ export default function Home() {
     });
 
     const safeTitle = fullTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
-    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title></head><body style="margin:0"><div id="print-root">${html}</div></body></html>`;
+    // コピー防止: テキスト選択・右クリック・コピー/切り取り・ドラッグを抑止
+    const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
+    const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","s","p","u"].indexOf((e.key||"").toLowerCase())>-1){if((e.key||"").toLowerCase()!=="p"){e.preventDefault();return false;}}});})();<\/script>`;
+    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
 
     // 隠しiframeで印刷 — 新しいタブを開かない
     const iframe = document.createElement("iframe");
@@ -750,6 +774,10 @@ export default function Home() {
   }
 
   async function printPdf() {
+    if (!selectedBook) {
+      alert("単語帳が読み込まれていません。少し待ってからもう一度お試しください。");
+      return;
+    }
     if (locked) {
       alert("この単語帳は有料プラン用です。Personal以上に変更してください。");
       return;
@@ -769,8 +797,8 @@ export default function Home() {
   function buildPreviewDoc(): string {
     if (!outputWords.length) return `<!DOCTYPE html><html><body style="margin:0;background:#f9fafb;font-family:sans-serif;padding:20px;color:#64748b">プレビューデータなし</body></html>`;
     const now = new Date();
-    const expiresAt = addDays(now, 7);
-    const autoTitle = `${selectedBook.title} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
+    const expiresAt = addHours(now, PRINT_VALIDITY_HOURS);
+    const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const printWordsList = plan === "free" ? outputWords.slice(0, 50) : outputWords;
     const bodyHtml = buildPrintHtml({
       title: pdfTitle.trim() || autoTitle,
@@ -862,7 +890,7 @@ export default function Home() {
         body: JSON.stringify({
           type,
           wordCount: outputWords.length,
-          wordbookId: isUuid(selectedBook.id) ? selectedBook.id : null,
+          wordbookId: selectedBook && isUuid(selectedBook.id) ? selectedBook.id : null,
         }),
       });
     } catch (error) {
@@ -1333,12 +1361,12 @@ export default function Home() {
               <div>
                 <h3 className="text-lg font-black">単語リスト</h3>
                 <p className="text-sm text-slate-500">
-                  {selectedBook.title} / {outputWords.length}語
+                  {selectedBook?.title ?? "単語帳"} / {outputWords.length}語
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  {selectedBook.level}
+                  {selectedBook?.level ?? ""}
                 </span>
                 <span className="text-slate-400 group-open:rotate-180 transition-transform text-xs">▼</span>
               </div>
@@ -1411,7 +1439,7 @@ export default function Home() {
                 onClick={addCustomBook}
                 className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-              単語帳として登録
+              単語帳として登録{plan === "free" ? "（Pro）" : ""}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
@@ -1420,11 +1448,11 @@ export default function Home() {
         </section>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <PlanCard title="Free" price="¥0" text="1日3回まで。まず試す用。" />
+          <PlanCard title="Free" price="¥0" text="1日3回・1ページまで。まず試す用。" />
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="Pro単語帳・履歴保存・無制限作成。"
+            text="初月無料。Pro単語帳・マイ単語帳保存・履歴・無制限作成・印刷無制限。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}
@@ -1896,7 +1924,7 @@ function buildPrintHtml({
         <footer>
           <span></span>
           <span${pageNoStyle ? ` style="${pageNoStyle}"` : ""}>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span>
-          <span>${escapeHtml(plan === "free" ? "Created by Vocab Print Pro ・ Expires " + formatPrintDate(expiresAt) : "Created by Vocab Print Pro")}</span>
+          <span>${escapeHtml("Vocab Print Pro ・ 印刷有効期限 " + formatPrintDateTime(expiresAt) + " まで")}</span>
         </footer>
       </section>`;
     })
