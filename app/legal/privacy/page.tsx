@@ -69,7 +69,7 @@ export default function PrivacyPage() {
         </section>
 
         <p className="rounded-xl bg-amber-50 p-4 text-xs text-amber-800">
-          ※ 本ポリシーはテンプレートです。公開前に内容をご確認のうえ、連絡先メールアドレス等を記入し、必要に応じて専門家の確認を受けてください。
+          ※ 本ポリシーは公開前に内容をご確認のうえ、必要に応じて専門家の確認を受けてください。
         </p>
       </div>
     </main>

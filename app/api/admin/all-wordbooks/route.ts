@@ -29,11 +29,9 @@ export async function GET(request: Request) {
     let wordbooks: WbRow[] | null = null;
     let dbError: string | null = null;
 
-    // created_at が存在しない場合もあるのでフォールバック付き
+    // wordbooks.created_at は本番スキーマに無いので、存在する列だけ段階的に取得する。
     const queries = [
-      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image").order("created_at", { ascending: false }),
       () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image"),
-      () => supabase.from("wordbooks").select("id,title,description,visibility").order("created_at", { ascending: false }),
       () => supabase.from("wordbooks").select("id,title,description,visibility"),
       () => supabase.from("wordbooks").select("id,title,description"),
     ];
