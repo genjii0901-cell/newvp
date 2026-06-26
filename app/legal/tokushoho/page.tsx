@@ -10,9 +10,9 @@ const FILL = "【記入してください】";
 const rows: { label: string; value: string }[] = [
   { label: "販売事業者", value: FILL + "（屋号または氏名）" },
   { label: "運営責任者", value: FILL },
-  { label: "所在地", value: FILL + "（請求があれば遅滞なく開示します）" },
-  { label: "電話番号", value: FILL + "（請求があれば遅滞なく開示します）" },
-  { label: "メールアドレス", value: FILL },
+  { label: "所在地", value: "請求があり次第、遅滞なく開示します。" },
+  { label: "電話番号", value: "請求があり次第、遅滞なく開示します。" },
+  { label: "メールアドレス", value: "vocabprint@gmail.com" },
   { label: "販売価格", value: "Personal: 月額780円（税込） / Teacher: 月額2,980円（税込）" },
   { label: "商品代金以外の必要料金", value: "インターネット接続料金・通信料金等は利用者のご負担となります。" },
   { label: "支払方法", value: "クレジットカード決済（Stripe）" },

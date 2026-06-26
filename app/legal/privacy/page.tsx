@@ -64,7 +64,7 @@ export default function PrivacyPage() {
           <p className="mt-2">
             個人情報の取り扱いに関するお問い合わせは、下記までご連絡ください。
             <br />
-            メールアドレス: <span className="font-bold">【連絡先メールアドレスを記入】</span>
+            メールアドレス: <span className="font-bold">vocabprint@gmail.com</span>
           </p>
         </section>
 
