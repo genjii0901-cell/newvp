@@ -75,23 +75,6 @@ function formatPrintDate(date = new Date()) {
   return date.toLocaleDateString("ja-JP");
 }
 
-function formatPrintDateTime(date = new Date()) {
-  return date.toLocaleString("ja-JP", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function addHours(date: Date, hours: number) {
-  return new Date(date.getTime() + hours * 60 * 60 * 1000);
-}
-
-// 印刷有効期限（時間）。発行からこの時間だけ印刷可能（ドキュメントに明示）
-const PRINT_VALIDITY_HOURS = 24;
-
 function localUsageKey(userId: string, plan: Plan) {
   const now = new Date();
   const period =
@@ -702,7 +685,6 @@ export default function Home() {
     }
 
     const now = new Date();
-    const expiresAt = addHours(now, PRINT_VALIDITY_HOURS);
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const printWordsList = plan === "free" ? words.slice(0, 50) : words;
     const fullTitle = pdfTitle.trim() || autoTitle;
@@ -724,7 +706,6 @@ export default function Home() {
       studentName,
       includeDate,
       generatedAt: now,
-      expiresAt,
       userEmail: user.email ?? "",
       titleOffsetX: titleOffset.x,
       titleOffsetY: titleOffset.y,
@@ -766,7 +747,7 @@ export default function Home() {
     setPdfMessage("印刷ダイアログが開きます。");
 
     setHistory([
-      `${formatPrintDate(now)}・${sourceLabel} / ${type} / ${printWordsList.length}語（${formatPrintDate(expiresAt)}まで）`,
+      `${formatPrintDate(now)}・${sourceLabel} / ${type} / ${printWordsList.length}語`,
       ...history,
     ]);
 
@@ -798,7 +779,6 @@ export default function Home() {
   function buildPreviewDoc(): string {
     if (!outputWords.length) return `<!DOCTYPE html><html><body style="margin:0;background:#f9fafb;font-family:sans-serif;padding:20px;color:#64748b">プレビューデータなし</body></html>`;
     const now = new Date();
-    const expiresAt = addHours(now, PRINT_VALIDITY_HOURS);
     const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const printWordsList = plan === "free" ? outputWords.slice(0, 50) : outputWords;
     const bodyHtml = buildPrintHtml({
@@ -819,7 +799,6 @@ export default function Home() {
       studentName,
       includeDate,
       generatedAt: now,
-      expiresAt,
       userEmail: user?.email ?? "",
       titleOffsetX: titleOffset.x,
       titleOffsetY: titleOffset.y,
@@ -1794,7 +1773,6 @@ function buildPrintHtml({
   studentName,
   includeDate,
   generatedAt,
-  expiresAt,
   userEmail = "",
   titleOffsetX = 0,
   titleOffsetY = 0,
@@ -1825,7 +1803,6 @@ function buildPrintHtml({
   studentName: string;
   includeDate: boolean;
   generatedAt: Date;
-  expiresAt: Date;
   titleOffsetX?: number;
   titleOffsetY?: number;
   dateOffsetX?: number;
@@ -1871,7 +1848,7 @@ function buildPrintHtml({
   // 透かし: 有料は購入者メール入り（流出・編集の抑止＝誰のものか残す）、無料はFREE表記
   const watermark = includeWatermark || plan === "free"
     ? plan === "free"
-      ? "FREE ・ 1ページのみ ・ 24時間有効"
+      ? "FREE ・ 1ページのみ ・ 見本"
       : userEmail
         ? userEmail
         : "Vocab Print Pro"
@@ -1931,7 +1908,7 @@ function buildPrintHtml({
         <footer>
           <span></span>
           <span${pageNoStyle ? ` style="${pageNoStyle}"` : ""}>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span>
-          <span>${escapeHtml((userEmail ? userEmail + " ・ " : "") + "印刷有効期限 " + formatPrintDateTime(expiresAt) + " まで")}</span>
+          <span>${escapeHtml(userEmail ? userEmail + " ・ Vocab Print Pro" : "Vocab Print Pro")}</span>
         </footer>
       </section>`;
     })
