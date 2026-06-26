@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
-import { fallbackOfficialWordbooksForApi, mergeWordbooksById } from "@/lib/official-wordbooks";
+import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 
 type Visibility = "public" | "personal" | "teacher" | "private" | "admin";
 
@@ -53,36 +53,42 @@ function fallbackResponse(message?: string) {
 }
 
 export async function GET() {
-  const fallbackBooks = fallbackOfficialWordbooksForApi();
-
   if (!isSupabaseServerConfigured()) {
     return fallbackResponse();
   }
 
   try {
     const supabase = getSupabaseAdmin();
-    let wordbooks: WordbookRow[] = [];
 
-    // created_at が存在しない場合もあるのでフォールバック付き
-    const fetchQueries = [
-      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image").eq("is_official", true).order("created_at", { ascending: false }),
-      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image").eq("is_official", true),
-      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image").order("created_at", { ascending: false }),
-      () => supabase.from("wordbooks").select("id,title,description,visibility,cover_image"),
-      () => supabase.from("wordbooks").select("id,title,description,visibility"),
-      () => supabase.from("wordbooks").select("id,title,description"),
+    // 存在しない列に備えて段階的に列を減らす。is_officialの有無は毎回同じ判断にして
+    // 取得セットがぶれないようにする（一時エラーで全件↔絞り込みが入れ替わらない）。
+    const selects = [
+      "id,title,description,visibility,cover_image",
+      "id,title,description,visibility",
+      "id,title,description",
     ];
 
-    for (const run of fetchQueries) {
-      const result = await run();
-      if (!result.error) {
-        const rows = ((result.data as WordbookRow[] | null) ?? []).filter((book) =>
-          isPubliclyVisible(book.visibility)
-        );
-        if (rows.length > 0) { wordbooks = rows; break; }
+    let rows: WordbookRow[] | null = null;
+    for (const sel of selects) {
+      let res = await supabase.from("wordbooks").select(sel).eq("is_official", true);
+      // is_official 列が無い場合だけ、絞り込みなしで取得（schema依存・毎回同じ挙動）
+      if (res.error && /is_official/i.test(res.error.message)) {
+        res = await supabase.from("wordbooks").select(sel);
+      }
+      if (!res.error) {
+        rows = (res.data as unknown as WordbookRow[] | null) ?? [];
+        break;
       }
     }
 
+    // 取得自体が失敗（接続不可など）→ JSONフォールバック（保険）
+    if (rows === null) {
+      return fallbackResponse();
+    }
+
+    const wordbooks: WordbookRow[] = rows.filter((book) => isPubliclyVisible(book.visibility));
+
+    // Supabaseに公開中の公式単語帳が1件も無いときだけJSONフォールバック
     if (wordbooks.length === 0) {
       return fallbackResponse();
     }
@@ -148,11 +154,11 @@ export async function GET() {
       };
     });
 
-    // 公開ライブラリは「JSONの公式カタログ」を常に土台にし、Supabaseの公式追加分を重ねる
-    // （タイトル重複はSupabase側で置き換え）。これで毎回の表示数が安定し、ぶれを防ぐ。
+    // 公開ライブラリは管理者画面(Supabase)を単一の真実とする。
+    // 管理者で削除すれば公開側からも消える。JSONは空/未設定のときだけの保険。
     return NextResponse.json({
       ok: true,
-      wordbooks: mergeWordbooksById(liveBooks, fallbackBooks),
+      wordbooks: liveBooks,
     });
   } catch (error) {
     return fallbackResponse(error instanceof Error ? error.message : "Unknown error");
