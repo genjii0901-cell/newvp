@@ -148,9 +148,11 @@ export async function GET() {
       };
     });
 
+    // 公開ライブラリは「JSONの公式カタログ」を常に土台にし、Supabaseの公式追加分を重ねる
+    // （タイトル重複はSupabase側で置き換え）。これで毎回の表示数が安定し、ぶれを防ぐ。
     return NextResponse.json({
       ok: true,
-      wordbooks: liveBooks,
+      wordbooks: mergeWordbooksById(liveBooks, fallbackBooks),
     });
   } catch (error) {
     return fallbackResponse(error instanceof Error ? error.message : "Unknown error");

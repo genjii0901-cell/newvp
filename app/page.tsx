@@ -1892,8 +1892,19 @@ function buildPrintHtml({
       const infoTransform = (infoOffsetX || infoOffsetY) ? `transform:translate(${infoOffsetX}mm,${infoOffsetY}mm)` : "";
       const infoStyle = `flex:0 0 auto;margin-top:8mm;background:white${infoTransform ? `;${infoTransform}` : ""}`;
       const pageNoStyle = (pageNoOffsetX || pageNoOffsetY) ? `transform:translate(${pageNoOffsetX}mm,${pageNoOffsetY}mm);display:inline-block` : "";
+      // タイル状の透かし: ページ全体に繰り返し表示（流出抑止）
+      const wmTiled = watermark
+        ? `<div class="print-watermark">${Array.from({ length: 16 })
+            .map(
+              () =>
+                `<div class="wm-row">${Array.from({ length: 6 })
+                  .map(() => escapeHtml(watermark))
+                  .join("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")}</div>`
+            )
+            .join("")}</div>`
+        : "";
       return `<section class="print-page${hasInfoBox ? " has-info" : ""}">
-        ${watermark ? `<div class="print-watermark">${escapeHtml(watermark)}</div>` : ""}
+        ${wmTiled}
         <div class="print-page-header"${headerStyle ? ` style="${headerStyle}"` : ""}>
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
           ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
@@ -1953,11 +1964,15 @@ const printCss = `
   .print-note { margin:-1mm 0 3mm; text-align:center; font-size:8.5pt; color:#7c2d12; }
 
   .print-watermark {
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    font-size:72pt; font-weight:900; letter-spacing:.1em;
-    color:rgba(37,99,235,.09); transform:rotate(-28deg);
-    pointer-events:none; user-select:none; text-transform:uppercase;
+    position:absolute; inset:-20% -20%; z-index:0; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:space-around; align-items:center;
+    transform:rotate(-30deg); pointer-events:none; user-select:none;
   }
+  .print-watermark .wm-row {
+    white-space:nowrap; font-size:13pt; font-weight:800; letter-spacing:.18em;
+    color:rgba(37,99,235,.08);
+  }
+  .print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
 
   .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
 
@@ -2019,11 +2034,15 @@ body { margin:0; background:white; overflow:hidden; }
 .print-date { position:absolute; right:0; top:0; font-size:7.5pt; color:#333; font-weight:600; line-height:1.2; }
 .print-note { margin:-1mm 0 3mm; text-align:center; font-size:8.5pt; color:#7c2d12; }
 .print-watermark {
-  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-  font-size:72pt; font-weight:900; letter-spacing:.1em;
-  color:rgba(37,99,235,.09); transform:rotate(-28deg);
-  pointer-events:none; user-select:none; text-transform:uppercase;
+  position:absolute; inset:-20% -20%; z-index:0; overflow:hidden;
+  display:flex; flex-direction:column; justify-content:space-around; align-items:center;
+  transform:rotate(-30deg); pointer-events:none; user-select:none;
 }
+.print-watermark .wm-row {
+  white-space:nowrap; font-size:13pt; font-weight:800; letter-spacing:.18em;
+  color:rgba(37,99,235,.08);
+}
+.print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
 .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
 .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.4pt; line-height:1.2; }
 .print-table th, .print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
