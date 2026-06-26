@@ -5,11 +5,9 @@ export const metadata: Metadata = {
   description: "Vocab Print Pro の特定商取引法に基づく表記です。",
 };
 
-const FILL = "【記入してください】";
-
 const rows: { label: string; value: string }[] = [
-  { label: "販売事業者", value: FILL + "（屋号または氏名）" },
-  { label: "運営責任者", value: FILL },
+  { label: "販売事業者", value: "神谷 元輝" },
+  { label: "運営責任者", value: "神谷 元輝" },
   { label: "所在地", value: "請求があり次第、遅滞なく開示します。" },
   { label: "電話番号", value: "請求があり次第、遅滞なく開示します。" },
   { label: "メールアドレス", value: "vocabprint@gmail.com" },
@@ -47,10 +45,8 @@ export default function TokushohoPage() {
         </table>
       </div>
 
-      <p className="mt-6 rounded-xl bg-amber-50 p-4 text-xs text-amber-800">
-        ※「【記入してください】」の項目は、公開前に必ず実際の情報を入力してください（特定商取引法により記載が義務付けられています）。
-        住所・電話番号は、個人事業主の場合「請求があれば遅滞なく開示する」形での記載も認められていますが、
-        プラットフォームや決済事業者によっては全項目の開示を求められる場合があります。
+      <p className="mt-6 rounded-xl bg-slate-50 p-4 text-xs text-slate-500">
+        ※ 住所・電話番号は、ご請求があり次第、遅滞なく開示いたします。開示をご希望の場合は上記メールアドレスまでご連絡ください。
       </p>
     </main>
   );
