@@ -257,8 +257,9 @@ export default function Home() {
   const [message, setMessage] = useState("");
 
   const [plan, setPlan] = useState<Plan>("free");
-  const [books, setBooks] = useState<WordBook[]>(sharedInitialBooks);
-  const [bookId, setBookId] = useState(sharedInitialBooks[0].id);
+  const [books, setBooks] = useState<WordBook[]>([]);
+  const [booksLoaded, setBooksLoaded] = useState(false);
+  const [bookId, setBookId] = useState("");
   const [startNo, setStartNo] = useState(1);
   const [endNo, setEndNo] = useState(50);
   const [count, setCount] = useState(50);
@@ -385,21 +386,28 @@ export default function Home() {
           })
         );
 
-      if (officialBooks.length === 0) return;
+      if (officialBooks.length === 0) {
+        setBooks(sharedInitialBooks);
+        setBookId(sharedInitialBooks[0].id);
+        setBooksLoaded(true);
+        return;
+      }
 
       setBooks((prev) => {
         const customBooks = prev.filter((book) => book.id.startsWith("custom-") || book.id.startsWith("wb-"));
-        // officialBooksが取得できた場合は共有の初期本と混在させない
         return [...customBooks, ...officialBooks];
       });
       setBookId((prev) => {
-        const isInitial = sharedInitialBooks.some((b) => b.id === prev);
-        return isInitial ? officialBooks[0].id : prev;
+        if (!prev || sharedInitialBooks.some((b) => b.id === prev)) return officialBooks[0].id;
+        return prev;
       });
+      setBooksLoaded(true);
     }
 
     loadOfficialWordbooks().catch(() => {
-      // Ignore fetch failures and keep bundled sample books.
+      setBooks(sharedInitialBooks);
+      setBookId(sharedInitialBooks[0].id);
+      setBooksLoaded(true);
     });
   }, []);
 
@@ -514,8 +522,8 @@ export default function Home() {
   }, []);
 
   const featuredBooks = useMemo(() => books.slice(0, 6), [books]);
-  const selectedBook = books.find((book) => book.id === bookId) ?? books[0];
-  const locked = planRank(plan) < planRank(selectedBook.requiredPlan);
+  const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
+  const locked = selectedBook ? planRank(plan) < planRank(selectedBook.requiredPlan) : false;
   const outputWords = useMemo(() => {
     let list = selectedBook.words.filter(
       (word) => word.no >= Number(startNo) && word.no <= Number(endNo)
@@ -1110,17 +1118,21 @@ export default function Home() {
             />
 
             <label className="mt-4 block text-sm font-bold">単語帳</label>
-            <select
-              value={bookId}
-              onChange={(event) => setBookId(event.target.value)}
-              className="mt-1 w-full rounded-xl border px-3 py-3 text-base"
-            >
-              {books.map((book) => (
-                <option key={book.id} value={book.id}>
-                  {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
-                </option>
-              ))}
-            </select>
+            {!booksLoaded ? (
+              <div className="mt-1 w-full rounded-xl border px-3 py-3 text-base text-slate-400">読み込み中...</div>
+            ) : (
+              <select
+                value={bookId}
+                onChange={(event) => setBookId(event.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-3 text-base"
+              >
+                {books.map((book) => (
+                  <option key={book.id} value={book.id}>
+                    {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} />
