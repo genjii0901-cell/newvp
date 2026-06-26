@@ -3,7 +3,7 @@ import Link from "next/link";
 import "./globals.css";
 import Nav from "@/components/nav";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://newvp.vercel.app";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://vocabprint.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
