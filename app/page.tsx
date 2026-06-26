@@ -1452,7 +1452,7 @@ export default function Home() {
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="初月無料。Pro単語帳・マイ単語帳保存・履歴・無制限作成・印刷無制限。"
+            text="初月無料（カード登録で30日間無料・いつでも解約OK）。Pro単語帳・マイ単語帳保存・履歴・無制限作成・印刷無制限。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}

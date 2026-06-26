@@ -80,9 +80,8 @@ export async function POST(request: Request) {
 
     if (grantTrial) {
       body.append("subscription_data[trial_period_days]", String(TRIAL_DAYS));
-      // カードは任意。トライアル終了時にカード未登録なら自動でフリーへ（勝手に課金しない）
-      body.append("payment_method_collection", "if_required");
-      body.append("subscription_data[trial_settings][end_behavior][missing_payment_method]", "cancel");
+      // カード登録は必須（デフォルト）。30日間は無料、その後 自動で課金開始。
+      // 解約すれば次回課金されず、webhookでFreeに戻る。
       body.append("metadata[trial]", "1");
       body.append("subscription_data[metadata][trial]", "1");
     }
