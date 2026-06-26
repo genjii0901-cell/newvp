@@ -725,6 +725,7 @@ export default function Home() {
       includeDate,
       generatedAt: now,
       expiresAt,
+      userEmail: user.email ?? "",
       titleOffsetX: titleOffset.x,
       titleOffsetY: titleOffset.y,
       dateOffsetX: dateOffset.x,
@@ -819,6 +820,7 @@ export default function Home() {
       includeDate,
       generatedAt: now,
       expiresAt,
+      userEmail: user?.email ?? "",
       titleOffsetX: titleOffset.x,
       titleOffsetY: titleOffset.y,
       dateOffsetX: dateOffset.x,
@@ -1793,6 +1795,7 @@ function buildPrintHtml({
   includeDate,
   generatedAt,
   expiresAt,
+  userEmail = "",
   titleOffsetX = 0,
   titleOffsetY = 0,
   dateOffsetX = 0,
@@ -1812,6 +1815,7 @@ function buildPrintHtml({
   plan: Plan;
   printStyle: PrintStyle;
   includeWatermark: boolean;
+  userEmail?: string;
   showRecordFields: boolean;
   showClassField: boolean;
   showNumberField: boolean;
@@ -1864,10 +1868,13 @@ function buildPrintHtml({
   const showDateHeader = showRecordFields && includeDate;
   const dateStr = showDateHeader ? formatPrintDate(generatedAt) : "";
 
+  // 透かし: 有料は購入者メール入り（流出・編集の抑止＝誰のものか残す）、無料はFREE表記
   const watermark = includeWatermark || plan === "free"
     ? plan === "free"
-      ? "FREE / 1 PAGE / REPRINT IN 7 DAYS"
-      : "Vocab Print Pro"
+      ? "FREE ・ 1ページのみ ・ 24時間有効"
+      : userEmail
+        ? userEmail
+        : "Vocab Print Pro"
     : "";
 
   return `<style>${printCss}</style>` + pages
@@ -1924,7 +1931,7 @@ function buildPrintHtml({
         <footer>
           <span></span>
           <span${pageNoStyle ? ` style="${pageNoStyle}"` : ""}>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span>
-          <span>${escapeHtml("Vocab Print Pro ・ 印刷有効期限 " + formatPrintDateTime(expiresAt) + " まで")}</span>
+          <span>${escapeHtml((userEmail ? userEmail + " ・ " : "") + "印刷有効期限 " + formatPrintDateTime(expiresAt) + " まで")}</span>
         </footer>
       </section>`;
     })
