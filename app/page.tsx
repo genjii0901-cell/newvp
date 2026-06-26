@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
+import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 
 type Word = {
   no: number;
@@ -737,32 +738,20 @@ export default function Home() {
       pageNoOffsetY: pageNoOffset.y,
     });
 
-    const safeTitle = fullTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
-    // コピー防止: テキスト選択・右クリック・コピー/切り取り・ドラッグを抑止
-    const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
-    const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","s","p","u"].indexOf((e.key||"").toLowerCase())>-1){if((e.key||"").toLowerCase()!=="p"){e.preventDefault();return false;}}});})();<\/script>`;
-    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+    // 画面用CSSへ差し替えて原寸レンダリング → 画像化 → ロックPDFをダウンロード
+    const screenBody = html.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
+    const lockedDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"></head><body style="margin:0">${screenBody}</body></html>`;
+    const safeFileName = (fullTitle.replace(/[\\/:*?"<>|]+/g, "_").trim() || "wordbook") + ".pdf";
 
-    // 隠しiframeで印刷 — 新しいタブを開かない
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
-    document.body.appendChild(iframe);
-    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(fullDoc);
-      iframeDoc.close();
-      iframe.contentWindow?.focus();
-      setTimeout(() => {
-        try { iframe.contentWindow?.print(); } catch { /* ignore */ }
-        setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
-      }, 400);
-    } else {
-      iframe.remove();
+    setPdfMessage("保護されたPDFを作成中です…（数秒かかります）");
+    try {
+      await downloadLockedPdf(lockedDoc, safeFileName, true);
+      setPdfMessage("🔒 保護されたPDFをダウンロードしました（編集・コピー不可・印刷のみ可）。");
+    } catch (error) {
+      console.error("Locked PDF generation failed", error);
+      setPdfMessage("PDF作成に失敗しました。もう一度お試しください。");
+      return;
     }
-
-    setPdfMessage("印刷ダイアログが開けます。");
 
     setHistory([
       `${formatPrintDate(now)}・${sourceLabel} / ${type} / ${printWordsList.length}語（${formatPrintDate(expiresAt)}まで）`,
@@ -1331,7 +1320,7 @@ export default function Home() {
                 onClick={printPdf}
                 className="flex-1 rounded-2xl bg-blue-600 px-4 py-4 sm:py-3 text-base sm:text-sm font-black text-white hover:bg-blue-700 active:bg-blue-800"
               >
-                単語テストを作成
+                🔒 保護PDFを作成
               </button>
               <button
                 type="button"
@@ -1432,7 +1421,7 @@ export default function Home() {
                 onClick={printPastedPdf}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
               >
-                このまま単語テストを作成
+                🔒 このまま保護PDFを作成
               </button>
               <button
                 type="button"
@@ -1696,7 +1685,7 @@ export default function Home() {
                     onClick={() => { setShowPreview(false); void printPdf(); }}
                     className="w-full rounded-2xl bg-blue-600 py-3 text-sm font-black text-white hover:bg-blue-700"
                   >
-                    この設定で印刷
+                    🔒 この設定で保護PDFを作成
                   </button>
                   <button
                     type="button"
