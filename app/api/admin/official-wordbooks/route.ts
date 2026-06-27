@@ -5,6 +5,7 @@ import {
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
+import { requireAdmin } from "@/lib/admin-auth";
 
 type IncomingWord = {
   number?: string | number;
@@ -20,25 +21,8 @@ type Visibility = "public" | "personal" | "teacher" | "admin";
 
 type DbError = { message?: string } | null | undefined;
 
-function checkAdminPassword(request: Request) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) {
-    return NextResponse.json(
-      { ok: false, message: "ADMIN_PASSWORD is not configured." },
-      { status: 500 }
-    );
-  }
-
-  const supplied = request.headers.get("x-admin-password") ?? "";
-  if (supplied !== adminPassword) {
-    return NextResponse.json(
-      { ok: false, message: "管理者パスワードが違います。" },
-      { status: 401 }
-    );
-  }
-
-  return null;
-}
+// 認証はトークン方式（ログイン時にパスワード＋2要素を検証して発行）に統一
+const checkAdminPassword = requireAdmin;
 
 function cleanWordList(words: IncomingWord[]) {
   return words

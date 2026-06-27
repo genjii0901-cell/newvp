@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
-
-function checkAdminPassword(request: Request) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return NextResponse.json({ ok: false, message: "ADMIN_PASSWORD未設定" }, { status: 500 });
-  const supplied = request.headers.get("x-admin-password") ?? "";
-  if (supplied !== adminPassword) return NextResponse.json({ ok: false, message: "認証失敗" }, { status: 401 });
-  return null;
-}
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(request: Request) {
-  const unauthorized = checkAdminPassword(request);
+  const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   if (!isSupabaseServerConfigured()) {

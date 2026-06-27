@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
-
-function checkAdminPassword(request: Request) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return NextResponse.json({ ok: false, message: "ADMIN_PASSWORD未設定" }, { status: 500 });
-  const supplied = request.headers.get("x-admin-password") ?? "";
-  if (supplied !== adminPassword) return NextResponse.json({ ok: false, message: "認証失敗" }, { status: 401 });
-  return null;
-}
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
-  const unauthorized = checkAdminPassword(request);
+  const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   if (!isSupabaseServerConfigured()) {
@@ -26,6 +19,10 @@ export async function POST(request: Request) {
     const allowed = ["jpg", "jpeg", "png", "webp", "gif", "avif"];
     if (!allowed.includes(ext)) {
       return NextResponse.json({ ok: false, message: `対応形式: ${allowed.join(", ")}` }, { status: 400 });
+    }
+    // 拡張子だけでなくMIMEタイプも画像であることを確認（偽装アップロード対策）
+    if (file.type && !file.type.startsWith("image/")) {
+      return NextResponse.json({ ok: false, message: "画像ファイルのみアップロードできます。" }, { status: 400 });
     }
 
     const maxMb = 5;

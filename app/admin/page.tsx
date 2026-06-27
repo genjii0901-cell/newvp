@@ -265,6 +265,7 @@ export default function AdminPage() {
     if (typeof window === "undefined") return "";
     return sessionStorage.getItem("vpp-admin-pw") ?? "";
   });
+  const [authCode, setAuthCode] = useState("");
   const [authMsg, setAuthMsg] = useState("");
 
   const [tab, setTab] = useState<"create" | "manage" | "pdf">("create");
@@ -358,12 +359,16 @@ export default function AdminPage() {
     const res = await fetch("/api/admin/auth/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ password, code: authCode }),
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok || !result.ok) { setAuthMsg(result.message ?? "認証失敗"); return; }
+    // 以降のAPIはトークンで認証する（x-admin-passwordヘッダーにトークンを入れる）
+    const token = typeof result.token === "string" ? result.token : password;
     sessionStorage.setItem("vpp-admin-unlocked", "1");
-    sessionStorage.setItem("vpp-admin-pw", password);
+    sessionStorage.setItem("vpp-admin-pw", token);
+    setPassword(token);
+    setAuthCode("");
     setUnlocked(true);
   }
 
@@ -582,7 +587,7 @@ export default function AdminPage() {
           <div className="text-center mb-8">
             <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-black text-white shadow-lg">VP</span>
             <h1 className="mt-4 text-2xl font-black text-slate-900">管理者ログイン</h1>
-            <p className="mt-2 text-sm text-slate-500">ADMIN_PASSWORD を入力してください</p>
+            <p className="mt-2 text-sm text-slate-500">パスワードと認証アプリの6桁コードを入力してください</p>
           </div>
           <div className="rounded-3xl border bg-white p-8 shadow-sm">
             <input
@@ -594,6 +599,17 @@ export default function AdminPage() {
               autoFocus
               className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
+            <input
+              value={authCode}
+              onChange={(e) => setAuthCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+              onKeyDown={(e) => e.key === "Enter" && unlock()}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="認証コード（6桁）"
+              className="mt-3 w-full rounded-xl border px-4 py-3 text-center text-lg tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <p className="mt-2 text-xs text-slate-400">認証アプリ（Google Authenticator等）の6桁コード。未設定の場合は空欄でログインできます。</p>
             <button
               onClick={unlock}
               className="mt-4 w-full rounded-2xl bg-blue-600 py-3 font-black text-white hover:bg-blue-700 transition-colors"

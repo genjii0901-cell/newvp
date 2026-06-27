@@ -7,9 +7,23 @@ import {
 } from "@/lib/supabase/admin";
 
 type CheckoutPlan = "personal" | "teacher";
+const TEACHER_PUBLIC_ENABLED = false;
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "personal" || value === "teacher";
+}
+
+function isLiveStripeKey(value: string | undefined) {
+  return Boolean(value && value.startsWith("sk_live_"));
+}
+
+function isProductionHost(appUrl: string) {
+  try {
+    const host = new URL(appUrl).hostname.toLowerCase();
+    return host === "vocabprint.com" || host === "www.vocabprint.com";
+  } catch {
+    return false;
+  }
 }
 
 function getPriceId(plan: CheckoutPlan) {
@@ -34,6 +48,13 @@ export async function POST(request: Request) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
     const priceId = getPriceId(plan);
 
+    if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
+      return NextResponse.json(
+        { ok: false, error: "Teacher plan is not publicly available yet." },
+        { status: 503 }
+      );
+    }
+
     if (!stripeSecretKey || !priceId) {
       return NextResponse.json(
         {
@@ -42,6 +63,17 @@ export async function POST(request: Request) {
             "Stripe設定が未完了です。Vercelまたは.env.localに STRIPE_SECRET_KEY / STRIPE_PRICE_PERSONAL / STRIPE_PRICE_TEACHER を設定してください。",
         },
         { status: 500 }
+      );
+    }
+
+    if (isProductionHost(appUrl) && !isLiveStripeKey(stripeSecretKey)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "本番ドメインでは live Stripe key が必要です。テストキーでは課金を開始できません。",
+        },
+        { status: 503 }
       );
     }
 

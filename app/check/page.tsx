@@ -20,8 +20,8 @@ const checks = [
   },
   {
     label: "Stripe Teacher Price",
-    value: Boolean(process.env.STRIPE_PRICE_TEACHER ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_TEACHER),
-    env: "STRIPE_PRICE_TEACHER / NEXT_PUBLIC_STRIPE_PRICE_TEACHER",
+    value: true,
+    env: "Teacher is currently private / preparing",
   },
   { label: "Stripe Webhook Secret", value: Boolean(process.env.STRIPE_WEBHOOK_SECRET), env: "STRIPE_WEBHOOK_SECRET" },
   { label: "Admin Password", value: Boolean(process.env.ADMIN_PASSWORD), env: "ADMIN_PASSWORD" },
@@ -60,13 +60,13 @@ export default function CheckPage() {
           </p>
           <p className="mt-2 text-sm text-slate-500">
             「Supabase server environment variables are not configured.」が出る場合は、
-            主に NEXT_PUBLIC_SUPABASE_URL と SUPABASE_SERVICE_ROLE_KEY が未設定です。
+            主に `NEXT_PUBLIC_SUPABASE_URL` と `SUPABASE_SERVICE_ROLE_KEY` を確認してください。
             Service Role Key は秘密キーなので、チャットには貼らず Vercel の Environment Variables か
-            ローカルの .env.local に入れてください。
+            ローカルの `.env.local` に入れてください。
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {checks.map((item) => (
-              <div key={item.env} className="rounded-2xl border p-4">
+              <div key={item.label} className="rounded-2xl border p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="font-black">{item.label}</p>
