@@ -1,5 +1,8 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
+
+const TOTP_SETTING_KEY = "admin_totp_secret";
 
 // 管理画面の認証：
 // - ログイン時にパスワード＋TOTP(2要素)を検証し、署名付きトークンを発行
@@ -19,6 +22,57 @@ function hmacHex(data: string, key: string) {
 
 export function isTwoFactorEnabled() {
   return Boolean(process.env.ADMIN_TOTP_SECRET);
+}
+
+/** TOTP秘密鍵を取得（環境変数優先、無ければDBのapp_settings）。 */
+export async function getAdminTotpSecret(): Promise<string | null> {
+  const envSecret = process.env.ADMIN_TOTP_SECRET;
+  if (envSecret) return envSecret;
+  if (!isSupabaseServerConfigured()) return null;
+  try {
+    const sb = getSupabaseAdmin();
+    const { data } = await sb
+      .from("app_settings")
+      .select("value")
+      .eq("key", TOTP_SETTING_KEY)
+      .maybeSingle();
+    const value = (data as { value?: unknown } | null)?.value;
+    return typeof value === "string" && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 新しいTOTP秘密鍵を生成してDBに保存。保存できたら秘密鍵を返す。 */
+export async function saveAdminTotpSecret(secret: string): Promise<boolean> {
+  if (!isSupabaseServerConfigured()) return false;
+  try {
+    const sb = getSupabaseAdmin();
+    const { error } = await sb
+      .from("app_settings")
+      .upsert({ key: TOTP_SETTING_KEY, value: secret }, { onConflict: "key" });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/** ランダムなBase32秘密鍵を生成（認証アプリ互換）。 */
+export function generateBase32Secret(bytes = 20): string {
+  const buf = crypto.randomBytes(bytes);
+  let out = "";
+  let bits = 0;
+  let value = 0;
+  for (const b of buf) {
+    value = (value << 8) | b;
+    bits += 8;
+    while (bits >= 5) {
+      out += BASE32[(value >>> (bits - 5)) & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) out += BASE32[(value << (5 - bits)) & 31];
+  return out;
 }
 
 export function issueAdminToken(): string {

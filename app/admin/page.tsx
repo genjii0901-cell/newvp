@@ -268,6 +268,11 @@ export default function AdminPage() {
   const [authCode, setAuthCode] = useState("");
   const [authMsg, setAuthMsg] = useState("");
 
+  /* 2FA */
+  const [twoFaEnabled, setTwoFaEnabled] = useState<boolean | null>(null);
+  const [twoFaSecret, setTwoFaSecret] = useState("");
+  const [twoFaMsg, setTwoFaMsg] = useState("");
+
   const [tab, setTab] = useState<"create" | "manage" | "pdf">("create");
 
   /* create */
@@ -344,7 +349,7 @@ export default function AdminPage() {
     setLoadingBooks(false);
   }
 
-  useEffect(() => { if (unlocked) { fetchBooks(); } }, [unlocked]);
+  useEffect(() => { if (unlocked) { fetchBooks(); loadTwoFaStatus(); } }, [unlocked]);
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
   useEffect(() => { if (unlocked && (tab === "manage" || tab === "pdf")) { fetchBooks({ silent: true }); } }, [tab]);
   useEffect(() => {
@@ -377,6 +382,25 @@ export default function AdminPage() {
     sessionStorage.removeItem("vpp-admin-pw");
     setUnlocked(false);
     setPassword("");
+  }
+
+  async function loadTwoFaStatus() {
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const res = await fetch("/api/admin/2fa", { headers: { "x-admin-password": pw } }).catch(() => null);
+    if (!res) return;
+    const r = await res.json().catch(() => ({}));
+    if (r.ok) setTwoFaEnabled(Boolean(r.enabled));
+  }
+
+  async function setupTwoFa() {
+    setTwoFaMsg("");
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const res = await fetch("/api/admin/2fa", { method: "POST", headers: { "x-admin-password": pw } }).catch(() => null);
+    if (!res) { setTwoFaMsg("通信エラー"); return; }
+    const r = await res.json().catch(() => ({}));
+    if (!r.ok) { setTwoFaMsg(r.message ?? "設定に失敗しました"); return; }
+    setTwoFaSecret(typeof r.secret === "string" ? r.secret : "");
+    setTwoFaEnabled(true);
   }
 
   /* 笏笏 create 笏笏 */
@@ -649,6 +673,38 @@ export default function AdminPage() {
       </div>
 
       <div className="mx-auto max-w-7xl px-5 py-6">
+        {/* 二段階認証(2FA) */}
+        <div className="mb-4 rounded-2xl border bg-white p-4 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black">🔐 二段階認証（2FA）</p>
+              <p className="text-xs text-slate-500">
+                {twoFaEnabled === null
+                  ? "確認中…"
+                  : twoFaEnabled
+                    ? "✅ 有効です（ログインに認証コードが必要）"
+                    : "⚠️ 未設定です。決済の本番化（セキュリティ要件）に必要です。"}
+              </p>
+            </div>
+            {twoFaEnabled === false && (
+              <button onClick={setupTwoFa} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
+                2FAを設定する
+              </button>
+            )}
+          </div>
+          {twoFaSecret && (
+            <div className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
+              <p className="font-bold">📱 認証アプリに登録してください（この画面は他人に見せないこと）</p>
+              <p className="mt-2">① アプリで「手動で入力 / セットアップキー」を選ぶ</p>
+              <p>② アカウント名は任意。次の「キー」を入力：</p>
+              <p className="mt-1 select-all break-all rounded bg-white px-2 py-2 font-mono text-sm tracking-wider">{twoFaSecret}</p>
+              <p className="mt-2">③ 6桁コードが表示されればOK。次回ログインからこのコードが必要です。</p>
+              <p className="mt-1 text-amber-700">※この鍵は一度だけ表示されます。アプリ登録後はこの画面を閉じて大丈夫です。</p>
+            </div>
+          )}
+          {twoFaMsg && <p className="mt-2 text-xs font-bold text-red-600">{twoFaMsg}</p>}
+        </div>
+
         {/* Tabs */}
         <div className="flex gap-1 rounded-2xl bg-slate-200 p-1 w-fit">
           {([

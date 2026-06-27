@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import {
   issueAdminToken,
   verifyTotp,
-  isTwoFactorEnabled,
+  getAdminTotpSecret,
   isLockedOut,
   recordFail,
   resetAttempts,
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   const password = typeof body.password === "string" ? body.password : "";
   const code = typeof body.code === "string" ? body.code : "";
 
-  const totpSecret = process.env.ADMIN_TOTP_SECRET;
+  const totpSecret = await getAdminTotpSecret();
   const passwordOk = password === adminPassword;
   // TOTP未設定なら検証をスキップ（2FA無効＝要設定）
   const totpOk = totpSecret ? verifyTotp(code, totpSecret) : true;
@@ -54,6 +54,6 @@ export async function POST(request: Request) {
   return NextResponse.json({
     ok: true,
     token,
-    twoFactorEnabled: isTwoFactorEnabled(),
+    twoFactorEnabled: Boolean(totpSecret),
   });
 }
