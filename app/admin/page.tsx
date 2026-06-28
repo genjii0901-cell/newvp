@@ -271,6 +271,7 @@ export default function AdminPage() {
   /* 2FA */
   const [twoFaEnabled, setTwoFaEnabled] = useState<boolean | null>(null);
   const [twoFaSecret, setTwoFaSecret] = useState("");
+  const [twoFaQr, setTwoFaQr] = useState("");
   const [twoFaMsg, setTwoFaMsg] = useState("");
 
   const [tab, setTab] = useState<"create" | "manage" | "pdf">("create");
@@ -401,6 +402,16 @@ export default function AdminPage() {
     if (!r.ok) { setTwoFaMsg(r.message ?? "設定に失敗しました"); return; }
     setTwoFaSecret(typeof r.secret === "string" ? r.secret : "");
     setTwoFaEnabled(true);
+    // otpauth URL をQRコード画像に変換して表示
+    if (typeof r.otpauth === "string" && r.otpauth) {
+      try {
+        const QRCode = (await import("qrcode")).default;
+        const dataUrl = await QRCode.toDataURL(r.otpauth, { width: 220, margin: 1 });
+        setTwoFaQr(dataUrl);
+      } catch {
+        setTwoFaQr("");
+      }
+    }
   }
 
   /* 笏笏 create 笏笏 */
@@ -695,8 +706,14 @@ export default function AdminPage() {
           {twoFaSecret && (
             <div className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-900">
               <p className="font-bold">📱 認証アプリに登録してください（この画面は他人に見せないこと）</p>
-              <p className="mt-2">① アプリで「手動で入力 / セットアップキー」を選ぶ</p>
-              <p>② アカウント名は任意。次の「キー」を入力：</p>
+              <p className="mt-2">① アプリで「QRコードをスキャン」を選ぶ</p>
+              <p>② 下のQRコードを読み取る：</p>
+              {twoFaQr ? (
+                <img src={twoFaQr} alt="2FA QRコード" className="mt-2 rounded bg-white p-2" width={220} height={220} />
+              ) : (
+                <p className="mt-2 text-amber-700">QR生成中…</p>
+              )}
+              <p className="mt-2">QRが読めない場合は「手動入力」でこのキー：</p>
               <p className="mt-1 select-all break-all rounded bg-white px-2 py-2 font-mono text-sm tracking-wider">{twoFaSecret}</p>
               <p className="mt-2">③ 6桁コードが表示されればOK。次回ログインからこのコードが必要です。</p>
               <p className="mt-1 text-amber-700">※この鍵は一度だけ表示されます。アプリ登録後はこの画面を閉じて大丈夫です。</p>
