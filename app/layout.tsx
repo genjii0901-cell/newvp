@@ -30,6 +30,37 @@ export const metadata: Metadata = {
   },
 };
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${siteUrl}/#website`,
+      url: siteUrl,
+      name: "Vocab Print Pro",
+      inLanguage: "ja",
+      description:
+        "単語帳を選ぶだけで、英単語テスト・一覧・解答のA4 PDFを自動生成するサービス。",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Vocab Print Pro",
+      applicationCategory: "EducationalApplication",
+      operatingSystem: "Web",
+      url: siteUrl,
+      inLanguage: "ja",
+      description:
+        "単語帳や自作の単語リストから、英単語テスト・一覧・解答のA4 PDFを自動生成。英検・大学受験・資格試験の小テスト作成に。",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "JPY",
+        description: "無料プランあり（有料プランで機能拡張）",
+      },
+    },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,6 +69,10 @@ export default function RootLayout({
   return (
     <html lang="ja" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-slate-50">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         <Nav />
         <div className="flex-1">{children}</div>
         <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">
