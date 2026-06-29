@@ -273,6 +273,9 @@ export default function AdminPage() {
   const [twoFaSecret, setTwoFaSecret] = useState("");
   const [twoFaQr, setTwoFaQr] = useState("");
   const [twoFaMsg, setTwoFaMsg] = useState("");
+  const [twoFaCode, setTwoFaCode] = useState("");
+  const [twoFaConfirming, setTwoFaConfirming] = useState(false);
+  const [twoFaOk, setTwoFaOk] = useState(false);
 
   const [tab, setTab] = useState<"create" | "manage" | "pdf">("create");
 
@@ -400,8 +403,11 @@ export default function AdminPage() {
     if (!res) { setTwoFaMsg("通信エラー"); return; }
     const r = await res.json().catch(() => ({}));
     if (!r.ok) { setTwoFaMsg(r.message ?? "設定に失敗しました"); return; }
+    // 鍵を生成しただけでは未有効（enabled=0）。確認コード入力で有効化するまでは pending 扱い。
+    setTwoFaOk(false);
+    setTwoFaCode("");
     setTwoFaSecret(typeof r.secret === "string" ? r.secret : "");
-    setTwoFaEnabled(true);
+    setTwoFaEnabled(false);
     // otpauth URL をQRコード画像に変換して表示
     if (typeof r.otpauth === "string" && r.otpauth) {
       try {
@@ -412,6 +418,28 @@ export default function AdminPage() {
         setTwoFaQr("");
       }
     }
+  }
+
+  // 認証アプリに表示された6桁コードを送り、一致したら2FAを有効化する。
+  async function confirmTwoFa() {
+    setTwoFaMsg(""); setTwoFaOk(false);
+    const code = twoFaCode.trim();
+    if (!/^\d{6}$/.test(code)) { setTwoFaMsg("6桁の数字コードを入力してください。"); return; }
+    setTwoFaConfirming(true);
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const res = await fetch("/api/admin/2fa/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      body: JSON.stringify({ code }),
+    }).catch(() => null);
+    setTwoFaConfirming(false);
+    if (!res) { setTwoFaMsg("通信エラー"); return; }
+    const r = await res.json().catch(() => ({}));
+    if (!r.ok) { setTwoFaMsg(r.message ?? "有効化に失敗しました。"); return; }
+    setTwoFaEnabled(true);
+    setTwoFaSecret(""); setTwoFaQr(""); setTwoFaCode("");
+    setTwoFaOk(true);
+    setTwoFaMsg("✅ 2FAを有効化しました。次回ログインから認証コードが必要です。");
   }
 
   /* 笏笏 create 笏笏 */
@@ -697,9 +725,9 @@ export default function AdminPage() {
                     : "⚠️ 未設定です。決済の本番化（セキュリティ要件）に必要です。"}
               </p>
             </div>
-            {twoFaEnabled === false && (
+            {twoFaEnabled !== null && (
               <button onClick={setupTwoFa} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-                2FAを設定する
+                {twoFaEnabled ? "QRを再表示（再設定）" : "2FAを設定する"}
               </button>
             )}
           </div>
@@ -715,11 +743,29 @@ export default function AdminPage() {
               )}
               <p className="mt-2">QRが読めない場合は「手動入力」でこのキー：</p>
               <p className="mt-1 select-all break-all rounded bg-white px-2 py-2 font-mono text-sm tracking-wider">{twoFaSecret}</p>
-              <p className="mt-2">③ 6桁コードが表示されればOK。次回ログインからこのコードが必要です。</p>
-              <p className="mt-1 text-amber-700">※この鍵は一度だけ表示されます。アプリ登録後はこの画面を閉じて大丈夫です。</p>
+              <p className="mt-2">③ アプリに表示された6桁コードを入力して有効化してください：</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <input
+                  value={twoFaCode}
+                  onChange={(e) => setTwoFaCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmTwoFa(); }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                  className="w-32 rounded border border-amber-300 bg-white px-3 py-2 text-center font-mono text-lg tracking-widest"
+                />
+                <button
+                  onClick={confirmTwoFa}
+                  disabled={twoFaConfirming || twoFaCode.length !== 6}
+                  className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                >
+                  {twoFaConfirming ? "確認中…" : "有効化する"}
+                </button>
+              </div>
+              <p className="mt-2 text-amber-700">※有効化するまで2FAはかかりません。アプリ登録後、必ず上のコードで有効化してください。</p>
             </div>
           )}
-          {twoFaMsg && <p className="mt-2 text-xs font-bold text-red-600">{twoFaMsg}</p>}
+          {twoFaMsg && <p className={`mt-2 text-xs font-bold ${twoFaOk ? "text-emerald-600" : "text-red-600"}`}>{twoFaMsg}</p>}
         </div>
 
         {/* Tabs */}

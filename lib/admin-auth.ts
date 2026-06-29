@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
 
 const TOTP_SETTING_KEY = "admin_totp_secret";
+const TOTP_ENABLED_KEY = "admin_totp_enabled";
 
 // 管理画面の認証：
 // - ログイン時にパスワード＋TOTP(2要素)を検証し、署名付きトークンを発行
@@ -24,18 +25,11 @@ export function isTwoFactorEnabled() {
   return Boolean(process.env.ADMIN_TOTP_SECRET);
 }
 
-/** TOTP秘密鍵を取得（環境変数優先、無ければDBのapp_settings）。 */
-export async function getAdminTotpSecret(): Promise<string | null> {
-  const envSecret = process.env.ADMIN_TOTP_SECRET;
-  if (envSecret) return envSecret;
+async function readSetting(key: string): Promise<string | null> {
   if (!isSupabaseServerConfigured()) return null;
   try {
     const sb = getSupabaseAdmin();
-    const { data } = await sb
-      .from("app_settings")
-      .select("value")
-      .eq("key", TOTP_SETTING_KEY)
-      .maybeSingle();
+    const { data } = await sb.from("app_settings").select("value").eq("key", key).maybeSingle();
     const value = (data as { value?: unknown } | null)?.value;
     return typeof value === "string" && value.length > 0 ? value : null;
   } catch {
@@ -43,18 +37,45 @@ export async function getAdminTotpSecret(): Promise<string | null> {
   }
 }
 
-/** 新しいTOTP秘密鍵を生成してDBに保存。保存できたら秘密鍵を返す。 */
-export async function saveAdminTotpSecret(secret: string): Promise<boolean> {
+async function writeSetting(key: string, value: string): Promise<boolean> {
   if (!isSupabaseServerConfigured()) return false;
   try {
     const sb = getSupabaseAdmin();
-    const { error } = await sb
-      .from("app_settings")
-      .upsert({ key: TOTP_SETTING_KEY, value: secret }, { onConflict: "key" });
+    const { error } = await sb.from("app_settings").upsert({ key, value }, { onConflict: "key" });
     return !error;
   } catch {
     return false;
   }
+}
+
+/**
+ * ログイン認証で使う「有効な」TOTP秘密鍵。
+ * 環境変数が最優先。DBの鍵は「有効化フラグ(=スマホ登録確認済み)」が立っている時だけ有効。
+ * これにより、鍵を生成しただけ（未確認）の状態ではロックアウトしない。
+ */
+export async function getAdminTotpSecret(): Promise<string | null> {
+  const envSecret = process.env.ADMIN_TOTP_SECRET;
+  if (envSecret) return envSecret;
+  const enabled = await readSetting(TOTP_ENABLED_KEY);
+  if (enabled !== "1") return null;
+  return await readSetting(TOTP_SETTING_KEY);
+}
+
+/** 設定中（未確認でも可）のTOTP秘密鍵を取得。確認コード照合用。 */
+export async function getPendingTotpSecret(): Promise<string | null> {
+  return readSetting(TOTP_SETTING_KEY);
+}
+
+/** 新しいTOTP秘密鍵を生成・保存（この時点では未有効＝まだロックしない）。 */
+export async function saveAdminTotpSecret(secret: string): Promise<boolean> {
+  const ok1 = await writeSetting(TOTP_SETTING_KEY, secret);
+  const ok2 = await writeSetting(TOTP_ENABLED_KEY, "0");
+  return ok1 && ok2;
+}
+
+/** スマホ登録の確認が取れたら2FAを有効化（以降ログインにコード必須）。 */
+export async function enableAdminTotp(): Promise<boolean> {
+  return writeSetting(TOTP_ENABLED_KEY, "1");
 }
 
 /** ランダムなBase32秘密鍵を生成（認証アプリ互換）。 */
