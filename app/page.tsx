@@ -90,6 +90,11 @@ export default function HomePage() {
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [showPageNo, setShowPageNo] = useState(true);
   const [random, setRandom] = useState(false);
+  const [showRecordFields, setShowRecordFields] = useState(true);
+  const [includeDate, setIncludeDate] = useState(true);
+  const [studentClass, setStudentClass] = useState("");
+  const [studentNumber, setStudentNumber] = useState("");
+  const [studentName, setStudentName] = useState("");
   const [startNo, setStartNo] = useState(1);
   const [endNo, setEndNo] = useState(50);
   const [questionCount, setQuestionCount] = useState(50);
@@ -387,14 +392,14 @@ export default function HomePage() {
       plan: serverPlan,
       printStyle,
       includeWatermark: false,
-      showRecordFields: true,
+      showRecordFields,
       showClassField: true,
       showNumberField: true,
       showNameField: true,
-      studentClass: "",
-      studentNumber: "",
-      studentName: "",
-      includeDate: true,
+      studentClass,
+      studentNumber,
+      studentName,
+      includeDate,
       generatedAt: new Date(),
       expiresAt: serverPlan === "free" ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) : undefined,
     });
@@ -703,7 +708,32 @@ export default function HomePage() {
                   <input type="checkbox" checked={showPageNo} onChange={(e) => setShowPageNo(e.target.checked)} />
                   ページ番号を表示
                 </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={showRecordFields} onChange={(e) => setShowRecordFields(e.target.checked)} />
+                  記入欄（クラス・番号・氏名）
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={includeDate} onChange={(e) => setIncludeDate(e.target.checked)} />
+                  日付欄
+                </label>
               </div>
+
+              {showRecordFields && (
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <label className="text-sm font-bold">
+                    クラス
+                    <input value={studentClass} onChange={(e) => setStudentClass(e.target.value)} placeholder="空欄＝手書き用" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-normal" />
+                  </label>
+                  <label className="text-sm font-bold">
+                    番号
+                    <input value={studentNumber} onChange={(e) => setStudentNumber(e.target.value)} placeholder="空欄＝手書き用" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-normal" />
+                  </label>
+                  <label className="text-sm font-bold">
+                    氏名
+                    <input value={studentName} onChange={(e) => setStudentName(e.target.value)} placeholder="空欄＝手書き用" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-normal" />
+                  </label>
+                </div>
+              )}
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <button onClick={openPrint} className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700">
