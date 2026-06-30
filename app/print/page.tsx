@@ -164,7 +164,14 @@ export default function PrintPage() {
         </div>
       ) : (
         <div className="paper-wrap">
-          <div className="paper-preview" dangerouslySetInnerHTML={{ __html: job.html }} />
+          <div
+            className="paper-preview"
+            onCopy={(e) => e.preventDefault()}
+            onCut={(e) => e.preventDefault()}
+            onContextMenu={(e) => e.preventDefault()}
+            style={{ WebkitUserSelect: "none", userSelect: "none" }}
+            dangerouslySetInnerHTML={{ __html: job.html }}
+          />
         </div>
       )}
     </main>

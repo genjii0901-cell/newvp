@@ -97,6 +97,8 @@ export default function HomePage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [fileMsg, setFileMsg] = useState("");
+  const [dragOver, setDragOver] = useState(false);
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
     personal: false,
     teacher: false,
@@ -244,6 +246,36 @@ export default function HomePage() {
     await supabase.auth.signOut();
     setPlan("free");
     setMessage("ログアウトしました。");
+  }
+
+  // CSV / TSV / TXT / Excel(.xlsx) ファイルを読み込み、自作単語帳の入力欄へ展開する。
+  async function handleWordFile(file: File) {
+    setFileMsg("");
+    const name = file.name.toLowerCase();
+    try {
+      if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+        const buffer = await file.arrayBuffer();
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, { header: 1, blankrows: false });
+        const text = rows
+          .filter((row) => Array.isArray(row) && row.length >= 2)
+          .map((row) => [row[0] ?? "", row[1] ?? "", row[2] ?? "", row[3] ?? ""].join("\t"))
+          .join("\n");
+        setCustomPaste(text);
+      } else if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {
+        setCustomPaste(await file.text());
+      } else {
+        setFileMsg("対応形式は CSV / TSV / TXT / Excel(.xlsx) です。");
+        return;
+      }
+      setUseCustomWords(true);
+      setCustomTitle(file.name.replace(/\.[^.]+$/, "") || "自作単語帳");
+      setFileMsg(`読み込みました：${file.name}`);
+    } catch {
+      setFileMsg("ファイルを読み込めませんでした。形式をご確認ください。");
+    }
   }
 
   async function startCheckout(targetPlan: PaidPlan) {
@@ -522,7 +554,7 @@ export default function HomePage() {
                     checked={useCustomWords}
                     onChange={(e) => setUseCustomWords(e.target.checked)}
                   />
-                  Excel / CSVを貼り付けて自作する
+                  Excel / CSVファイルや貼り付けで自作する
                 </label>
               </div>
 
@@ -571,13 +603,42 @@ export default function HomePage() {
                     placeholder="単語帳タイトル"
                     className="rounded-xl border px-3 py-2 text-sm"
                   />
+                  <label
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOver(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleWordFile(file);
+                    }}
+                    className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed px-4 py-6 text-center text-sm transition ${
+                      dragOver ? "border-blue-500 bg-blue-50" : "border-slate-300 bg-slate-50 hover:border-blue-400"
+                    }`}
+                  >
+                    <span className="font-bold text-slate-700">ファイルから読み込み</span>
+                    <span className="text-xs text-slate-500">
+                      CSV / TSV / TXT / Excel(.xlsx) をドラッグ＆ドロップ、またはクリックして選択
+                    </span>
+                    <input
+                      type="file"
+                      accept=".csv,.tsv,.txt,.xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleWordFile(file);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  {fileMsg && <p className="text-xs font-bold text-blue-700">{fileMsg}</p>}
                   <textarea
                     value={customPaste}
                     onChange={(e) => setCustomPaste(e.target.value)}
                     className="h-48 rounded-2xl border p-3 font-mono text-sm"
                   />
                   <p className="text-xs text-slate-500">
-                    形式: number,english,japanese,unit
+                    形式: number, english, japanese, unit（カンマ または タブ区切り。1行目の見出しは自動で除外）
                   </p>
                 </div>
               )}
@@ -670,7 +731,13 @@ export default function HomePage() {
                 <h2 className="text-xl font-black">プレビュー</h2>
                 <span className="text-sm text-slate-500">{filteredWords.length}語</span>
               </div>
-              <div className="mt-4 overflow-hidden rounded-2xl border">
+              <div
+                className="mt-4 select-none overflow-hidden rounded-2xl border"
+                onCopy={(e) => e.preventDefault()}
+                onCut={(e) => e.preventDefault()}
+                onContextMenu={(e) => e.preventDefault()}
+                style={{ WebkitUserSelect: "none", userSelect: "none" }}
+              >
                 <table className="w-full table-fixed border-collapse text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
@@ -697,6 +764,9 @@ export default function HomePage() {
                   </tbody>
                 </table>
               </div>
+              <p className="mt-2 text-xs text-slate-400">
+                ※プレビューはコピー防止のため選択できません。印刷／PDF出力でご利用ください。
+              </p>
             </section>
           </div>
         </div>
