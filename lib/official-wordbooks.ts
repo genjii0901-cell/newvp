@@ -128,7 +128,7 @@ export function fallbackOfficialWordbooksForApi(): OfficialWordbookApiShape[] {
   }));
 }
 
-function normalizeBookTitle(title: string | undefined) {
+export function normalizeBookTitle(title: string | undefined) {
   return (title ?? "").trim().toLowerCase();
 }
 

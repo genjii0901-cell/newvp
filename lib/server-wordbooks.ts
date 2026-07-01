@@ -1,4 +1,8 @@
-import { fallbackOfficialWordbooksForApi, mergeWordbooksById } from "@/lib/official-wordbooks";
+import {
+  fallbackOfficialWordbooksForApi,
+  mergeWordbooksById,
+  normalizeBookTitle,
+} from "@/lib/official-wordbooks";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 type Visibility = "public" | "personal" | "teacher" | "private" | "admin";
@@ -29,6 +33,30 @@ export type LiveWordbook = {
   level: string;
   words: Array<{ no: number; english: string; japanese: string; unit: string | null }>;
 };
+
+function dedupeWordbooksByTitle(wordbooks: LiveWordbook[]) {
+  const deduped = new Map<string, LiveWordbook>();
+
+  for (const book of wordbooks) {
+    const titleKey = normalizeBookTitle(book.title) || book.id;
+    const existing = deduped.get(titleKey);
+    if (!existing) {
+      deduped.set(titleKey, book);
+      continue;
+    }
+
+    const shouldReplace =
+      book.words.length > existing.words.length ||
+      (book.words.length === existing.words.length &&
+        String(book.description ?? "").length > String(existing.description ?? "").length);
+
+    if (shouldReplace) {
+      deduped.set(titleKey, book);
+    }
+  }
+
+  return Array.from(deduped.values());
+}
 
 function normalizeVisibility(value: string | null | undefined): Visibility {
   if (value === "teacher" || value === "personal" || value === "private" || value === "admin") {
@@ -156,6 +184,8 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean }
     };
   });
 
+  const dedupedLiveBooks = dedupeWordbooksByTitle(liveBooks);
+
   const fallbackBooks: LiveWordbook[] = fallbackOfficialWordbooksForApi().map((book) => ({
     ...book,
     visibility: book.visibility,
@@ -164,6 +194,6 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean }
   return {
     ok: true as const,
     error: null,
-    wordbooks: mergeWordbooksById(liveBooks, fallbackBooks),
+    wordbooks: mergeWordbooksById(dedupedLiveBooks, fallbackBooks),
   };
 }
