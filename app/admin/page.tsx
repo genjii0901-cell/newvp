@@ -804,10 +804,13 @@ export default function AdminPage() {
         for (const page of rendered.pages) {
           canvases.push(await html2canvas(page, {
             backgroundColor: "#ffffff",
-            scale: 2,
+            scale: 3,
             useCORS: true,
             logging: false,
-            windowWidth: 820,
+            foreignObjectRendering: true,
+            removeContainer: true,
+            windowWidth: Math.ceil(page.scrollWidth || page.clientWidth || 820),
+            windowHeight: Math.ceil(page.scrollHeight || page.clientHeight || 1123),
           }));
         }
       } finally {
