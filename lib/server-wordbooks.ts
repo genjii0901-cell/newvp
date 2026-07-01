@@ -129,29 +129,36 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean; 
 
   let words: WordRow[] = [];
   if (ids.length > 0) {
-    const wordQueries = [
-      () =>
-        supabase
-          .from("words")
-          .select("wordbook_id,number,english,japanese,unit")
-          .in("wordbook_id", ids)
-          .order("number", { ascending: true }),
-      () =>
-        supabase
-          .from("words")
-          .select("wordbook_id,number,english,japanese")
-          .in("wordbook_id", ids),
-      () =>
-        supabase
-          .from("words")
-          .select("wordbook_id,english,japanese")
-          .in("wordbook_id", ids),
+    // Supabase/PostgREST は1リクエスト最大1000行。全単語帳の合計語数が1000を超えると
+    // 打ち切られ、各単語帳の語数が誤って配分される（合計が常に1000になる）。
+    // range でページングして全行を取得する。
+    const PAGE = 1000;
+    const selectVariants = [
+      "wordbook_id,number,english,japanese,unit",
+      "wordbook_id,number,english,japanese",
+      "wordbook_id,english,japanese",
     ];
 
-    for (const run of wordQueries) {
-      const result = await run();
-      if (!result.error) {
-        words = (result.data as WordRow[] | null) ?? [];
+    for (const select of selectVariants) {
+      const acc: WordRow[] = [];
+      let failed = false;
+      for (let from = 0; ; from += PAGE) {
+        const result = await supabase
+          .from("words")
+          .select(select)
+          .in("wordbook_id", ids)
+          .order("wordbook_id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        if (result.error) {
+          failed = true;
+          break;
+        }
+        const pageRows = (result.data as unknown as WordRow[] | null) ?? [];
+        acc.push(...pageRows);
+        if (pageRows.length < PAGE) break;
+      }
+      if (!failed) {
+        words = acc;
         break;
       }
     }
