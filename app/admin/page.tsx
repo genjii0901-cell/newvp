@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import {
   buildPrintHtml,
   makeQuestion,
@@ -310,6 +310,14 @@ export default function AdminPage() {
   const [pdfStudentClass, setPdfStudentClass] = useState("");
   const [pdfStudentNumber, setPdfStudentNumber] = useState("");
   const [pdfStudentName, setPdfStudentName] = useState("");
+  const [pdfTitleOffset, setPdfTitleOffset] = useState({ x: 0, y: 0 });
+  const [pdfDateOffset, setPdfDateOffset] = useState({ x: 0, y: 0 });
+  const [pdfInfoOffset, setPdfInfoOffset] = useState({ x: 0, y: 0 });
+  const [pdfGridOffset, setPdfGridOffset] = useState({ x: 0, y: 0 });
+  const [pdfPageNoOffset, setPdfPageNoOffset] = useState({ x: 0, y: 0 });
+  const [showLayoutEditor, setShowLayoutEditor] = useState(false);
+  const [dragging, setDragging] = useState<"title" | "date" | "info" | "grid" | "pageNo" | null>(null);
+  const [dragStart, setDragStart] = useState<{ cx: number; cy: number; ox: number; oy: number } | null>(null);
   const [pdfMsg, setPdfMsg] = useState("");
   const [exportingAction, setExportingAction] = useState<string | null>(null);
   const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -579,9 +587,19 @@ export default function AdminPage() {
       userEmail: "",
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
+      titleOffsetX: pdfTitleOffset.x,
+      titleOffsetY: pdfTitleOffset.y,
+      dateOffsetX: pdfDateOffset.x,
+      dateOffsetY: pdfDateOffset.y,
+      infoOffsetX: pdfInfoOffset.x,
+      infoOffsetY: pdfInfoOffset.y,
+      gridOffsetX: pdfGridOffset.x,
+      gridOffsetY: pdfGridOffset.y,
+      pageNoOffsetX: pdfPageNoOffset.x,
+      pageNoOffsetY: pdfPageNoOffset.y,
     });
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${previewCss}</style></head><body><div id="print-root">${html}</div></body></html>`;
-  }, [selectedPdfBook, pdfOutputWords, pdfType, pdfDir, pdfShowPageNo, pdfPrintStyle, pdfWatermark, pdfShowRecord, pdfClass, pdfNumber, pdfName, pdfStudentClass, pdfStudentNumber, pdfStudentName, pdfDate, pdfTitle, pdfFooterText, pdfFontScale]);
+  }, [selectedPdfBook, pdfOutputWords, pdfType, pdfDir, pdfShowPageNo, pdfPrintStyle, pdfWatermark, pdfShowRecord, pdfClass, pdfNumber, pdfName, pdfStudentClass, pdfStudentNumber, pdfStudentName, pdfDate, pdfTitle, pdfFooterText, pdfFontScale, pdfTitleOffset, pdfDateOffset, pdfInfoOffset, pdfGridOffset, pdfPageNoOffset]);
 
   useEffect(() => {
     if (selectedPdfBook) {
@@ -593,6 +611,33 @@ export default function AdminPage() {
     }
     // 単語帳を切り替えた時、または選択中の単語帳の語数が変わった時（編集後の再取得など）に範囲を初期化
   }, [pdfBookId, selectedPdfBook?.words.length]);
+
+  useEffect(() => {
+    if (!dragging || !dragStart) return;
+    const mmPerPx = 1 / (PREVIEW_SCALE * 3.78);
+    const onMove = (event: MouseEvent) => {
+      const nextX = Math.round((dragStart.ox + (event.clientX - dragStart.cx) * mmPerPx) * 10) / 10;
+      const nextY = Math.round((dragStart.oy + (event.clientY - dragStart.cy) * mmPerPx) * 10) / 10;
+      const snap = (value: number) => (Math.abs(value) < 0.8 ? 0 : value);
+      const x = snap(nextX);
+      const y = snap(nextY);
+      if (dragging === "title") setPdfTitleOffset({ x, y });
+      else if (dragging === "date") setPdfDateOffset({ x, y });
+      else if (dragging === "grid") setPdfGridOffset({ x, y });
+      else if (dragging === "pageNo") setPdfPageNoOffset({ x, y });
+      else setPdfInfoOffset({ x, y });
+    };
+    const onUp = () => {
+      setDragging(null);
+      setDragStart(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging, dragStart]);
 
   function buildAdminPrintDocument(mode: "all" | "first" = "all") {
     if (!selectedPdfBook || pdfOutputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
@@ -619,6 +664,16 @@ export default function AdminPage() {
       userEmail: "",
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
+      titleOffsetX: pdfTitleOffset.x,
+      titleOffsetY: pdfTitleOffset.y,
+      dateOffsetX: pdfDateOffset.x,
+      dateOffsetY: pdfDateOffset.y,
+      infoOffsetX: pdfInfoOffset.x,
+      infoOffsetY: pdfInfoOffset.y,
+      gridOffsetX: pdfGridOffset.x,
+      gridOffsetY: pdfGridOffset.y,
+      pageNoOffsetX: pdfPageNoOffset.x,
+      pageNoOffsetY: pdfPageNoOffset.y,
     });
     const safeTitle = (pdfTitle.trim() || autoTitle).replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const titleBase = (pdfTitle.trim() || `${selectedPdfBook.title}-${pdfType}`).replace(/[\\/:*?"<>|]+/g, "_");
@@ -769,6 +824,16 @@ export default function AdminPage() {
     } finally {
       setExportingAction(null);
     }
+  }
+
+  function startLayoutDrag(type: "title" | "date" | "info" | "grid" | "pageNo", event: ReactMouseEvent, ox: number, oy: number) {
+    event.preventDefault();
+    setDragging(type);
+    setDragStart({ cx: event.clientX, cy: event.clientY, ox, oy });
+  }
+
+  function fmtOffset(value: number) {
+    return `${value >= 0 ? "+" : ""}${Math.round(value * 10) / 10}`;
   }
 
   /* 笏笏笏 Login screen 笏笏笏 */
@@ -1283,6 +1348,7 @@ export default function AdminPage() {
                   {[
                     { label: "ランダム", checked: pdfRandom, set: setPdfRandom },
                     { label: "ページ番号を表示", checked: pdfShowPageNo, set: setPdfShowPageNo },
+                    { label: "日付を入れる", checked: pdfDate, set: setPdfDate },
                     { label: "ウォーターマーク", checked: pdfWatermark, set: setPdfWatermark },
                   ].map(({ label, checked, set }) => (
                     <label key={label} className="flex items-center gap-2 text-sm font-bold cursor-pointer">
@@ -1308,7 +1374,6 @@ export default function AdminPage() {
                         { label: "クラス欄", checked: pdfClass, set: setPdfClass, val: pdfStudentClass, setVal: setPdfStudentClass, placeholder: "3年A組" },
                         { label: "番号欄", checked: pdfNumber, set: setPdfNumber, val: pdfStudentNumber, setVal: setPdfStudentNumber, placeholder: "12" },
                         { label: "氏名欄", checked: pdfName, set: setPdfName, val: pdfStudentName, setVal: setPdfStudentName, placeholder: "山田太郎" },
-                        { label: "日付欄", checked: pdfDate, set: setPdfDate, val: "", setVal: () => {}, placeholder: "" },
                       ]).map(({ label, checked, set, val, setVal, placeholder }) => (
                         <label key={label} className="flex items-center gap-2 text-xs font-bold cursor-pointer">
                           <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
@@ -1340,6 +1405,13 @@ export default function AdminPage() {
                   <h2 className="text-lg font-black">プレビュー</h2>
                   <div className="flex items-center gap-2 text-sm text-slate-500">
                     {selectedPdfBook && <span className="font-bold">{pdfOutputWords.length}語</span>}
+                    <button
+                      onClick={() => setShowLayoutEditor(true)}
+                      disabled={!selectedPdfBook || pdfOutputWords.length === 0}
+                      className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                    >
+                      プレビュー調整
+                    </button>
                     <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600">管理者限定 非公開</span>
                   </div>
                 </div>
@@ -1453,6 +1525,130 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      {showLayoutEditor && selectedPdfBook && pdfOutputWords.length > 0 && (() => {
+        const ppMM = PREVIEW_SCALE * 3.78;
+        const iframeW = 794;
+        const iframeH = 1123;
+        const overlayW = Math.round(iframeW * PREVIEW_SCALE);
+        const overlayH = Math.round(iframeH * PREVIEW_SCALE);
+        const hasInfoFields = pdfShowRecord && (pdfClass || pdfNumber || pdfName);
+        const titleHandleStyle: CSSProperties = {
+          position: "absolute",
+          top: Math.round((9 + pdfTitleOffset.y) * ppMM),
+          left: "12%",
+          right: "12%",
+          height: Math.round(13 * ppMM),
+          transform: `translateX(${pdfTitleOffset.x * ppMM}px)`,
+          background: "rgba(59,130,246,0.18)",
+          border: "1.5px dashed #3b82f6",
+          borderRadius: 3,
+          cursor: "move",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+        const dateHandleStyle: CSSProperties = {
+          position: "absolute",
+          top: Math.round((9 + pdfTitleOffset.y + pdfDateOffset.y) * ppMM),
+          right: Math.max(2, Math.round((9 - pdfDateOffset.x) * ppMM)),
+          width: 52,
+          height: Math.round(8 * ppMM),
+          background: "rgba(234,179,8,0.22)",
+          border: "1.5px dashed #ca8a04",
+          borderRadius: 3,
+          cursor: "move",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+        const pageNoHandleStyle: CSSProperties = {
+          position: "absolute",
+          top: Math.round((9 + 280 - 9 - 6 + pdfPageNoOffset.y) * ppMM),
+          left: "35%",
+          right: "35%",
+          height: Math.round(8 * ppMM),
+          transform: `translateX(${pdfPageNoOffset.x * ppMM}px)`,
+          background: "rgba(100,116,139,0.2)",
+          border: "1.5px dashed #64748b",
+          borderRadius: 3,
+          cursor: "move",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+        const gridHandleStyle: CSSProperties = {
+          position: "absolute",
+          top: Math.round((9 + 10 + 85 + pdfGridOffset.y) * ppMM),
+          left: "3%",
+          right: "3%",
+          height: Math.round(16 * ppMM),
+          transform: `translateX(${pdfGridOffset.x * ppMM}px)`,
+          background: "rgba(139,92,246,0.15)",
+          border: "1.5px dashed #8b5cf6",
+          borderRadius: 3,
+          cursor: "move",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+        const infoHandleStyle: CSSProperties = {
+          position: "absolute",
+          bottom: Math.round((8 + 5 + 6 + 9) * ppMM) - Math.round(pdfInfoOffset.y * ppMM),
+          left: "5%",
+          right: "5%",
+          height: Math.round(10 * ppMM),
+          transform: `translateX(${pdfInfoOffset.x * ppMM}px)`,
+          background: "rgba(16,185,129,0.18)",
+          border: "1.5px dashed #10b981",
+          borderRadius: 3,
+          cursor: "move",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        };
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onMouseLeave={() => { if (dragging) setDragging(null); }}>
+            <div className="flex max-h-[95vh] max-w-[96vw] overflow-hidden rounded-3xl bg-white shadow-2xl">
+              <div className="flex flex-col">
+                <div className="border-b px-5 py-4">
+                  <h2 className="text-lg font-black">印刷プレビュー調整</h2>
+                  <p className="mt-0.5 text-xs text-slate-400">青=タイトル / 黄=日付 / 紫=単語リスト / 緑=記録欄 / 灰=ページ番号</p>
+                </div>
+                <div className="overflow-auto p-4" style={{ background: "#e8edf2" }}>
+                  <div style={{ position: "relative", width: overlayW, height: overlayH, background: "white", boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+                    <iframe
+                      srcDoc={pdfPreviewDoc}
+                      style={{ width: iframeW, height: iframeH, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left", border: "none", display: "block", pointerEvents: "none" }}
+                    />
+                    <div style={{ position: "absolute", inset: 0 }}>
+                      <div style={titleHandleStyle} onMouseDown={(e) => startLayoutDrag("title", e, pdfTitleOffset.x, pdfTitleOffset.y)}><span style={{ fontSize: 9, color: "#3b82f6", fontWeight: 800, userSelect: "none" }}>タイトル</span></div>
+                      {pdfDate && <div style={dateHandleStyle} onMouseDown={(e) => startLayoutDrag("date", e, pdfDateOffset.x, pdfDateOffset.y)}><span style={{ fontSize: 8, color: "#92400e", fontWeight: 800, userSelect: "none" }}>日付</span></div>}
+                      <div style={gridHandleStyle} onMouseDown={(e) => startLayoutDrag("grid", e, pdfGridOffset.x, pdfGridOffset.y)}><span style={{ fontSize: 9, color: "#8b5cf6", fontWeight: 800, userSelect: "none" }}>単語リスト</span></div>
+                      {hasInfoFields && <div style={infoHandleStyle} onMouseDown={(e) => startLayoutDrag("info", e, pdfInfoOffset.x, pdfInfoOffset.y)}><span style={{ fontSize: 9, color: "#10b981", fontWeight: 800, userSelect: "none" }}>記録欄</span></div>}
+                      {pdfShowPageNo && <div style={pageNoHandleStyle} onMouseDown={(e) => startLayoutDrag("pageNo", e, pdfPageNoOffset.x, pdfPageNoOffset.y)}><span style={{ fontSize: 8, color: "#475569", fontWeight: 800, userSelect: "none" }}>ページ番号</span></div>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex w-56 flex-col border-l">
+                <div className="flex-1 space-y-4 overflow-auto p-5 text-xs">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3"><p className="mb-1 font-bold text-blue-700">タイトル</p><p className="text-slate-500">横 {fmtOffset(pdfTitleOffset.x)}mm / 縦 {fmtOffset(pdfTitleOffset.y)}mm</p></div>
+                  {pdfDate && <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-3"><p className="mb-1 font-bold text-yellow-700">日付</p><p className="text-slate-500">横 {fmtOffset(pdfDateOffset.x)}mm / 縦 {fmtOffset(pdfDateOffset.y)}mm</p></div>}
+                  <div className="rounded-xl border border-violet-100 bg-violet-50 p-3"><p className="mb-1 font-bold text-violet-700">単語リスト</p><p className="text-slate-500">横 {fmtOffset(pdfGridOffset.x)}mm / 縦 {fmtOffset(pdfGridOffset.y)}mm</p></div>
+                  {hasInfoFields && <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3"><p className="mb-1 font-bold text-emerald-700">記録欄</p><p className="text-slate-500">横 {fmtOffset(pdfInfoOffset.x)}mm / 縦 {fmtOffset(pdfInfoOffset.y)}mm</p></div>}
+                  {pdfShowPageNo && <div className="rounded-xl border border-slate-200 bg-slate-50 p-3"><p className="mb-1 font-bold text-slate-700">ページ番号</p><p className="text-slate-500">横 {fmtOffset(pdfPageNoOffset.x)}mm / 縦 {fmtOffset(pdfPageNoOffset.y)}mm</p></div>}
+                </div>
+                <div className="border-t p-4">
+                  <div className="grid gap-2">
+                    <button onClick={() => { setPdfTitleOffset({ x: 0, y: 0 }); setPdfDateOffset({ x: 0, y: 0 }); setPdfInfoOffset({ x: 0, y: 0 }); setPdfGridOffset({ x: 0, y: 0 }); setPdfPageNoOffset({ x: 0, y: 0 }); }} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">位置をリセット</button>
+                    <button onClick={() => setShowLayoutEditor(false)} className="rounded-2xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700">閉じる</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }
