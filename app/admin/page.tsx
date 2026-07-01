@@ -315,6 +315,8 @@ export default function AdminPage() {
   const [pdfNumber, setPdfNumber] = useState(false);
   const [pdfName, setPdfName] = useState(true);
   const [pdfDate, setPdfDate] = useState(true);
+  const [pdfFooterText, setPdfFooterText] = useState("Created by Vocab Print Pro");
+  const [pdfFontScale, setPdfFontScale] = useState(1);
   const [pdfStudentClass, setPdfStudentClass] = useState("");
   const [pdfStudentNumber, setPdfStudentNumber] = useState("");
   const [pdfStudentName, setPdfStudentName] = useState("");
@@ -632,6 +634,8 @@ export default function AdminPage() {
       studentName: pdfStudentName,
       includeDate: pdfDate,
       generatedAt: now,
+      footerText: pdfFooterText,
+      fontScale: pdfFontScale,
     });
     sessionStorage.setItem("vpp-print-job", JSON.stringify({
       html,
@@ -1090,7 +1094,32 @@ export default function AdminPage() {
                   <select value={pdfType} onChange={(e) => setPdfType(e.target.value as PdfType)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm">
                     <option value="list">一覧PDF（単語・意味を表示）</option>
                     <option value="test">問題PDF（解答欄あり）</option>
-                    <option value="answer">隗｣遲捻DF</option>
+                    <option value="answer">解答PDF</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-bold">Created by（フッター表記）</label>
+                  <input
+                    value={pdfFooterText}
+                    onChange={(e) => setPdfFooterText(e.target.value)}
+                    placeholder="例: 〇〇塾 / 作成: 神谷"
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  />
+                  <p className="mt-1 text-xs text-slate-400">PDF右下に表示される作成者表記です。空欄で既定（Created by Vocab Print Pro）。</p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-bold">文字サイズ</label>
+                  <select
+                    value={pdfFontScale}
+                    onChange={(e) => setPdfFontScale(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  >
+                    <option value={0.85}>小</option>
+                    <option value={1}>標準</option>
+                    <option value={1.15}>大</option>
+                    <option value={1.3}>特大</option>
                   </select>
                 </div>
 
@@ -1215,8 +1244,11 @@ export default function AdminPage() {
                 disabled={!selectedPdfBook || pdfOutputWords.length === 0}
                 className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-black text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-400 transition-colors shadow"
               >
-                📄 単語テストを作成（新しいタブで開く）
+                📄 PDF作成・印刷（新しいタブで開く）
               </button>
+              <p className="text-center text-xs text-slate-400">
+                開いたタブの印刷ダイアログで「PDFに保存」または「印刷」を選べます。
+              </p>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">

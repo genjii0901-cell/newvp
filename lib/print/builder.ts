@@ -25,6 +25,10 @@ export interface BuildPrintHtmlOptions {
   includeDate: boolean;
   generatedAt: Date;
   expiresAt?: Date;
+  /** フッター右の「Created by」表記。未指定なら既定文言。 */
+  footerText?: string;
+  /** 本文の文字サイズ倍率（0.85=小 / 1=標準 / 1.15=大 など）。既定1。 */
+  fontScale?: number;
 }
 
 function escapeHtml(value: string): string {
@@ -69,8 +73,11 @@ export function buildPrintHtml(opts: BuildPrintHtmlOptions): string {
     title, words, type, direction, showPageNo, plan, printStyle,
     includeWatermark, showRecordFields, showClassField, showNumberField,
     showNameField, studentClass, studentNumber, studentName,
-    includeDate, generatedAt, expiresAt,
+    includeDate, generatedAt, expiresAt, footerText, fontScale = 1,
   } = opts;
+
+  const credit = (footerText ?? "").trim() || "Created by Vocab Print Pro";
+  const fs = Math.min(1.4, Math.max(0.8, Number(fontScale) || 1));
 
   const perPage = 50;
   const isAdmin = plan === "admin";
@@ -131,13 +138,11 @@ export function buildPrintHtml(opts: BuildPrintHtmlOptions): string {
         </table>`;
       };
 
-      const footerRight = isAdmin
-        ? "Created by Vocab Print Pro ［管理者版］"
-        : isFree && expiresAt
-          ? `Created by Vocab Print Pro ・ Expires ${formatPrintDate(expiresAt)}`
-          : "Created by Vocab Print Pro";
+      const footerRight = isFree && expiresAt
+        ? `${credit} ・ Expires ${formatPrintDate(expiresAt)}`
+        : credit;
 
-      return `<section class="print-page">
+      return `<section class="print-page" style="--vp-fs:${fs}">
         ${watermark ? `<div class="print-watermark">${escapeHtml(watermark)}</div>` : ""}
         <div class="print-body">
           <h1>${escapeHtml(title)}</h1>
@@ -181,7 +186,7 @@ export const PRINT_CSS = `
   .print-body { flex:1 1 auto; display:flex; flex-direction:column; gap:2mm; }
   .print-watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:28pt; font-weight:900; letter-spacing:.08em; color:rgba(37,99,235,.08); transform:rotate(-24deg); pointer-events:none; user-select:none; text-transform:uppercase; }
   .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 auto; }
-  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:7.8pt; line-height:1.22; }
+  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:calc(7.8pt * var(--vp-fs, 1)); line-height:1.22; }
   .print-table th,.print-table td { border:.65pt solid #111; padding:0; height:8.45mm; max-height:8.45mm; overflow:hidden; vertical-align:middle; }
   .print-table th { height:7.8mm; text-align:center; font-weight:800; background:#fff; }
   .p-no { width:10%; text-align:center; } .p-word { width:26%; } .p-meaning { width:64%; }
