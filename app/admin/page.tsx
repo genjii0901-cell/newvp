@@ -622,10 +622,11 @@ export default function AdminPage() {
     });
     const safeTitle = (pdfTitle.trim() || autoTitle).replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const titleBase = (pdfTitle.trim() || `${selectedPdfBook.title}-${pdfType}`).replace(/[\\/:*?"<>|]+/g, "_");
+    const previewStyle = `<style>${previewCss}</style>`;
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const firstPageOnlyStyle = mode === "first" ? "<style>.print-page:nth-of-type(n+2){display:none!important;}</style>" : "";
-    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0"><div id="print-root">${copyGuardScript}${html}</div></body></html>`;
     return { fullDoc, titleBase };
   }
 
