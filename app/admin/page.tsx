@@ -597,11 +597,18 @@ export default function AdminPage() {
 
   const pdfOutputWords = useMemo(() => {
     if (!selectedPdfBook) return [];
-    let list = selectedPdfBook.words
-      .filter((w) => w.no >= pdfStartNo && w.no <= pdfEndNo)
+    const all = selectedPdfBook.words;
+    const total = all.length;
+    if (total === 0) return [];
+    // 「開始／終了」は単語リストの位置（何番目）。値が古い/範囲外でもクランプして常に有効化。
+    const start = Math.min(Math.max(1, Number(pdfStartNo) || 1), total);
+    const end = Math.min(Math.max(start, Number(pdfEndNo) || total), total);
+    let list = all
+      .slice(start - 1, end)
       .map((w) => ({ no: w.no, english: w.english, japanese: w.japanese }));
     if (pdfRandom) list = [...list].sort(() => Math.random() - 0.5);
-    return list.slice(0, pdfCount);
+    const count = Math.max(1, Math.min(Number(pdfCount) || list.length, list.length));
+    return list.slice(0, count);
   }, [selectedPdfBook, pdfStartNo, pdfEndNo, pdfCount, pdfRandom]);
 
   // メイン画面と同じエンジンで実寸A4プレビューを生成
@@ -635,10 +642,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (selectedPdfBook) {
+      const total = selectedPdfBook.words.length;
       setPdfStartNo(1);
-      const last = selectedPdfBook.words[selectedPdfBook.words.length - 1]?.no ?? selectedPdfBook.words.length;
-      setPdfEndNo(last);
-      setPdfCount(Math.min(selectedPdfBook.words.length, 1900));
+      setPdfEndNo(total);
+      setPdfCount(Math.min(total, 1900));
       setPdfTitle("");
     }
   }, [pdfBookId]);
@@ -1118,15 +1125,18 @@ export default function AdminPage() {
                 {selectedPdfBook && (
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {[
-                      { label: "開始", value: pdfStartNo, set: setPdfStartNo },
-                      { label: "終了", value: pdfEndNo, set: setPdfEndNo },
+                      { label: "開始（何番目）", value: pdfStartNo, set: setPdfStartNo },
+                      { label: "終了（何番目）", value: pdfEndNo, set: setPdfEndNo },
                       { label: "問題数", value: pdfCount, set: setPdfCount },
                     ].map(({ label, value, set }) => (
                       <div key={label}>
                         <label className="text-xs font-bold text-slate-500">{label}</label>
-                        <input type="number" value={value} onChange={(e) => set(Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" />
+                        <input type="number" min={1} value={value} onChange={(e) => set(Math.max(1, Number(e.target.value) || 1))} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" />
                       </div>
                     ))}
+                    <p className="col-span-3 text-xs text-slate-400">
+                      この単語帳は全{selectedPdfBook.words.length}語。「開始／終了」はリストの何番目かで指定します。
+                    </p>
                   </div>
                 )}
               </section>

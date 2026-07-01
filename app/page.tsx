@@ -520,15 +520,20 @@ export default function Home() {
   const locked = selectedBook ? planRank(plan) < planRank(selectedBook.requiredPlan) : false;
   const outputWords = useMemo(() => {
     if (!selectedBook) return [];
-    let list = selectedBook.words.filter(
-      (word) => word.no >= Number(startNo) && word.no <= Number(endNo)
-    );
+    const all = selectedBook.words;
+    const total = all.length;
+    if (total === 0) return [];
+    // 「開始／終了」はリストの位置（何番目）。範囲外・古い値でもクランプして常に有効化。
+    const start = Math.min(Math.max(1, Number(startNo) || 1), total);
+    const end = Math.min(Math.max(start, Number(endNo) || total), total);
+    let list = all.slice(start - 1, end);
 
     if (random) {
       list = [...list].sort(() => Math.random() - 0.5);
     }
 
-    return list.slice(0, Number(count));
+    const n = Math.max(1, Math.min(Number(count) || list.length, list.length));
+    return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
 
   function pickBook(nextBookId: string) {
