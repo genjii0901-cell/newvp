@@ -493,6 +493,14 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+    const wordsDeleteResult = await supabase.from("words").delete().eq("wordbook_id", id);
+    if (wordsDeleteResult.error) {
+      return NextResponse.json(
+        { ok: false, message: wordsDeleteResult.error.message ?? "関連単語の削除に失敗しました。" },
+        { status: 500 }
+      );
+    }
+
     let result = await supabase.from("wordbooks").delete().eq("id", id).eq("is_official", true);
     if (isMissingColumnError(result.error, "is_official")) {
       result = await supabase.from("wordbooks").delete().eq("id", id);
