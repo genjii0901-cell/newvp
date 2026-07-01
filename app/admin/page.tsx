@@ -12,7 +12,7 @@ import {
   type Direction,
   type PrintStyle,
 } from "@/lib/print/full-builder";
-import { fallbackOfficialWordbooksForApi, mergeWordbooksById } from "@/lib/official-wordbooks";
+import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 
 /* 笏笏笏 Types 笏笏笏 */
 type Visibility = "public" | "personal" | "teacher" | "admin";
@@ -349,7 +349,6 @@ export default function AdminPage() {
     if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); setLoadingBooks(false); return; }
     const data = await res.json().catch(() => ({}));
     const list = Array.isArray(data?.wordbooks) ? data.wordbooks : [];
-    // Supabaseのデータだけ使う（テンプレートと混合しない）
     setBooks(list);
     if (!options?.preserveMessage) {
       if (data?.message) setManageMsg(data.message);
@@ -571,8 +570,7 @@ export default function AdminPage() {
       setManageMsg(editMode === "words" ? `✅ 単語を更新しました（${result.wordCount}語）` : "✅ メタデータを更新しました");
     }
     setEditId(null);
-    // wordsモードのみDBから再取得（metaはローカルstateが正しいため上書きしない）
-    if (editMode === "words") await fetchBooks({ silent: true, preserveMessage: true });
+    await fetchBooks({ silent: true, preserveMessage: true });
   }
 
   async function deleteBook(id: string, bookTitle: string) {
@@ -589,7 +587,7 @@ export default function AdminPage() {
     const result = await res.json().catch(() => ({}));
     if (!res.ok) { setManageMsg(result.message ?? "削除失敗"); return; }
     setManageMsg("✅ 削除しました");
-    setBooks((prev) => prev.filter((b) => b.id !== id));
+    await fetchBooks({ silent: true, preserveMessage: true });
   }
 
   /* 笏笏 PDF 笏笏 */
@@ -1327,4 +1325,3 @@ export default function AdminPage() {
     </main>
   );
 }
-
