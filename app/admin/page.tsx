@@ -311,6 +311,8 @@ export default function AdminPage() {
   const [pdfStudentNumber, setPdfStudentNumber] = useState("");
   const [pdfStudentName, setPdfStudentName] = useState("");
   const [pdfMsg, setPdfMsg] = useState("");
+  const [imageExporting, setImageExporting] = useState(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
 
   /* 笏笏 diagnose 笏笏 */
   const [diagResult, setDiagResult] = useState<Record<string, unknown> | null>(null);
@@ -642,6 +644,47 @@ export default function AdminPage() {
     } else {
       iframe.remove();
       setPdfMsg("印刷を開始できませんでした。ブラウザの設定をご確認ください。");
+    }
+  }
+
+  async function exportPreviewAsImage() {
+    if (!selectedPdfBook || pdfOutputWords.length === 0) {
+      setPdfMsg("単語帳と範囲を確認してください。");
+      return;
+    }
+
+    const iframe = previewIframeRef.current;
+    const iframeWindow = iframe?.contentWindow;
+    const iframeDocument = iframe?.contentDocument;
+    const target = iframeDocument?.getElementById("print-root") ?? iframeDocument?.body ?? null;
+
+    if (!iframeWindow || !iframeDocument || !target) {
+      setPdfMsg("プレビューの読み込み後に、もう一度お試しください。");
+      return;
+    }
+
+    setPdfMsg("");
+    setImageExporting(true);
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const canvas = await html2canvas(target as HTMLElement, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        windowWidth: 794,
+        windowHeight: Math.max(target.scrollHeight, 1123),
+      });
+
+      const titleBase = (pdfTitle.trim() || `${selectedPdfBook.title}-${pdfType}`).replace(/[\\/:*?"<>|]+/g, "_");
+      const link = document.createElement("a");
+      link.href = canvas.toDataURL("image/png");
+      link.download = `${titleBase}.png`;
+      link.click();
+    } catch (error) {
+      setPdfMsg(error instanceof Error ? `画像出力に失敗しました: ${error.message}` : "画像出力に失敗しました。");
+    } finally {
+      setImageExporting(false);
     }
   }
 
@@ -1226,12 +1269,13 @@ export default function AdminPage() {
                       className="overflow-hidden bg-white shadow-md"
                       style={{ width: Math.round(794 * PREVIEW_SCALE), height: Math.round(1123 * PREVIEW_SCALE) }}
                     >
-                      <iframe
-                        title="印刷プレビュー"
-                        srcDoc={pdfPreviewDoc}
-                        aria-label="印刷プレビュー"
-                        style={{ width: 794, height: 1123, border: 0, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}
-                      />
+	                      <iframe
+	                        ref={previewIframeRef}
+	                        title="印刷プレビュー"
+	                        srcDoc={pdfPreviewDoc}
+	                        aria-label="印刷プレビュー"
+	                        style={{ width: 794, height: 1123, border: 0, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}
+	                      />
                     </div>
                   </div>
                 )}
@@ -1244,16 +1288,25 @@ export default function AdminPage() {
 
               {pdfMsg && <p className="rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700">{pdfMsg}</p>}
 
-              <button
-                onClick={openPrintPage}
-                disabled={!selectedPdfBook || pdfOutputWords.length === 0}
-                className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-black text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-400 transition-colors shadow"
-              >
-                📄 PDF作成・印刷
-              </button>
-              <p className="text-center text-xs text-slate-400">
-                印刷ダイアログが開きます。送信先で「PDFに保存」を選べばPDF、プリンターを選べば印刷になります。
-              </p>
+	              <div className="grid gap-3 sm:grid-cols-2">
+	                <button
+	                  onClick={openPrintPage}
+	                  disabled={!selectedPdfBook || pdfOutputWords.length === 0}
+	                  className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-black text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-400 transition-colors shadow"
+	                >
+	                  📄 PDF作成・印刷
+	                </button>
+	                <button
+	                  onClick={exportPreviewAsImage}
+	                  disabled={!selectedPdfBook || pdfOutputWords.length === 0 || imageExporting}
+	                  className="w-full rounded-2xl border border-blue-200 bg-white py-4 text-lg font-black text-blue-700 hover:bg-blue-50 disabled:bg-slate-100 disabled:text-slate-400 disabled:border-slate-200 transition-colors shadow-sm"
+	                >
+	                  {imageExporting ? "画像を書き出し中..." : "🖼️ 画像として出力"}
+	                </button>
+	              </div>
+	              <p className="text-center text-xs text-slate-400">
+	                PDFは印刷ダイアログ、画像はPNGで保存できます。
+	              </p>
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
