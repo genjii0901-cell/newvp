@@ -287,6 +287,7 @@ export default function AdminPage() {
   const [editMode, setEditMode] = useState<"meta" | "words">("meta");
   const [editMeta, setEditMeta] = useState({ title: "", desc: "", coverImage: "", visibility: "public" as Visibility });
   const [editPaste, setEditPaste] = useState("");
+  const fetchBooksSeqRef = useRef(0);
 
   /* pdf builder 窶・all options */
   const [pdfBookId, setPdfBookId] = useState("");
@@ -327,14 +328,17 @@ export default function AdminPage() {
 
   /* 笏笏 fetch books 笏笏 */
   async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean }) {
+    const requestSeq = ++fetchBooksSeqRef.current;
     if (!options?.silent) setLoadingBooks(true);
     if (!options?.preserveMessage) setManageMsg("");
     const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
     const res = await fetch("/api/admin/all-wordbooks", {
       headers: { "x-admin-password": pw },
     }).catch(() => null);
+    if (requestSeq !== fetchBooksSeqRef.current) return;
     if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); setLoadingBooks(false); return; }
     const data = await res.json().catch(() => ({}));
+    if (requestSeq !== fetchBooksSeqRef.current) return;
     const list = Array.isArray(data?.wordbooks) ? data.wordbooks : [];
     setBooks(list);
     if (!options?.preserveMessage) {
@@ -484,21 +488,9 @@ export default function AdminPage() {
       const postResult = await postRes.json().catch(() => ({}));
       if (!postRes.ok) { setManageMsg(postResult.message ?? "Supabaseへの登録失敗"); return; }
       actualId = postResult.wordbook?.id ?? actualId;
-      // wordsも一緒に登録済みなのでPATCHは不要
-      setBooks((prev) => prev.map((book) => {
-        if (book.id !== editId) return book;
-        return {
-          ...book,
-          id: actualId,
-          title: editMode === "meta" ? editMeta.title : book.title,
-          description: editMode === "meta" ? editMeta.desc : book.description,
-          coverImage: editMode === "meta" ? (editMeta.coverImage || null) : book.coverImage,
-          visibility: editMode === "meta" ? editMeta.visibility : book.visibility,
-          words: parsedWords ? parsedWords.map((w, i) => ({ no: Number(w.number) || i + 1, english: w.english, japanese: w.japanese, unit: w.unit || null })) : book.words,
-        };
-      }));
       setManageMsg("✅ Supabaseに登録して保存しました");
       setEditId(null);
+      await fetchBooks({ silent: true, preserveMessage: true });
       return;
     }
 
@@ -516,41 +508,6 @@ export default function AdminPage() {
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) { setManageMsg(result.message ?? "更新失敗"); return; }
-    const nextId = typeof result?.wordbook?.id === "string" && result.wordbook.id ? result.wordbook.id : actualId;
-    setBooks((prev) =>
-      prev.map((book) => {
-        const titleMatch = targetBook ? book.title === targetBook.title : false;
-        const idMatch = book.id === editId;
-        if (!idMatch && !titleMatch) return book;
-        if (editMode === "meta") {
-          return {
-            ...book,
-            id: nextId,
-            title: editMeta.title,
-            description: editMeta.desc,
-            coverImage: editMeta.coverImage || null,
-            visibility: editMeta.visibility,
-            requiredPlan:
-              editMeta.visibility === "teacher" || editMeta.visibility === "admin"
-                ? "teacher"
-                : editMeta.visibility === "personal"
-                  ? "personal"
-                  : "free",
-          };
-        }
-        if (!parsedWords) return { ...book, id: nextId };
-        return {
-          ...book,
-          id: nextId,
-          words: parsedWords.map((word, index) => ({
-            no: Number(word.number) || index + 1,
-            english: word.english,
-            japanese: word.japanese,
-            unit: word.unit || null,
-          })),
-        };
-      }),
-    );
     if (result.warning) {
       setManageMsg(`⚠️ ${result.warning} — Supabaseのwordbooksテーブルにカラムを追加してください。`);
     } else {
