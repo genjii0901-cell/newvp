@@ -84,8 +84,9 @@ function isPubliclyVisible(visibility: string | null | undefined) {
   return next !== "private" && next !== "admin";
 }
 
-export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean }) {
+export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean; includeFallback?: boolean }) {
   const includeAdmin = Boolean(options?.includeAdmin);
+  const includeFallback = options?.includeFallback !== false;
   const supabase = getSupabaseAdmin();
 
   const selects = [
@@ -114,10 +115,12 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean }
     return {
       ok: false as const,
       error: dbError ?? "Failed to load wordbooks.",
-      wordbooks: mergeWordbooksById<LiveWordbook>([], fallbackOfficialWordbooksForApi().map((book) => ({
-        ...book,
-        visibility: book.visibility,
-      }))),
+      wordbooks: includeFallback
+        ? mergeWordbooksById<LiveWordbook>([], fallbackOfficialWordbooksForApi().map((book) => ({
+            ...book,
+            visibility: book.visibility,
+          })))
+        : [],
     };
   }
 
@@ -186,14 +189,17 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean }
 
   const dedupedLiveBooks = dedupeWordbooksByTitle(liveBooks);
 
-  const fallbackBooks: LiveWordbook[] = fallbackOfficialWordbooksForApi().map((book) => ({
-    ...book,
-    visibility: book.visibility,
-  }));
-
   return {
     ok: true as const,
     error: null,
-    wordbooks: mergeWordbooksById(dedupedLiveBooks, fallbackBooks),
+    wordbooks: includeFallback
+      ? mergeWordbooksById(
+          dedupedLiveBooks,
+          fallbackOfficialWordbooksForApi().map((book) => ({
+            ...book,
+            visibility: book.visibility,
+          }))
+        )
+      : dedupedLiveBooks,
   };
 }

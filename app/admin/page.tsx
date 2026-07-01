@@ -12,7 +12,6 @@ import {
   type Direction,
   type PrintStyle,
 } from "@/lib/print/full-builder";
-import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { parseWordText } from "@/lib/parse-word-text";
 
 /* 笏笏笏 Types 笏笏笏 */
@@ -29,16 +28,6 @@ type OfficialBook = {
   visibility: string;
   words: Array<{ no: number; english: string; japanese: string; unit?: string | null }>;
 };
-
-const initialAdminBooks: OfficialBook[] = fallbackOfficialWordbooksForApi().map((book) => ({
-  id: book.id,
-  title: book.title,
-  description: book.description,
-  coverImage: book.coverImage,
-  requiredPlan: book.requiredPlan,
-  visibility: book.visibility,
-  words: book.words,
-}));
 
 /* 笏笏笏 Image presets 笏笏笏 */
 const IMAGE_PRESETS = [
@@ -280,7 +269,7 @@ export default function AdminPage() {
   const words = useMemo(() => parseWords(pasteText), [pasteText]);
 
   /* manage */
-  const [books, setBooks] = useState<OfficialBook[]>(initialAdminBooks);
+  const [books, setBooks] = useState<OfficialBook[]>([]);
   const [loadingBooks, setLoadingBooks] = useState(false);
   const [manageMsg, setManageMsg] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
