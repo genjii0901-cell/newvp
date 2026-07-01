@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 
+// 管理者の編集を即座に反映（GETルートのキャッシュを無効化）。
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Visibility = "public" | "personal" | "teacher" | "private" | "admin";
 
 type WordbookRow = {
@@ -139,6 +143,8 @@ export async function GET() {
       });
       wordsByBookId.set(key, bucket);
     }
+    // 単語番号(no)で数値順に並べ替え（DBのnumber列はテキストで辞書順になるため）
+    for (const bucket of wordsByBookId.values()) bucket.sort((a, b) => a.no - b.no);
 
     const liveBooks = wordbooks.map((wordbook) => {
       const visibility = normalizeVisibility(wordbook.visibility);

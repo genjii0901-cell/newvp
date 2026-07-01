@@ -648,7 +648,8 @@ export default function AdminPage() {
       setPdfCount(Math.min(total, 1900));
       setPdfTitle("");
     }
-  }, [pdfBookId]);
+    // 単語帳を切り替えた時、または選択中の単語帳の語数が変わった時（編集後の再取得など）に範囲を初期化
+  }, [pdfBookId, selectedPdfBook?.words.length]);
 
   function openPrintPage() {
     if (!selectedPdfBook || pdfOutputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }

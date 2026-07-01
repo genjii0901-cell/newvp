@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/admin-auth";
 
+// 編集直後に古いデータが返らないよう、常に最新をDBから取得する（キャッシュ無効）。
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET(request: Request) {
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
@@ -94,6 +98,8 @@ export async function GET(request: Request) {
       });
       byBook.set(key, bucket);
     }
+    // 単語番号(no)で数値順に並べ替え（DBのnumber列はテキストで辞書順になるため）
+    for (const bucket of byBook.values()) bucket.sort((a, b) => a.no - b.no);
 
     function planFromVisibility(v: string | null | undefined) {
       if (v === "teacher") return "teacher";
