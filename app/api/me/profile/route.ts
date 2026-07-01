@@ -92,31 +92,36 @@ export async function GET(request: Request) {
     let plan = normalizePlan(profile.plan);
     let stripeCustomerId = profile.stripe_customer_id ?? null;
 
-    if (plan === "free") {
-      const activeSubscription = await planFromActiveStripeSubscription(stripeCustomerId);
-      if (activeSubscription) {
-        plan = activeSubscription.plan;
-        const supabase = getSupabaseAdmin();
+    const activeSubscription = await planFromActiveStripeSubscription(stripeCustomerId);
+    const supabase = getSupabaseAdmin();
 
-        await supabase
-          .from("profiles")
-          .update({ plan })
-          .eq("id", auth.user.id);
+    if (activeSubscription) {
+      plan = activeSubscription.plan;
 
-        if (activeSubscription.stripeSubscriptionId) {
-          await supabase.from("subscriptions").upsert(
-            {
-              user_id: auth.user.id,
-              stripe_customer_id: stripeCustomerId,
-              stripe_subscription_id: activeSubscription.stripeSubscriptionId,
-              status: activeSubscription.status,
-              plan,
-              current_period_end: activeSubscription.currentPeriodEnd,
-            },
-            { onConflict: "stripe_subscription_id" }
-          );
-        }
+      await supabase
+        .from("profiles")
+        .update({ plan })
+        .eq("id", auth.user.id);
+
+      if (activeSubscription.stripeSubscriptionId) {
+        await supabase.from("subscriptions").upsert(
+          {
+            user_id: auth.user.id,
+            stripe_customer_id: stripeCustomerId,
+            stripe_subscription_id: activeSubscription.stripeSubscriptionId,
+            status: activeSubscription.status,
+            plan,
+            current_period_end: activeSubscription.currentPeriodEnd,
+          },
+          { onConflict: "stripe_subscription_id" }
+        );
       }
+    } else if (plan !== "free") {
+      plan = "free";
+      await supabase
+        .from("profiles")
+        .update({ plan: "free" })
+        .eq("id", auth.user.id);
     }
 
     return NextResponse.json({

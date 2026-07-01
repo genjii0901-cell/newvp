@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { ensureProfile, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+
+function isNoSuchCustomerError(value: unknown) {
+  return typeof value === "string" && value.includes("No such customer");
+}
 
 export async function POST(request: Request) {
   try {
@@ -40,6 +44,22 @@ export async function POST(request: Request) {
 
     const data = await response.json();
     if (!response.ok) {
+      if (isNoSuchCustomerError(data.error?.message)) {
+        const supabase = getSupabaseAdmin();
+        await supabase
+          .from("profiles")
+          .update({ plan: "free", stripe_customer_id: null })
+          .eq("id", auth.user.id);
+
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "このアカウントの請求情報を再接続できませんでした。料金ページからもう一度 Personal を開始してください。",
+          },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         { ok: false, error: data.error?.message ?? "Failed to create billing portal session." },
         { status: response.status }

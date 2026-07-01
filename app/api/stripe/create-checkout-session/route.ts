@@ -34,6 +34,10 @@ function getPriceId(plan: CheckoutPlan) {
   return process.env.STRIPE_PRICE_TEACHER ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_TEACHER;
 }
 
+function isNoSuchCustomerError(value: unknown) {
+  return typeof value === "string" && value.includes("No such customer");
+}
+
 export async function POST(request: Request) {
   try {
     const auth = await requireSupabaseUser(request);
@@ -118,13 +122,15 @@ export async function POST(request: Request) {
       body.append("subscription_data[metadata][trial]", "1");
     }
 
+    let fallbackToEmailCustomer = false;
+
     if (profile?.stripe_customer_id) {
       body.append("customer", profile.stripe_customer_id);
     } else if (auth.user.email) {
       body.append("customer_email", auth.user.email);
     }
 
-    const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+    let response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${stripeSecretKey}`,
@@ -133,7 +139,25 @@ export async function POST(request: Request) {
       body,
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    if (!response.ok && isNoSuchCustomerError(data.error?.message) && auth.user.email) {
+      fallbackToEmailCustomer = true;
+      body.delete("customer");
+      body.set("customer_email", auth.user.email);
+
+      response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${stripeSecretKey}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body,
+      });
+
+      data = await response.json();
+    }
+
     if (!response.ok) {
       console.error("Stripe checkout session failed", data.error?.message ?? data);
       return NextResponse.json(
@@ -149,7 +173,11 @@ export async function POST(request: Request) {
           id: auth.user.id,
           email: auth.user.email ?? null,
           stripe_customer_id:
-            typeof data.customer === "string" ? data.customer : profile?.stripe_customer_id ?? null,
+            typeof data.customer === "string"
+              ? data.customer
+              : fallbackToEmailCustomer
+                ? null
+                : profile?.stripe_customer_id ?? null,
         },
         { onConflict: "id" }
       );
