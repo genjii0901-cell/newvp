@@ -277,6 +277,16 @@ export default function AdminPage() {
   const [editMeta, setEditMeta] = useState({ title: "", desc: "", coverImage: "", visibility: "public" as Visibility });
   const [editPaste, setEditPaste] = useState("");
   const fetchBooksSeqRef = useRef(0);
+  const duplicateTitleGroups = useMemo(() => {
+    const groups = new Map<string, OfficialBook[]>();
+    for (const book of books) {
+      const key = book.title.trim().toLowerCase();
+      const bucket = groups.get(key) ?? [];
+      bucket.push(book);
+      groups.set(key, bucket);
+    }
+    return Array.from(groups.values()).filter((items) => items.length > 1);
+  }, [books]);
 
   /* pdf builder 窶・all options */
   const [pdfBookId, setPdfBookId] = useState("");
@@ -950,6 +960,14 @@ export default function AdminPage() {
 
             {manageMsg && (
               <p className={`mb-4 rounded-2xl p-4 text-sm font-bold ${manageMsg.startsWith("✅") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{manageMsg}</p>
+            )}
+            {duplicateTitleGroups.length > 0 && (
+              <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-black">同名の公式単語帳が複数あります</p>
+                <p className="mt-1 text-xs">
+                  保存した内容が別レコードに戻る原因になります。下の一覧で同じタイトルが複数表示されていないか確認してください。
+                </p>
+              </div>
             )}
             {loadingBooks ? (
               <div className="py-12 text-center"><div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" /></div>

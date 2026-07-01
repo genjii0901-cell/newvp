@@ -84,9 +84,14 @@ function isPubliclyVisible(visibility: string | null | undefined) {
   return next !== "private" && next !== "admin";
 }
 
-export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean; includeFallback?: boolean }) {
+export async function loadOfficialWordbooks(options?: {
+  includeAdmin?: boolean;
+  includeFallback?: boolean;
+  dedupeByTitle?: boolean;
+}) {
   const includeAdmin = Boolean(options?.includeAdmin);
   const includeFallback = options?.includeFallback !== false;
+  const dedupeByTitle = options?.dedupeByTitle !== false;
   const supabase = getSupabaseAdmin();
 
   const selects = [
@@ -194,19 +199,19 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean; 
     };
   });
 
-  const dedupedLiveBooks = dedupeWordbooksByTitle(liveBooks);
+  const primaryBooks = dedupeByTitle ? dedupeWordbooksByTitle(liveBooks) : liveBooks;
 
   return {
     ok: true as const,
     error: null,
     wordbooks: includeFallback
       ? mergeWordbooksById(
-          dedupedLiveBooks,
+          primaryBooks,
           fallbackOfficialWordbooksForApi().map((book) => ({
             ...book,
             visibility: book.visibility,
           }))
         )
-      : dedupedLiveBooks,
+      : primaryBooks,
   };
 }
