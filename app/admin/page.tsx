@@ -13,6 +13,7 @@ import {
   type PrintStyle,
 } from "@/lib/print/full-builder";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
+import { parseWordText } from "@/lib/parse-word-text";
 
 /* 笏笏笏 Types 笏笏笏 */
 type Visibility = "public" | "personal" | "teacher" | "admin";
@@ -100,21 +101,7 @@ const SAMPLE_CSV =
   "number,english,japanese,unit\n1,apple,りんご,Unit 1\n2,book,本,Unit 1\n3,study,勉強する,Unit 1\n4,important,重要な,Unit 2\n5,practice,練習,Unit 2";
 
 function parseWords(text: string): ParsedWord[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .filter((l, i) => !(i === 0 && /english/i.test(l) && /japanese/i.test(l)))
-    .map((l, i) => {
-      const c = l.includes("\t") ? l.split("\t") : l.split(",");
-      return {
-        number: (c[0] || String(i + 1)).trim(),
-        english: (c[1] || "").trim(),
-        japanese: (c[2] || "").trim(),
-        unit: (c[3] || "").trim(),
-      };
-    })
-    .filter((w) => w.english && w.japanese);
+  return parseWordText(text);
 }
 
 function isPersistedBookId(value: string) {

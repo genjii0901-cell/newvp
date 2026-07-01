@@ -160,7 +160,27 @@ async function replaceWords(
   const { error } = await supabase
     .from("words")
     .insert(words.map((word) => ({ wordbook_id: wordbookId, ...word })));
-  return { error };
+  if (error) return { error };
+
+  const countResult = await supabase
+    .from("words")
+    .select("id", { count: "exact", head: true })
+    .eq("wordbook_id", wordbookId);
+
+  if (countResult.error) {
+    return { error: countResult.error };
+  }
+
+  const persistedCount = countResult.count ?? 0;
+  if (persistedCount !== words.length) {
+    return {
+      error: {
+        message: `Saved ${persistedCount} words, but expected ${words.length}.`,
+      },
+    };
+  }
+
+  return { error: null };
 }
 
 async function updateWordbookMeta(
