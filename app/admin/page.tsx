@@ -637,13 +637,30 @@ export default function AdminPage() {
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
     });
-    sessionStorage.setItem("vpp-print-job", JSON.stringify({
-      html,
-      title: pdfTitle.trim() || autoTitle,
-      sourceLabel: selectedPdfBook.title,
-      createdAt: now.toISOString(),
-    }));
-    window.open("/print", "_blank");
+    // メイン画面と同じ方式：隠しiframeで印刷ダイアログを直接開く（新しいタブを開かず、確実に印刷できる）
+    const safeTitle = (pdfTitle.trim() || autoTitle).replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
+    const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
+    const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
+    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
+    document.body.appendChild(iframe);
+    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(fullDoc);
+      iframeDoc.close();
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        try { iframe.contentWindow?.print(); } catch { /* ignore */ }
+        setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
+      }, 400);
+    } else {
+      iframe.remove();
+      setPdfMsg("印刷を開始できませんでした。ブラウザの設定をご確認ください。");
+    }
   }
 
   /* 笏笏笏 Login screen 笏笏笏 */
@@ -1244,10 +1261,10 @@ export default function AdminPage() {
                 disabled={!selectedPdfBook || pdfOutputWords.length === 0}
                 className="w-full rounded-2xl bg-blue-600 py-4 text-lg font-black text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-400 transition-colors shadow"
               >
-                📄 PDF作成・印刷（新しいタブで開く）
+                📄 PDF作成・印刷
               </button>
               <p className="text-center text-xs text-slate-400">
-                開いたタブの印刷ダイアログで「PDFに保存」または「印刷」を選べます。
+                印刷ダイアログが開きます。送信先で「PDFに保存」を選べばPDF、プリンターを選べば印刷になります。
               </p>
 
               <div className="grid grid-cols-3 gap-3">
