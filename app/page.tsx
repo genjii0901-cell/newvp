@@ -1064,7 +1064,7 @@ export default function Home() {
         </section>
 
         {!user && (
-          <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
+          <section id="auth" className="mt-6 scroll-mt-24 rounded-3xl border bg-white p-5 shadow-sm">
             <h3 className="text-lg font-black">ログイン / 会員登録</h3>
             <p className="mt-1 text-sm text-slate-500">
               ログインすると作成履歴の保存や、有料プランの利用ができます。

@@ -70,7 +70,7 @@ export default function Nav() {
             </button>
           ) : (
             <Link
-              href="/"
+              href="/#auth"
               className="ml-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
             >
               ログイン

@@ -24,6 +24,16 @@ function getNestedId(value: unknown) {
   return object ? getString(object.id) : null;
 }
 
+function getNestedNumber(value: unknown) {
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  const object = getObject(value);
+  return object ? getNestedNumber(object.id ?? object.value) : null;
+}
+
 function checkoutSyncError(error: unknown) {
   const message = readableError(error);
   if (message.includes("row-level security")) {
@@ -50,7 +60,7 @@ export async function POST(request: Request) {
     }
 
     const sessionResponse = await fetch(
-      `https://api.stripe.com/v1/checkout/sessions/${sessionId}`,
+      `https://api.stripe.com/v1/checkout/sessions/${sessionId}?expand[]=subscription`,
       {
         headers: {
           Authorization: `Bearer ${stripeSecretKey}`,
@@ -78,7 +88,24 @@ export async function POST(request: Request) {
     }
 
     const paymentStatus = getString(session.payment_status);
-    const subscription = getObject(session.subscription);
+    const subscriptionId = getNestedId(session.subscription);
+    let subscription = getObject(session.subscription);
+
+    if (!subscription && subscriptionId?.startsWith("sub_")) {
+      const subscriptionResponse = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${stripeSecretKey}`,
+          },
+        }
+      );
+
+      if (subscriptionResponse.ok) {
+        subscription = (await subscriptionResponse.json()) as Record<string, unknown>;
+      }
+    }
+
     const subscriptionStatus = getString(subscription?.status);
 
     if (paymentStatus !== "paid" && subscriptionStatus !== "active" && subscriptionStatus !== "trialing") {
@@ -89,10 +116,12 @@ export async function POST(request: Request) {
     }
 
     const customerId = getNestedId(session.customer);
-    const subscriptionId = getNestedId(session.subscription);
     const customerDetails = getObject(session.customer_details);
     const email = getString(customerDetails?.email);
-    const currentPeriodEnd = null;
+    const currentPeriodEndUnix = getNestedNumber(subscription?.current_period_end);
+    const currentPeriodEnd = currentPeriodEndUnix
+      ? new Date(currentPeriodEndUnix * 1000).toISOString()
+      : null;
 
     const supabase = getSupabaseAdmin();
     const { error: profileError } = await supabase.from("profiles").upsert(
@@ -100,22 +129,12 @@ export async function POST(request: Request) {
         id: userId,
         email,
         plan,
+        stripe_customer_id: customerId,
       },
       { onConflict: "id" }
     );
 
     if (profileError) throw profileError;
-
-    if (customerId) {
-      const { error: customerError } = await supabase
-        .from("profiles")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", userId);
-
-      if (customerError) {
-        console.error("Failed to save Stripe customer id", readableError(customerError));
-      }
-    }
 
     if (subscriptionId) {
       const { error: subscriptionError } = await supabase.from("subscriptions").upsert(
@@ -123,7 +142,7 @@ export async function POST(request: Request) {
           user_id: userId,
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
-          status: subscriptionStatus ?? "active",
+          status: subscriptionStatus ?? (paymentStatus === "paid" ? "active" : "trialing"),
           plan,
           current_period_end: currentPeriodEnd,
         },
