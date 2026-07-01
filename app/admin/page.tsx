@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildPrintHtml,
+  makeQuestion,
   formatPrintDate,
+  previewCss,
+  PREVIEW_SCALE,
   type PdfType,
   type Direction,
   type PrintStyle,
-} from "@/lib/print/builder";
+} from "@/lib/print/full-builder";
 import { fallbackOfficialWordbooksForApi, mergeWordbooksById } from "@/lib/official-wordbooks";
 
 /* 笏笏笏 Types 笏笏笏 */
@@ -601,6 +604,35 @@ export default function AdminPage() {
     return list.slice(0, pdfCount);
   }, [selectedPdfBook, pdfStartNo, pdfEndNo, pdfCount, pdfRandom]);
 
+  // メイン画面と同じエンジンで実寸A4プレビューを生成
+  const pdfPreviewDoc = useMemo(() => {
+    if (!selectedPdfBook || pdfOutputWords.length === 0) return "";
+    const autoTitle = `${selectedPdfBook.title} ${pdfType === "list" ? "一覧" : pdfType === "test" ? "問題" : "解答"}`;
+    const html = buildPrintHtml({
+      title: pdfTitle.trim() || autoTitle,
+      words: pdfOutputWords,
+      type: pdfType,
+      makeQuestion: (w) => makeQuestion(w, pdfDir),
+      showPageNo: pdfShowPageNo,
+      plan: "admin",
+      printStyle: pdfPrintStyle,
+      includeWatermark: pdfWatermark,
+      showRecordFields: pdfShowRecord,
+      showClassField: pdfClass,
+      showNumberField: pdfNumber,
+      showNameField: pdfName,
+      studentClass: pdfStudentClass,
+      studentNumber: pdfStudentNumber,
+      studentName: pdfStudentName,
+      includeDate: pdfDate,
+      generatedAt: new Date(),
+      userEmail: "",
+      footerText: pdfFooterText,
+      fontScale: pdfFontScale,
+    });
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${previewCss}</style></head><body><div id="print-root">${html}</div></body></html>`;
+  }, [selectedPdfBook, pdfOutputWords, pdfType, pdfDir, pdfShowPageNo, pdfPrintStyle, pdfWatermark, pdfShowRecord, pdfClass, pdfNumber, pdfName, pdfStudentClass, pdfStudentNumber, pdfStudentName, pdfDate, pdfTitle, pdfFooterText, pdfFontScale]);
+
   useEffect(() => {
     if (selectedPdfBook) {
       setPdfStartNo(1);
@@ -620,7 +652,7 @@ export default function AdminPage() {
       title: pdfTitle.trim() || autoTitle,
       words: pdfOutputWords,
       type: pdfType,
-      direction: pdfDir,
+      makeQuestion: (w) => makeQuestion(w, pdfDir),
       showPageNo: pdfShowPageNo,
       plan: "admin",
       printStyle: pdfPrintStyle,
@@ -634,6 +666,7 @@ export default function AdminPage() {
       studentName: pdfStudentName,
       includeDate: pdfDate,
       generatedAt: now,
+      userEmail: "",
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
     });
@@ -1225,32 +1258,27 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {!selectedPdfBook ? (
+                {!selectedPdfBook || pdfOutputWords.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">単語帳を選択してください</p>
                 ) : (
-                  <div className="overflow-hidden rounded-2xl border text-sm">
-                    <table className="w-full table-fixed border-collapse">
-                      <thead className="bg-slate-50 text-xs text-slate-500">
-                        <tr>
-                          <th className="w-12 border-b p-2 text-center">番号</th>
-                          <th className="w-1/3 border-b p-2 text-left">英単語</th>
-                          <th className="border-b p-2 text-left">意味</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pdfOutputWords.slice(0, 20).map((w) => (
-                          <tr key={w.no} className="border-b last:border-0 hover:bg-slate-50">
-                            <td className="p-2 text-center font-bold text-slate-400">{w.no}</td>
-                            <td className="p-2 font-bold">{w.english}</td>
-                            <td className="p-2 text-slate-600">{w.japanese}</td>
-                          </tr>
-                        ))}
-                        {pdfOutputWords.length > 20 && (
-                          <tr><td colSpan={3} className="p-2 text-center text-xs text-slate-400">… 他{pdfOutputWords.length - 20}語（計{pdfOutputWords.length}語）</td></tr>
-                        )}
-                      </tbody>
-                    </table>
+                  <div className="flex justify-center rounded-2xl border bg-slate-100 p-4">
+                    <div
+                      className="overflow-hidden bg-white shadow-md"
+                      style={{ width: Math.round(794 * PREVIEW_SCALE), height: Math.round(1123 * PREVIEW_SCALE) }}
+                    >
+                      <iframe
+                        title="印刷プレビュー"
+                        srcDoc={pdfPreviewDoc}
+                        aria-label="印刷プレビュー"
+                        style={{ width: 794, height: 1123, border: 0, transform: `scale(${PREVIEW_SCALE})`, transformOrigin: "top left" }}
+                      />
+                    </div>
                   </div>
+                )}
+                {selectedPdfBook && pdfOutputWords.length > 0 && (
+                  <p className="mt-2 text-center text-xs text-slate-400">
+                    実際のA4レイアウトのプレビューです（{pdfOutputWords.length}語 / {Math.max(1, Math.ceil(pdfOutputWords.length / 50))}ページ）。
+                  </p>
                 )}
               </section>
 
