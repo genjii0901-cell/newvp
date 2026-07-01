@@ -801,13 +801,18 @@ export default function AdminPage() {
       const rendered = await prepareRenderedPages(built.fullDoc);
       const canvases: HTMLCanvasElement[] = [];
       try {
-        for (const page of rendered.pages) {
+        const pagesToRender = mode === "first" ? rendered.pages.slice(0, 1) : rendered.pages;
+        const renderScale = mode === "first" ? 2.2 : 1.6;
+        for (let index = 0; index < pagesToRender.length; index += 1) {
+          const page = pagesToRender[index];
+          if (index > 0) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
           canvases.push(await html2canvas(page, {
             backgroundColor: "#ffffff",
-            scale: 3,
+            scale: renderScale,
             useCORS: true,
             logging: false,
-            foreignObjectRendering: true,
             removeContainer: true,
             windowWidth: Math.ceil(page.scrollWidth || page.clientWidth || 820),
             windowHeight: Math.ceil(page.scrollHeight || page.clientHeight || 1123),
