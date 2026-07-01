@@ -711,6 +711,40 @@ export default function AdminPage() {
     }
   }
 
+  async function prepareRenderedPages(fullDoc: string) {
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;height:2000px;border:none;background:white;visibility:hidden;";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!doc) {
+      iframe.remove();
+      throw new Error("出力用プレビューを準備できませんでした。");
+    }
+
+    doc.open();
+    doc.write(fullDoc);
+    doc.close();
+
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    if (doc.fonts && doc.fonts.ready) {
+      try { await doc.fonts.ready; } catch { /* ignore */ }
+    }
+
+    const pages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
+    if (pages.length === 0) {
+      iframe.remove();
+      throw new Error("出力ページが見つかりませんでした。");
+    }
+
+    return {
+      iframe,
+      cleanup: () => { try { iframe.remove(); } catch { /* ignore */ } },
+      pages,
+    };
+  }
+
   async function downloadPdf(mode: "all" | "first" = "all") {
     const built = buildAdminPrintDocument(mode);
     if (!built) return;
@@ -722,28 +756,9 @@ export default function AdminPage() {
         import("jspdf"),
         import("html2canvas"),
       ]);
-
-      const iframe = document.createElement("iframe");
-      iframe.setAttribute("aria-hidden", "true");
-      iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;height:2000px;border:none;background:white;visibility:hidden;";
-      document.body.appendChild(iframe);
+      const rendered = await prepareRenderedPages(built.fullDoc);
 
       try {
-        const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-        if (!doc) throw new Error("PDFプレビューを準備できませんでした。");
-
-        doc.open();
-        doc.write(built.fullDoc);
-        doc.close();
-
-        await new Promise((resolve) => setTimeout(resolve, 350));
-        if (doc.fonts && doc.fonts.ready) {
-          try { await doc.fonts.ready; } catch { /* ignore */ }
-        }
-
-        const pages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
-        if (pages.length === 0) throw new Error("PDFにするページが見つかりませんでした。");
-
         const pdf = new jsPDF({
           orientation: "portrait",
           unit: "mm",
@@ -751,8 +766,8 @@ export default function AdminPage() {
           compress: true,
         });
 
-        for (let i = 0; i < pages.length; i += 1) {
-          const canvas = await html2canvas(pages[i], {
+        for (let i = 0; i < rendered.pages.length; i += 1) {
+          const canvas = await html2canvas(rendered.pages[i], {
             scale: 2,
             backgroundColor: "#ffffff",
             useCORS: true,
@@ -766,7 +781,7 @@ export default function AdminPage() {
 
         pdf.save(mode === "first" ? `${built.titleBase}-page1.pdf` : `${built.titleBase}.pdf`);
       } finally {
-        try { iframe.remove(); } catch { /* ignore */ }
+        rendered.cleanup();
       }
     } catch (error) {
       setPdfMsg(error instanceof Error ? `PDF出力に失敗しました: ${error.message}` : "PDF出力に失敗しました。");
@@ -776,48 +791,53 @@ export default function AdminPage() {
   }
 
   async function exportPreviewAsImage(mode: "all" | "first" = "all") {
-    if (!selectedPdfBook || pdfOutputWords.length === 0) {
-      setPdfMsg("単語帳と範囲を確認してください。");
-      return;
-    }
-
-    const iframe = previewIframeRef.current;
-    const iframeWindow = iframe?.contentWindow;
-    const iframeDocument = iframe?.contentDocument;
-    const target = iframeDocument?.getElementById("print-root") ?? iframeDocument?.body ?? null;
-
-    if (!iframeWindow || !iframeDocument || !target) {
-      setPdfMsg("プレビューの読み込み後に、もう一度お試しください。");
-      return;
-    }
+    const built = buildAdminPrintDocument(mode);
+    if (!built) return;
 
     setPdfMsg("");
     setExportingAction(mode === "first" ? "image-first" : "image-all");
     try {
       const { default: html2canvas } = await import("html2canvas");
-      const canvas = await html2canvas(target as HTMLElement, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        windowWidth: 794,
-        windowHeight: Math.max(target.scrollHeight, 1123),
-      });
+      const rendered = await prepareRenderedPages(built.fullDoc);
+      const canvases: HTMLCanvasElement[] = [];
+      try {
+        for (const page of rendered.pages) {
+          canvases.push(await html2canvas(page, {
+            backgroundColor: "#ffffff",
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            windowWidth: 820,
+          }));
+        }
+      } finally {
+        rendered.cleanup();
+      }
 
-      const titleBase = (pdfTitle.trim() || `${selectedPdfBook.title}-${pdfType}`).replace(/[\\/:*?"<>|]+/g, "_");
-      const pageCanvas = mode === "first"
-        ? (() => {
-            const croppedCanvas = document.createElement("canvas");
-            croppedCanvas.width = canvas.width;
-            croppedCanvas.height = Math.min(canvas.height, Math.round(1123 * 2));
-            const ctx = croppedCanvas.getContext("2d");
-            ctx?.drawImage(canvas, 0, 0);
-            return croppedCanvas;
-          })()
-        : canvas;
+      const pageCanvas = mode === "first" || canvases.length === 1
+        ? canvases[0]
+        : (() => {
+            const gap = 32;
+            const width = Math.max(...canvases.map((canvas) => canvas.width));
+            const height = canvases.reduce((sum, canvas, index) => sum + canvas.height + (index > 0 ? gap : 0), 0);
+            const merged = document.createElement("canvas");
+            merged.width = width;
+            merged.height = height;
+            const ctx = merged.getContext("2d");
+            if (!ctx) return canvases[0];
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, width, height);
+            let y = 0;
+            for (const canvas of canvases) {
+              const x = Math.round((width - canvas.width) / 2);
+              ctx.drawImage(canvas, x, y);
+              y += canvas.height + gap;
+            }
+            return merged;
+          })();
       const link = document.createElement("a");
       link.href = pageCanvas.toDataURL("image/png");
-      link.download = mode === "first" ? `${titleBase}-page1.png` : `${titleBase}.png`;
+      link.download = mode === "first" ? `${built.titleBase}-page1.png` : `${built.titleBase}.png`;
       link.click();
     } catch (error) {
       setPdfMsg(error instanceof Error ? `画像出力に失敗しました: ${error.message}` : "画像出力に失敗しました。");
