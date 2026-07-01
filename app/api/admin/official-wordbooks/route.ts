@@ -95,22 +95,59 @@ async function findExistingOfficialWordbookByTitle(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   title: string
 ) {
+  const matches = await listExistingOfficialWordbooksByTitle(supabase, title);
+  if (matches.length === 0) return null;
+  return matches[matches.length - 1];
+}
+
+async function listExistingOfficialWordbooksByTitle(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  title: string
+) {
   const trimmed = title.trim();
-  if (!trimmed) return null;
+  if (!trimmed) return [];
 
   let result = await supabase
     .from("wordbooks")
     .select("id,title")
     .eq("title", trimmed)
     .eq("is_official", true)
-    .limit(10);
+    .limit(50);
 
   if (isMissingColumnError(result.error, "is_official")) {
-    result = await supabase.from("wordbooks").select("id,title").eq("title", trimmed).limit(10);
+    result = await supabase.from("wordbooks").select("id,title").eq("title", trimmed).limit(50);
   }
 
-  if (result.error || !result.data || result.data.length === 0) return null;
-  return result.data[result.data.length - 1] as { id: string; title: string };
+  if (result.error || !result.data || result.data.length === 0) return [];
+  return result.data as Array<{ id: string; title: string }>;
+}
+
+async function cleanupDuplicateWordbooksByTitle(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  title: string,
+  keepId: string
+) {
+  const matches = await listExistingOfficialWordbooksByTitle(supabase, title);
+  const duplicateIds = matches.map((item) => String(item.id)).filter((id) => id !== keepId);
+
+  for (const duplicateId of duplicateIds) {
+    await supabase.from("words").delete().eq("wordbook_id", duplicateId);
+    let result = await supabase.from("wordbooks").delete().eq("id", duplicateId).eq("is_official", true);
+    if (isMissingColumnError(result.error, "is_official")) {
+      result = await supabase.from("wordbooks").delete().eq("id", duplicateId);
+    }
+  }
+
+  return duplicateIds;
+}
+
+async function getWordbookTitleById(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  id: string
+) {
+  const { data, error } = await supabase.from("wordbooks").select("title").eq("id", id).maybeSingle();
+  if (error || !data?.title || typeof data.title !== "string") return "";
+  return data.title;
 }
 
 async function replaceWords(
@@ -237,10 +274,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: wordsResult.error.message }, { status: 500 });
     }
 
+    const removedDuplicateIds = await cleanupDuplicateWordbooksByTitle(
+      supabase,
+      title,
+      String(wordbook.id)
+    );
+
     return NextResponse.json({
       ok: true,
       wordbook,
       wordCount: clean.length,
+      removedDuplicateIds,
     });
   } catch (error) {
     return NextResponse.json(
@@ -326,11 +370,18 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ ok: false, message: wordsResult.error.message }, { status: 500 });
       }
 
+      const removedDuplicateIds = await cleanupDuplicateWordbooksByTitle(
+        supabase,
+        materializedTitle,
+        String(wordbook.id)
+      );
+
       return NextResponse.json({
         ok: true,
         created: !existing,
         wordbook,
         wordCount: materializedWords.length,
+        removedDuplicateIds,
       });
     }
 
@@ -357,9 +408,17 @@ export async function PATCH(request: Request) {
       if (wordsResult.error) {
         return NextResponse.json({ ok: false, message: wordsResult.error.message }, { status: 500 });
       }
+      const titleForCleanup =
+        typeof body.title === "string" && body.title.trim().length > 0
+          ? body.title.trim()
+          : await getWordbookTitleById(supabase, id);
+      const removedDuplicateIds = titleForCleanup
+        ? await cleanupDuplicateWordbooksByTitle(supabase, titleForCleanup, id)
+        : [];
       return NextResponse.json({
         ok: true,
         wordCount: clean.length,
+        removedDuplicateIds,
         ...(metaResult.skippedColumns.length > 0
           ? { skippedColumns: metaResult.skippedColumns, warning: `Skipped columns: ${metaResult.skippedColumns.join(", ")}` }
           : {}),
@@ -369,9 +428,17 @@ export async function PATCH(request: Request) {
     const requiredSkipped = metaResult.skippedColumns.filter(
       (column) => !["cover_image", "is_official", "owner_id", "visibility"].includes(column)
     );
+    const titleForCleanup =
+      typeof body.title === "string" && body.title.trim().length > 0
+        ? body.title.trim()
+        : await getWordbookTitleById(supabase, id);
+    const removedDuplicateIds = titleForCleanup
+      ? await cleanupDuplicateWordbooksByTitle(supabase, titleForCleanup, id)
+      : [];
 
     return NextResponse.json({
       ok: true,
+      removedDuplicateIds,
       ...(requiredSkipped.length > 0
         ? { skippedColumns: requiredSkipped, warning: `Skipped columns: ${requiredSkipped.join(", ")}` }
         : {}),
