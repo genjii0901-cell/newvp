@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
 type Plan = "free" | "personal" | "teacher";
+type Role = "user" | "admin";
 const planInfo: Record<Plan, { label: string; color: string; limit: string; price: string }> = {
   free: { label: "Free", color: "bg-slate-100 text-slate-700", limit: "1日3回・50語まで", price: "無料" },
   personal: { label: "Personal", color: "bg-blue-100 text-blue-700", limit: "月300回・300語まで", price: "¥780/月" },
@@ -20,6 +21,7 @@ export default function AccountPage() {
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null>(null);
   const [plan, setPlan] = useState<Plan>("free");
+  const [role, setRole] = useState<Role>("user");
   const [loading, setLoading] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -27,6 +29,7 @@ export default function AccountPage() {
   const [savingPw, setSavingPw] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [adminPlanSaving, setAdminPlanSaving] = useState(false);
 
   useEffect(() => {
     if (!supabase) { setLoading(false); return; }
@@ -55,6 +58,7 @@ export default function AccountPage() {
       const result = await response.json().catch(() => ({}));
       if (!cancelled && response.ok && result.profile?.plan) {
         setPlan(normalizePlan(result.profile.plan));
+        setRole(result.profile.role === "admin" ? "admin" : "user");
       }
       if (!cancelled) setLoading(false);
     }
@@ -99,6 +103,36 @@ export default function AccountPage() {
     if (result.url) window.location.href = result.url;
     else setMsg(result.message ?? "請求管理ページを開けませんでした。");
     setPortalLoading(false);
+  }
+
+  async function changeAdminPlan(nextPlan: Plan) {
+    if (!supabase || !user || role !== "admin") return;
+    setAdminPlanSaving(true);
+    setMsg("");
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    const response = await fetch("/api/me/profile", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ plan: nextPlan }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (response.ok && result.profile?.plan) {
+      const updatedPlan = normalizePlan(result.profile.plan);
+      setPlan(updatedPlan);
+      try {
+        window.localStorage.setItem(`vpp-profile-plan:${user.id}`, updatedPlan);
+      } catch {
+        // ignore cache write errors
+      }
+      setMsg(`✅ 管理者プレビュープランを${planInfo[updatedPlan].label}に変更しました。`);
+    } else {
+      setMsg(result.error ?? "プラン変更に失敗しました。");
+    }
+    setAdminPlanSaving(false);
   }
 
   async function logout() {
@@ -154,6 +188,37 @@ export default function AccountPage() {
           </Link>
         )}
       </section>
+
+      {role === "admin" && (
+        <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+          <h2 className="text-lg font-black text-amber-900">管理者プレビューモード</h2>
+          <p className="mt-2 text-sm text-amber-800">
+            管理者アカウントは Free / Personal / Teacher を自由に切り替えて確認できます。
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {(["free", "personal", "teacher"] as Plan[]).map((nextPlan) => {
+              const current = plan === nextPlan;
+              return (
+                <button
+                  key={nextPlan}
+                  onClick={() => changeAdminPlan(nextPlan)}
+                  disabled={adminPlanSaving || current}
+                  className={`rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${
+                    current
+                      ? "border-amber-400 bg-amber-200 text-amber-900"
+                      : "border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
+                  } disabled:opacity-60`}
+                >
+                  {current ? `${planInfo[nextPlan].label} 利用中` : `${planInfo[nextPlan].label} で確認`}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs text-amber-700">
+            切り替え後はトップや料金画面でも同じプランとして反映されます。
+          </p>
+        </section>
+      )}
 
       {/* Account info */}
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">

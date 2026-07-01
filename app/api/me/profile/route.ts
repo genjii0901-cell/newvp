@@ -129,3 +129,50 @@ export async function GET(request: Request) {
     );
   }
 }
+
+export async function PATCH(request: Request) {
+  const auth = await requireSupabaseUser(request);
+  if (auth.response) return auth.response;
+
+  try {
+    const body = (await request.json().catch(() => ({}))) as { plan?: unknown };
+    const nextPlan = normalizePlan(body.plan);
+    const profile = await ensureProfile(auth.user);
+
+    if ((profile.role ?? "user") !== "admin") {
+      return NextResponse.json(
+        { ok: false, error: "Only admin users can change preview plan." },
+        { status: 403 }
+      );
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ plan: nextPlan })
+      .eq("id", auth.user.id);
+
+    if (error) {
+      return NextResponse.json(
+        { ok: false, error: readableError(error) },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      profile: {
+        id: profile.id,
+        email: profile.email ?? auth.user.email ?? null,
+        plan: nextPlan,
+        role: profile.role ?? "user",
+        stripe_customer_id: profile.stripe_customer_id ?? null,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { ok: false, error: readableError(error) },
+      { status: 500 }
+    );
+  }
+}
