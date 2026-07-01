@@ -31,6 +31,12 @@ export type OfficialWordbookApiShape = {
   words: OfficialWord[];
 };
 
+export const HIDDEN_TEMPLATE_DESCRIPTION_PREFIX = "__VPP_HIDDEN_TEMPLATE__:";
+
+export function isHiddenTemplateTombstone(description: string | null | undefined) {
+  return typeof description === "string" && description.startsWith(HIDDEN_TEMPLATE_DESCRIPTION_PREFIX);
+}
+
 const starterWordbooks: OfficialWordbookSeed[] = [
   {
     id: "starter-eiken-pre1",

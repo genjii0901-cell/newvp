@@ -4,7 +4,11 @@ import {
   isSupabaseServerConfigured,
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
-import { fallbackOfficialWordbooksForApi, normalizeBookTitle } from "@/lib/official-wordbooks";
+import {
+  fallbackOfficialWordbooksForApi,
+  HIDDEN_TEMPLATE_DESCRIPTION_PREFIX,
+  normalizeBookTitle,
+} from "@/lib/official-wordbooks";
 import { requireAdmin } from "@/lib/admin-auth";
 
 type IncomingWord = {
@@ -45,6 +49,38 @@ function normalizeVisibility(value: unknown): Visibility {
 
 function isPersistedDbId(value: string) {
   return /^\d+$/.test(value) || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value);
+}
+
+async function insertHiddenTemplateTombstone(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  title: string
+) {
+  const description = `${HIDDEN_TEMPLATE_DESCRIPTION_PREFIX}${title}`;
+  const attempts: Record<string, unknown>[] = [
+    { owner_id: null, title, description, is_official: true, visibility: "private" },
+    { owner_id: null, title, description, visibility: "private" },
+    { title, description, visibility: "private" },
+    { owner_id: null, title, description, is_official: true },
+    { owner_id: null, title, description },
+    { title, description },
+  ];
+
+  let lastError: DbError = null;
+  for (const payload of attempts) {
+    const result = await supabase.from("wordbooks").insert(payload).select("id,title").single();
+    if (!result.error) return result;
+    lastError = result.error;
+    const expectedSchemaMismatch =
+      isMissingColumnError(result.error, "is_official") ||
+      isMissingColumnError(result.error, "owner_id") ||
+      isMissingColumnError(result.error, "visibility") ||
+      result.error.message.includes("null value") ||
+      result.error.message.includes("violates not-null") ||
+      result.error.message.includes("does not exist");
+    if (!expectedSchemaMismatch) return result;
+  }
+
+  return { data: null, error: lastError ?? { message: "Failed to hide template wordbook." } };
 }
 
 async function insertWordbook(
@@ -493,6 +529,37 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+    if (!isPersistedDbId(id)) {
+      const seededBook = fallbackOfficialWordbooksForApi().find((book) => book.id === id);
+      if (!seededBook) {
+        return NextResponse.json(
+          { ok: false, message: "削除対象のテンプレート単語帳が見つかりませんでした。" },
+          { status: 404 }
+        );
+      }
+
+      const existing = await findExistingOfficialWordbookByTitle(supabase, seededBook.title);
+      if (existing?.id) {
+        await supabase.from("words").delete().eq("wordbook_id", String(existing.id));
+        let deleteExisting = await supabase.from("wordbooks").delete().eq("id", String(existing.id)).eq("is_official", true);
+        if (isMissingColumnError(deleteExisting.error, "is_official")) {
+          deleteExisting = await supabase.from("wordbooks").delete().eq("id", String(existing.id));
+        }
+        if (deleteExisting.error) {
+          return NextResponse.json({ ok: false, message: deleteExisting.error.message }, { status: 500 });
+        }
+      }
+
+      const hidden = await insertHiddenTemplateTombstone(supabase, seededBook.title);
+      if (hidden.error) {
+        return NextResponse.json(
+          { ok: false, message: hidden.error.message ?? "テンプレート単語帳の非表示化に失敗しました。" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, hiddenTemplate: true });
+    }
     const wordsDeleteResult = await supabase.from("words").delete().eq("wordbook_id", id);
     if (wordsDeleteResult.error) {
       return NextResponse.json(

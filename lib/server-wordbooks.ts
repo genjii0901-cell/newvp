@@ -1,5 +1,6 @@
 import {
   fallbackOfficialWordbooksForApi,
+  isHiddenTemplateTombstone,
   mergeWordbooksById,
   normalizeBookTitle,
 } from "@/lib/official-wordbooks";
@@ -129,7 +130,15 @@ export async function loadOfficialWordbooks(options?: {
     };
   }
 
-  const visibleRows = includeAdmin ? rows : rows.filter((row) => isPubliclyVisible(row.visibility));
+  const hiddenTitleKeys = new Set(
+    rows
+      .filter((row) => isHiddenTemplateTombstone(row.description))
+      .map((row) => normalizeBookTitle(row.title))
+      .filter(Boolean)
+  );
+
+  const candidateRows = rows.filter((row) => !isHiddenTemplateTombstone(row.description));
+  const visibleRows = includeAdmin ? candidateRows : candidateRows.filter((row) => isPubliclyVisible(row.visibility));
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];
@@ -207,10 +216,12 @@ export async function loadOfficialWordbooks(options?: {
     wordbooks: includeFallback
       ? mergeWordbooksById(
           primaryBooks,
-          fallbackOfficialWordbooksForApi().map((book) => ({
-            ...book,
-            visibility: book.visibility,
-          }))
+          fallbackOfficialWordbooksForApi()
+            .filter((book) => !hiddenTitleKeys.has(normalizeBookTitle(book.title)))
+            .map((book) => ({
+              ...book,
+              visibility: book.visibility,
+            }))
         )
       : primaryBooks,
   };

@@ -527,10 +527,6 @@ export default function AdminPage() {
   }
 
   async function deleteBook(id: string, bookTitle: string) {
-    if (!isPersistedBookId(id)) {
-      setManageMsg("ℹ️ テンプレートの公式単語帳です。削除したい場合は、先に保存してSupabase版にしてから削除してください。");
-      return;
-    }
     if (!confirm(`「${bookTitle}」を削除しますか？`)) return;
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "DELETE",
@@ -539,7 +535,7 @@ export default function AdminPage() {
     });
     const result = await res.json().catch(() => ({}));
     if (!res.ok) { setManageMsg(result.message ?? "削除失敗"); return; }
-    setManageMsg("✅ 削除しました");
+    setManageMsg(result.hiddenTemplate ? "✅ テンプレート単語帳を非表示にしました" : "✅ 削除しました");
     await fetchBooks({ silent: true, preserveMessage: true });
   }
 
