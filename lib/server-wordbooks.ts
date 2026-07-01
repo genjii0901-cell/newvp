@@ -147,7 +147,7 @@ export async function loadOfficialWordbooks(options?: { includeAdmin?: boolean; 
           .from("words")
           .select(select)
           .in("wordbook_id", ids)
-          .order("wordbook_id", { ascending: true })
+          .order("id", { ascending: true })
           .range(from, from + PAGE - 1);
         if (result.error) {
           failed = true;

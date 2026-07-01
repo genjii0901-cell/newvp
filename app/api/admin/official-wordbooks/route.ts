@@ -155,10 +155,13 @@ async function replaceWords(
 ) {
   await supabase.from("words").delete().eq("wordbook_id", wordbookId);
   if (words.length === 0) return { error: null };
-  const { error } = await supabase
-    .from("words")
-    .insert(words.map((word) => ({ wordbook_id: wordbookId, ...word })));
-  if (error) return { error };
+  // 大きな単語帳（数千語）でも確実に保存できるよう、まとめて1回ではなく分割して挿入する。
+  const rows = words.map((word) => ({ wordbook_id: wordbookId, ...word }));
+  const INSERT_CHUNK = 500;
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+    const { error } = await supabase.from("words").insert(rows.slice(i, i + INSERT_CHUNK));
+    if (error) return { error };
+  }
 
   const countResult = await supabase
     .from("words")
