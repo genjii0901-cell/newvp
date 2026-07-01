@@ -15,6 +15,12 @@ function getObject(value: unknown) {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
 }
 
+function isCanceledDuringTrial(subscriptionObject: Record<string, unknown>) {
+  const status = getString(subscriptionObject.status);
+  const cancelAtPeriodEnd = subscriptionObject.cancel_at_period_end === true;
+  return status === "trialing" && cancelAtPeriodEnd;
+}
+
 function planFromPriceId(priceId: string | null): Exclude<Plan, "free"> | null {
   if (!priceId) return null;
   if (priceId === process.env.STRIPE_PRICE_PERSONAL || priceId === process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL) {
@@ -51,6 +57,7 @@ async function planFromActiveStripeSubscription(customerId: string | null) {
     const subscriptionObject = getObject(subscription);
     const status = getString(subscriptionObject?.status);
     if (status !== "active" && status !== "trialing") continue;
+    if (subscriptionObject && isCanceledDuringTrial(subscriptionObject)) continue;
 
     const items = getObject(subscriptionObject?.items);
     const itemData = items?.data;

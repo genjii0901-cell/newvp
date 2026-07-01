@@ -98,6 +98,12 @@ function planFromSubscriptionObject(object: Record<string, unknown>) {
   return null;
 }
 
+function isCanceledDuringTrial(object: Record<string, unknown>) {
+  const status = getString(object.status);
+  const cancelAtPeriodEnd = object.cancel_at_period_end === true;
+  return status === "trialing" && cancelAtPeriodEnd;
+}
+
 async function findUserIdByCustomer(stripeCustomerId: string | null) {
   if (!stripeCustomerId) return null;
 
@@ -243,7 +249,9 @@ export async function POST(request: Request) {
         typeof object.current_period_end === "number"
           ? new Date(object.current_period_end * 1000).toISOString()
           : null;
-      const plan = status && ["canceled", "unpaid", "incomplete_expired"].includes(status)
+      const plan = isCanceledDuringTrial(object)
+        ? "free"
+        : status && ["canceled", "unpaid", "incomplete_expired"].includes(status)
         ? "free"
         : rawPlan ?? (await findPlanByUserId(userId));
 
