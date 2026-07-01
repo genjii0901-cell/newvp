@@ -4,7 +4,7 @@ import {
   isSupabaseServerConfigured,
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
-import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
+import { fallbackOfficialWordbooksForApi, normalizeBookTitle } from "@/lib/official-wordbooks";
 import { requireAdmin } from "@/lib/admin-auth";
 
 type IncomingWord = {
@@ -106,20 +106,18 @@ async function listExistingOfficialWordbooksByTitle(
 ) {
   const trimmed = title.trim();
   if (!trimmed) return [];
+  const normalizedTitle = normalizeBookTitle(trimmed);
 
-  let result = await supabase
-    .from("wordbooks")
-    .select("id,title")
-    .eq("title", trimmed)
-    .eq("is_official", true)
-    .limit(50);
+  let result = await supabase.from("wordbooks").select("id,title").eq("is_official", true).limit(500);
 
   if (isMissingColumnError(result.error, "is_official")) {
-    result = await supabase.from("wordbooks").select("id,title").eq("title", trimmed).limit(50);
+    result = await supabase.from("wordbooks").select("id,title").limit(500);
   }
 
   if (result.error || !result.data || result.data.length === 0) return [];
-  return result.data as Array<{ id: string; title: string }>;
+  return (result.data as Array<{ id: string; title: string | null }>).filter(
+    (row) => normalizeBookTitle(row.title ?? "") === normalizedTitle
+  ) as Array<{ id: string; title: string }>;
 }
 
 async function cleanupDuplicateWordbooksByTitle(
