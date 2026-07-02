@@ -7,10 +7,26 @@ import type { User } from "@supabase/supabase-js";
 
 type Plan = "free" | "personal" | "teacher";
 type Role = "user" | "admin";
+
 const planInfo: Record<Plan, { label: string; color: string; limit: string; price: string }> = {
-  free: { label: "Free", color: "bg-slate-100 text-slate-700", limit: "1日3回・50語まで", price: "無料" },
-  personal: { label: "Personal", color: "bg-blue-100 text-blue-700", limit: "月300回・300語まで", price: "¥780/月" },
-  teacher: { label: "Teacher", color: "bg-purple-100 text-purple-700", limit: "月5000回・1900語まで", price: "¥2,980/月" },
+  free: {
+    label: "Free",
+    color: "bg-slate-100 text-slate-700",
+    limit: "1日2回・1ページまで・累計10回まで",
+    price: "無料",
+  },
+  personal: {
+    label: "Personal",
+    color: "bg-blue-100 text-blue-700",
+    limit: "月300回・300語まで",
+    price: "¥780/月",
+  },
+  teacher: {
+    label: "Teacher",
+    color: "bg-purple-100 text-purple-700",
+    limit: "月5000回・1900語まで",
+    price: "¥2,980/月",
+  },
 };
 
 function normalizePlan(v: unknown): Plan {
@@ -32,12 +48,15 @@ export default function AccountPage() {
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
 
   useEffect(() => {
-    if (!supabase) { setLoading(false); return; }
-    const sb = supabase;
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadProfile() {
-      const { data } = await sb.auth.getUser();
+      const { data } = await supabase.auth.getUser();
       const nextUser = data.user ?? null;
       if (!cancelled) setUser(nextUser);
       if (!nextUser) {
@@ -45,7 +64,7 @@ export default function AccountPage() {
         return;
       }
 
-      const { data: sessionData } = await sb.auth.getSession();
+      const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) {
         if (!cancelled) setLoading(false);
@@ -56,9 +75,10 @@ export default function AccountPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const result = await response.json().catch(() => ({}));
-      if (!cancelled && response.ok && result.profile?.plan) {
-        setPlan(normalizePlan(result.profile.plan));
-        setRole(result.profile.role === "admin" ? "admin" : "user");
+
+      if (!cancelled && response.ok) {
+        setPlan(normalizePlan(result.profile?.plan));
+        setRole(result.profile?.role === "admin" ? "admin" : "user");
       }
       if (!cancelled) setLoading(false);
     }
@@ -69,14 +89,18 @@ export default function AccountPage() {
       setUser(session?.user ?? null);
       loadProfile();
     });
-    return () => listener.subscription.unsubscribe();
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
   }, [supabase]);
 
   async function changePassword() {
     if (!supabase || !newPassword) return;
     setSavingPw(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
-    setMsg(error ? "パスワード変更に失敗しました: " + error.message : "✅ パスワードを変更しました。");
+    setMsg(error ? `パスワード変更に失敗しました: ${error.message}` : "パスワードを更新しました。");
     setNewPassword("");
     setSavingPw(false);
   }
@@ -85,7 +109,7 @@ export default function AccountPage() {
     if (!supabase || !newEmail) return;
     setSavingEmail(true);
     const { error } = await supabase.auth.updateUser({ email: newEmail });
-    setMsg(error ? "メール変更に失敗しました: " + error.message : "✅ 確認メールを送信しました。メールを確認してください。");
+    setMsg(error ? `メール変更に失敗しました: ${error.message}` : "確認メールを送信しました。");
     setNewEmail("");
     setSavingEmail(false);
   }
@@ -100,8 +124,11 @@ export default function AccountPage() {
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     });
     const result = await res.json().catch(() => ({}));
-    if (result.url) window.location.href = result.url;
-    else setMsg(result.message ?? "請求管理ページを開けませんでした。");
+    if (result.url) {
+      window.location.href = result.url;
+      return;
+    }
+    setMsg(result.message ?? result.error ?? "請求ページを開けませんでした。");
     setPortalLoading(false);
   }
 
@@ -125,10 +152,8 @@ export default function AccountPage() {
       setPlan(updatedPlan);
       try {
         window.localStorage.setItem(`vpp-profile-plan:${user.id}`, updatedPlan);
-      } catch {
-        // ignore cache write errors
-      }
-      setMsg(`✅ 管理者プレビュープランを${planInfo[updatedPlan].label}に変更しました。`);
+      } catch {}
+      setMsg(`管理者プレビューを ${planInfo[updatedPlan].label} に切り替えました。`);
     } else {
       setMsg(result.error ?? "プラン変更に失敗しました。");
     }
@@ -144,9 +169,10 @@ export default function AccountPage() {
   if (!user && !loading) {
     return (
       <div className="mx-auto max-w-2xl px-5 py-20 text-center">
-        <p className="text-2xl">🔒</p>
-        <p className="mt-4 font-bold text-slate-700">ログインが必要です</p>
-        <Link href="/" className="mt-4 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">ログインへ</Link>
+        <p className="mt-4 font-bold text-slate-700">ログインが必要です。</p>
+        <Link href="/" className="mt-4 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">
+          トップへ戻る
+        </Link>
       </div>
     );
   }
@@ -158,12 +184,11 @@ export default function AccountPage() {
       <h1 className="text-2xl font-black text-slate-900">アカウント設定</h1>
 
       {msg && (
-        <div className={`mt-4 rounded-2xl p-4 text-sm font-bold ${msg.startsWith("✅") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
+        <div className={`mt-4 rounded-2xl p-4 text-sm font-bold ${msg.includes("失敗") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
           {msg}
         </div>
       )}
 
-      {/* Current plan */}
       <section className="mt-6 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">現在のプラン</h2>
         <div className="mt-4 flex items-center gap-4">
@@ -173,25 +198,24 @@ export default function AccountPage() {
             <p className="text-sm text-slate-500">{info.limit}</p>
           </div>
         </div>
-        {plan !== "free" && (
+        {plan !== "free" ? (
           <button
             onClick={openPortal}
             disabled={portalLoading}
             className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
           >
-            {portalLoading ? "開いています..." : "請求管理・プラン変更"}
+            {portalLoading ? "開いています..." : "請求情報を管理"}
           </button>
-        )}
-        {plan === "free" && (
+        ) : (
           <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-            有料プランにアップグレード
+            料金ページへ
           </Link>
         )}
       </section>
 
       {role === "admin" && (
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-          <h2 className="text-lg font-black text-amber-900">管理者プレビューモード</h2>
+          <h2 className="text-lg font-black text-amber-900">管理者プレビュー</h2>
           <p className="mt-2 text-sm text-amber-800">
             管理者アカウントは Free / Personal / Teacher を自由に切り替えて確認できます。
           </p>
@@ -203,7 +227,7 @@ export default function AccountPage() {
                   key={nextPlan}
                   onClick={() => changeAdminPlan(nextPlan)}
                   disabled={adminPlanSaving || current}
-                  className={`rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${
+                  className={`rounded-2xl border px-4 py-3 text-sm font-black ${
                     current
                       ? "border-amber-400 bg-amber-200 text-amber-900"
                       : "border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
@@ -214,13 +238,9 @@ export default function AccountPage() {
               );
             })}
           </div>
-          <p className="mt-3 text-xs text-amber-700">
-            切り替え後はトップや料金画面でも同じプランとして反映されます。
-          </p>
         </section>
       )}
 
-      {/* Account info */}
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">アカウント情報</h2>
         <div className="mt-4">
@@ -233,7 +253,6 @@ export default function AccountPage() {
         </div>
       </section>
 
-      {/* Change email */}
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
         <div className="mt-4 flex gap-2">
@@ -252,10 +271,8 @@ export default function AccountPage() {
             {savingEmail ? "送信中..." : "変更する"}
           </button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">※ 新しいメールアドレスに確認メールが届きます</p>
       </section>
 
-      {/* Change password */}
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">パスワードを変更</h2>
         <div className="mt-4 flex gap-2">
@@ -263,7 +280,7 @@ export default function AccountPage() {
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             type="password"
-            placeholder="新しいパスワード（8文字以上）"
+            placeholder="新しいパスワード"
             className="flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
           <button
@@ -271,23 +288,21 @@ export default function AccountPage() {
             disabled={savingPw || newPassword.length < 6}
             className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-300"
           >
-            {savingPw ? "変更中..." : "変更する"}
+            {savingPw ? "更新中..." : "変更する"}
           </button>
         </div>
       </section>
 
-      {/* Quick links */}
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">クイックリンク</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Link href="/" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">単語テスト作成</Link>
-          <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">マイ単語帳</Link>
-          <Link href="/history" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">生成履歴</Link>
+          <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">みんなの単語帳</Link>
+          <Link href="/history" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">作成履歴</Link>
           <Link href="/pricing" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">料金プラン</Link>
         </div>
       </section>
 
-      {/* Logout */}
       <div className="mt-6 text-center">
         <button
           onClick={logout}

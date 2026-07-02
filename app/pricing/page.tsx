@@ -15,37 +15,37 @@ const plans = [
     id: "free" as const,
     title: "Free",
     price: "¥0",
-    description: "まず試したい方向けの無料プランです。",
+    description: "まず試したい人向けの無料プランです。",
     features: [
-      "1日3回までPDF作成",
+      "1日2回までPDF作成",
       "1回50語・1ページまで",
-      "透かし付きでそのまま印刷",
-      "基本の公式単語帳を体験",
+      "累計10回まで使える",
+      "みんなの単語帳を体験",
     ],
   },
   {
     id: "personal" as const,
     title: "Personal",
     price: "¥780/月",
-    description: "個人学習をしっかり続けたい方向け。有料機能の中心プランです。",
+    description: "個人学習向け。保存や履歴も使える本命プランです。",
     features: [
-      "初回30日無料トライアル",
-      "Pro単語帳を利用可能",
+      "初回7日無料トライアル",
+      "月300回・300語まで作成",
       "マイ単語帳の保存",
       "PDF履歴の保存",
-      "ページ数制限なし",
-      "赤字・空欄・ランダムなどの印刷設定",
+      "画像つき単語帳の管理",
+      "みんなの単語帳をまとめて使える",
     ],
   },
   {
     id: "teacher" as const,
     title: "Teacher",
     price: "¥2,980/月",
-    description: "先生・塾向けプラン。現在は準備中です。",
+    description: "先生・塾向け。現在は準備中です。",
     features: [
-      "クラス配布向けの運用",
-      "複数教材の一括管理",
-      "先生向けの作成機能を順次追加予定",
+      "クラス配布向けの強化機能",
+      "教材の一括管理",
+      "管理者向けの高度な作成機能",
     ],
   },
 ] as const;
@@ -132,7 +132,7 @@ export default function PricingPage() {
 
     if (!configuredPlans[plan]) {
       if (plan === "personal" && !stripeLiveMode) {
-        setMessage("現在、本番課金の最終確認中です。少し時間をおいてお試しください。");
+        setMessage("現在は本番Stripeの最終確認中です。");
         return;
       }
       setMessage(`Stripe設定が未完了です: ${missingStripeVars.join(" / ")}`);
@@ -145,15 +145,14 @@ export default function PricingPage() {
     }
 
     if (!supabase) {
-      setMessage("Supabaseが未設定です。");
+      setMessage("Supabaseの設定が未完了です。");
       return;
     }
 
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-
     if (!token) {
-      setMessage("ログインセッションを確認できません。もう一度ログインしてください。");
+      setMessage("ログインセッションを確認できませんでした。");
       return;
     }
 
@@ -183,17 +182,14 @@ export default function PricingPage() {
 
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
-
     if (!token) {
-      setMessage("ログインセッションを確認できません。");
+      setMessage("ログインセッションを確認できませんでした。");
       return;
     }
 
     const response = await fetch("/api/stripe/create-portal-session", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     const result = await response.json().catch(() => ({}));
@@ -202,7 +198,7 @@ export default function PricingPage() {
       return;
     }
 
-    setMessage(result.error ?? "請求管理ページを開けませんでした。");
+    setMessage(result.error ?? "請求ページを開けませんでした。");
   }
 
   return (
@@ -213,7 +209,7 @@ export default function PricingPage() {
             <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
             <h1 className="mt-1 text-3xl font-black">料金プラン</h1>
             <p className="mt-2 text-sm text-slate-500">
-              まずはFreeで試して、気に入ったらPersonalへ。Teacherは現在準備中です。
+              Freeで試して、必要になったらPersonalへ。Teacherは現在準備中です。
             </p>
           </div>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
@@ -223,7 +219,7 @@ export default function PricingPage() {
 
         {!stripeLiveMode && (
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            <p className="font-bold">本番課金の最終確認中です。</p>
+            <p className="font-bold">本番Stripeの確認中です。</p>
             <p className="mt-1">
               現在は Personal の公開準備を進めています。本番 Stripe の設定が整い次第、このページから正式に課金できます。
             </p>
@@ -257,10 +253,7 @@ export default function PricingPage() {
                 </ul>
 
                 {plan.id === "free" ? (
-                  <Link
-                    href="/"
-                    className="mt-5 block rounded-xl bg-slate-100 px-4 py-2 text-center text-sm font-bold"
-                  >
+                  <Link href="/" className="mt-5 block rounded-xl bg-slate-100 px-4 py-2 text-center text-sm font-bold">
                     Freeで使う
                   </Link>
                 ) : isCurrent ? (
@@ -276,7 +269,7 @@ export default function PricingPage() {
                     {isTeacher
                       ? "Teacherは準備中"
                       : !canCheckout
-                        ? "本番課金の設定確認中"
+                        ? "Stripe設定確認中"
                         : "Personalに申し込む"}
                   </button>
                 )}
@@ -286,24 +279,24 @@ export default function PricingPage() {
         </div>
 
         <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-black">有料にするメリット</h2>
+          <h2 className="text-xl font-black">プランの考え方</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">保存できる</p>
+              <p className="text-sm font-black text-slate-900">まず試せる</p>
               <p className="mt-2 text-sm text-slate-600">
-                自作単語帳やPDF履歴を残せるので、毎回貼り付け直さなくて済みます。
+                Freeは登録だけで使えます。まず印刷の流れや使い心地を確認できます。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">印刷が広がる</p>
+              <p className="text-sm font-black text-slate-900">保存ができる</p>
               <p className="mt-2 text-sm text-slate-600">
-                赤字、空欄、ランダム順などを使い分けて、同じ単語帳から何枚も作れます。
+                Personalではマイ単語帳や履歴が使えるので、繰り返しのプリント作成が楽になります。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">すぐ配れる</p>
+              <p className="text-sm font-black text-slate-900">授業向けに広げる</p>
               <p className="mt-2 text-sm text-slate-600">
-                A4で見やすい形にまとまるので、小テストや自習プリントにそのまま使えます。
+                Teacherは現在準備中です。管理や一括作成の強化を予定しています。
               </p>
             </div>
           </div>
@@ -315,10 +308,10 @@ export default function PricingPage() {
             className="rounded-xl border bg-white px-4 py-2 text-sm font-bold shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
             disabled={currentPlan === "free"}
           >
-            請求管理ページを開く
+            請求情報を管理
           </button>
           <p className="text-xs text-slate-500">
-            Personalは初回30日無料トライアル付きです。期間中の解約なら料金は発生しません。
+            Personalは初回7日無料トライアル付きです。期間中の解約なら料金は発生しません。
           </p>
         </div>
       </section>

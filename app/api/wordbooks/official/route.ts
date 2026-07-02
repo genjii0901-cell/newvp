@@ -11,7 +11,7 @@ function fallbackResponse(message?: string) {
     ok: true,
     wordbooks: fallbackOfficialWordbooksForApi(),
     ...(message ? { message } : {}),
-  });
+  }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
 export async function GET() {
@@ -28,7 +28,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       wordbooks: result.wordbooks,
-    });
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     return fallbackResponse(error instanceof Error ? error.message : "Unknown error");
   }

@@ -3,30 +3,45 @@ import Link from "next/link";
 import "./globals.css";
 import Nav from "@/components/nav";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://vocabprint.com";
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Vocab Print Pro｜単語帳から英単語テストPDFを自動作成",
-    template: "%s｜Vocab Print Pro",
+    default: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
+    template: "%s | Vocab Print Pro",
   },
   description:
-    "単語帳を選ぶだけで、英単語テスト・一覧・解答のA4 PDFを自動生成。英検・大学受験・資格試験の小テスト作成に。先生・塾・自学に対応。",
-  keywords: ["英単語テスト", "単語帳", "PDF作成", "英検", "大学受験", "小テスト", "プリント作成"],
+    "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。英語学習、受験対策、授業準備に使えます。",
+  keywords: [
+    "Vocab Print Pro",
+    "英単語テスト",
+    "単語帳",
+    "PDF作成",
+    "学習プリント",
+    "A4印刷",
+  ],
   openGraph: {
     type: "website",
     locale: "ja_JP",
     url: siteUrl,
     siteName: "Vocab Print Pro",
-    title: "Vocab Print Pro｜単語帳から英単語テストPDFを自動作成",
+    title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
     description:
-      "単語帳を選ぶだけで、英単語テスト・一覧・解答のA4 PDFを自動生成。英検・大学受験・資格試験の小テスト作成に。",
+      "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Vocab Print Pro｜単語帳から英単語テストPDFを自動作成",
-    description: "単語帳を選ぶだけで、英単語テストのA4 PDFを自動生成。",
+    title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
+    description:
+      "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
   },
 };
 
@@ -40,7 +55,7 @@ const jsonLd = {
       name: "Vocab Print Pro",
       inLanguage: "ja",
       description:
-        "単語帳を選ぶだけで、英単語テスト・一覧・解答のA4 PDFを自動生成するサービス。",
+        "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
     },
     {
       "@type": "SoftwareApplication",
@@ -50,12 +65,12 @@ const jsonLd = {
       url: siteUrl,
       inLanguage: "ja",
       description:
-        "単語帳や自作の単語リストから、英単語テスト・一覧・解答のA4 PDFを自動生成。英検・大学受験・資格試験の小テスト作成に。",
+        "単語帳から一覧・問題・解答PDFを作成できるWebサービス。学校、塾、自学用プリント作成に対応。",
       offers: {
         "@type": "Offer",
         price: "0",
         priceCurrency: "JPY",
-        description: "無料プランあり（有料プランで機能拡張）",
+        description: "無料プランあり",
       },
     },
   ],
@@ -82,7 +97,7 @@ export default function RootLayout({
             <Link href="/legal/privacy" className="hover:text-slate-600">プライバシーポリシー</Link>
             <Link href="/legal/tokushoho" className="hover:text-slate-600">特定商取引法に基づく表記</Link>
           </div>
-          <p className="mt-4">© 2026 Vocab Print Pro — 単語帳からA4 PDF教材を自動生成</p>
+          <p className="mt-4">© 2026 Vocab Print Pro</p>
         </footer>
       </body>
     </html>

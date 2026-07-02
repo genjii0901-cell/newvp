@@ -36,7 +36,7 @@ export default function WordbooksPage() {
   useEffect(() => {
     async function loadBooks() {
       setLoading(true);
-      const response = await fetch("/api/wordbooks/official");
+      const response = await fetch("/api/wordbooks/official", { cache: "no-store" });
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -65,9 +65,9 @@ export default function WordbooksPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
-          <h1 className="text-2xl font-black text-slate-900">公式単語帳ライブラリ</h1>
+          <h1 className="text-2xl font-black text-slate-900">みんなの単語帳</h1>
           <p className="mt-1 text-sm text-slate-500">
-            管理者が追加した単語帳を一覧で見て、そのまま印刷用に開けます。
+            公開中の単語帳を一覧で見て、そのまま印刷に進めます。
           </p>
         </div>
         <div className="flex gap-2">
@@ -103,9 +103,9 @@ export default function WordbooksPage() {
         </div>
       ) : filteredBooks.length === 0 ? (
         <div className="mt-16 rounded-3xl border bg-white p-10 text-center">
-          <p className="text-lg font-black text-slate-700">まだ公式単語帳がありません</p>
+          <p className="text-lg font-black text-slate-700">まだ単語帳がありません</p>
           <p className="mt-2 text-sm text-slate-500">
-            管理者画面から追加すると、ここに一覧表示されます。
+            管理者画面から登録すると、ここに一覧表示されます。
           </p>
         </div>
       ) : (
@@ -118,26 +118,26 @@ export default function WordbooksPage() {
                   <img src={book.coverImage} alt={book.title} className="h-40 w-full object-cover" />
                 ) : null}
                 <div className="p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                    {planLabel(book.requiredPlan)}
-                  </span>
-                  <span className="text-xs text-slate-400">{book.words.length}語</span>
-                </div>
-                <h2 className="mt-3 text-xl font-black text-slate-900">{book.title}</h2>
-                <p className="mt-2 line-clamp-3 text-sm text-slate-500">
-                  {book.description || "説明はまだありません。"}
-                </p>
-                <div className="mt-4 flex gap-4 text-xs text-slate-500">
-                  <span>{units}ユニット</span>
-                  <span>先頭: {book.words[0]?.english ?? "-"}</span>
-                </div>
-                <Link
-                  href={`/wordbooks/${book.id}`}
-                  className="mt-5 block rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-blue-700"
-                >
-                  この単語帳を見る
-                </Link>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                      {planLabel(book.requiredPlan)}
+                    </span>
+                    <span className="text-xs text-slate-400">{book.words.length}語</span>
+                  </div>
+                  <h2 className="mt-3 text-xl font-black text-slate-900">{book.title}</h2>
+                  <p className="mt-2 line-clamp-3 text-sm text-slate-500">
+                    {book.description || "説明はまだありません。"}
+                  </p>
+                  <div className="mt-4 flex gap-4 text-xs text-slate-500">
+                    <span>{units}ユニット</span>
+                    <span>最初: {book.words[0]?.english ?? "-"}</span>
+                  </div>
+                  <Link
+                    href={`/wordbooks/${book.id}`}
+                    className="mt-5 block rounded-xl bg-blue-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-blue-700"
+                  >
+                    この単語帳を見る
+                  </Link>
                 </div>
               </article>
             );

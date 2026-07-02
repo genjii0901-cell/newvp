@@ -9,8 +9,11 @@ import {
 
 type Plan = "free" | "personal" | "teacher";
 
-const limits: Record<Plan, { period: "day" | "month"; maxGenerations: number; maxWords: number }> = {
-  free: { period: "day", maxGenerations: 3, maxWords: 50 },
+const limits: Record<
+  Plan,
+  { period: "day" | "month"; maxGenerations: number; maxWords: number; maxTotalGenerations?: number }
+> = {
+  free: { period: "day", maxGenerations: 2, maxWords: 50, maxTotalGenerations: 10 },
   personal: { period: "month", maxGenerations: 300, maxWords: 300 },
   teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
 };
@@ -21,8 +24,13 @@ function normalizePlan(value: unknown): Plan {
 
 function periodStart(period: "day" | "month") {
   const date = new Date();
-  if (period === "day") date.setDate(date.getDate() - 1);
-  if (period === "month") date.setMonth(date.getMonth() - 1);
+  if (period === "day") {
+    date.setHours(0, 0, 0, 0);
+  }
+  if (period === "month") {
+    date.setDate(1);
+    date.setHours(0, 0, 0, 0);
+  }
   return date.toISOString();
 }
 
@@ -63,6 +71,29 @@ export async function POST(request: Request) {
 
     const used = count ?? 0;
     const remaining = Math.max(rule.maxGenerations - used, 0);
+
+    if (typeof rule.maxTotalGenerations === "number") {
+      const { count: totalCount, error: totalError } = await supabase
+        .from("pdf_generations")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", auth.user.id);
+
+      if (totalError) {
+        return NextResponse.json({ ok: false, message: totalError.message }, { status: 500 });
+      }
+
+      const totalUsed = totalCount ?? 0;
+      if (totalUsed >= rule.maxTotalGenerations) {
+        return NextResponse.json({
+          ok: false,
+          plan,
+          remaining: 0,
+          maxGenerations: rule.maxGenerations,
+          maxTotalGenerations: rule.maxTotalGenerations,
+          message: `${plan}プランの作成回数上限（累計${rule.maxTotalGenerations}回）に達しました。`,
+        });
+      }
+    }
 
     if (remaining <= 0) {
       return NextResponse.json({

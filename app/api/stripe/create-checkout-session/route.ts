@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const profile = await tryEnsureProfile(auth.user);
 
     // 1ヶ月無料トライアル: personalプランのみ・未利用の人だけ付与（乱用防止）
-    const TRIAL_DAYS = 30;
+    const TRIAL_DAYS = 7;
     const trialAlreadyUsed =
       Boolean((profile as { trial_used?: unknown } | null)?.trial_used);
     const grantTrial = plan === "personal" && !trialAlreadyUsed;
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
     if (grantTrial) {
       body.append("subscription_data[trial_period_days]", String(TRIAL_DAYS));
-      // カード登録は必須（デフォルト）。30日間は無料、その後 自動で課金開始。
+      // カード登録は必須（デフォルト）。7日間は無料、その後 自動で課金開始。
       // 解約すれば次回課金されず、webhookでFreeに戻る。
       body.append("metadata[trial]", "1");
       body.append("subscription_data[metadata][trial]", "1");

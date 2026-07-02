@@ -29,8 +29,11 @@ type Direction = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type Role = "user" | "admin";
 
-const planLimits: Record<Plan, { period: "day" | "month"; maxGenerations: number; maxWords: number }> = {
-  free: { period: "day", maxGenerations: 3, maxWords: 50 },
+const planLimits: Record<
+  Plan,
+  { period: "day" | "month"; maxGenerations: number; maxWords: number; maxTotalGenerations?: number }
+> = {
+  free: { period: "day", maxGenerations: 2, maxWords: 50, maxTotalGenerations: 10 },
   personal: { period: "month", maxGenerations: 300, maxWords: 300 },
   teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
 };
@@ -84,6 +87,10 @@ function localUsageKey(userId: string, plan: Plan) {
   return `vpp-pdf-usage:${userId}:${plan}:${period}`;
 }
 
+function localUsageTotalKey(userId: string, plan: Plan) {
+  return `vpp-pdf-usage-total:${userId}:${plan}`;
+}
+
 function readCachedPlan(userId: string): Plan | null {
   try {
     const value = window.localStorage.getItem(planCacheKey(userId));
@@ -107,7 +114,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number) {
   if (wordCount > rule.maxWords) {
     return {
       ok: false,
-      message: `${planLabel(plan)}プランでは1回に${rule.maxWords}語まで作成できます。`,
+      message: `${planLabel(plan)} plan allows up to ${rule.maxWords} words per export.`,
     };
   }
 
@@ -117,8 +124,18 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number) {
     if (used >= rule.maxGenerations) {
       return {
         ok: false,
-        message: `${planLabel(plan)}プランの単語テスト作成回数の上限に達しました。`,
+        message: `${planLabel(plan)} plan has reached today's export limit.`,
       };
+    }
+    if (typeof rule.maxTotalGenerations === "number") {
+      const totalKey = localUsageTotalKey(userId, plan);
+      const totalUsed = Number(window.localStorage.getItem(totalKey) ?? "0");
+      if (totalUsed >= rule.maxTotalGenerations) {
+        return {
+          ok: false,
+          message: `${planLabel(plan)} plan has reached the total export limit (${rule.maxTotalGenerations}).`,
+        };
+      }
     }
   } catch {
     // If localStorage is blocked, do not stop printing solely because of that.
@@ -132,6 +149,9 @@ function recordLocalUsage(userId: string, plan: Plan) {
     const key = localUsageKey(userId, plan);
     const used = Number(window.localStorage.getItem(key) ?? "0");
     window.localStorage.setItem(key, String(used + 1));
+    const totalKey = localUsageTotalKey(userId, plan);
+    const totalUsed = Number(window.localStorage.getItem(totalKey) ?? "0");
+    window.localStorage.setItem(totalKey, String(totalUsed + 1));
   } catch {
     // Best-effort backup only. Server-side history is still attempted when a token exists.
   }
@@ -339,7 +359,7 @@ export default function Home() {
 
   useEffect(() => {
     async function loadOfficialWordbooks() {
-      const response = await fetch("/api/wordbooks/official");
+      const response = await fetch("/api/wordbooks/official", { cache: "no-store" });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(result.wordbooks) || result.wordbooks.length === 0) {
         return;
@@ -356,12 +376,14 @@ export default function Home() {
             id: string | number;
             title: string;
             description?: string;
+            coverImage?: string | null;
             requiredPlan?: Plan;
             words: Array<{ no?: number; english?: string; japanese?: string }>;
           }) => ({
             id: String(book.id),
             title: book.title,
             description: book.description,
+            coverImage: book.coverImage ?? undefined,
             level:
               book.requiredPlan === "teacher"
                 ? "Teacher"
@@ -517,7 +539,8 @@ export default function Home() {
 
   const featuredBooks = useMemo(() => books.slice(0, 6), [books]);
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
-  const locked = selectedBook ? planRank(plan) < planRank(selectedBook.requiredPlan) : false;
+  const locked =
+    selectedBook ? selectedBook.requiredPlan === "teacher" && plan !== "teacher" : false;
   const outputWords = useMemo(() => {
     if (!selectedBook) return [];
     const all = selectedBook.words;
@@ -1012,14 +1035,14 @@ export default function Home() {
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-blue-700">公式単語帳ライブラリー</p>
+              <p className="text-sm font-bold text-blue-700">みんなの単語帳</p>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900">使いたい単語帳をすぐに選んで印刷</h3>
               <p className="mt-1 text-sm text-slate-500">
                 カードをクリックすると単語帳が選択されます。
               </p>
             </div>
             <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-              公式単語帳一覧を見る
+              みんなの単語帳を見る
             </Link>
           </div>
 
@@ -1126,7 +1149,7 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-2">
               <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                公式単語帳
+                みんなの単語帳
               </Link>
               <Link href="/pricing" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                 料金プラン
@@ -1473,11 +1496,11 @@ export default function Home() {
         </section>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <PlanCard title="Free" price="¥0" text="1日3回・1ページまで。まず試す用。" />
+          <PlanCard title="Free" price="?0" text="1?2??1???????????????10????????" />
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="初月無料（カード登録で30日間無料・いつでも解約OK）。Pro単語帳・マイ単語帳保存・履歴・無制限作成・印刷無制限。"
+            text="7???????????????????OK????????????????300??????????"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}
