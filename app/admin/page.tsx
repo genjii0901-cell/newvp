@@ -131,6 +131,45 @@ function ImageInput({
     []
   );
 
+  function readFileAsDataUrl(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") resolve(reader.result);
+        else reject(new Error("画像の読み込みに失敗しました。"));
+      };
+      reader.onerror = () => reject(new Error("画像の読み込みに失敗しました。"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImageElement(src: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("画像の展開に失敗しました。"));
+      img.src = src;
+    });
+  }
+
+  async function convertFileToEmbeddedCover(file: File) {
+    const rawUrl = await readFileAsDataUrl(file);
+    const image = await loadImageElement(rawUrl);
+    const maxSide = 1200;
+    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("画像の変換に失敗しました。");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.86);
+  }
+
   async function uploadClipboardItems(items: DataTransferItemList | DataTransferItem[]) {
     const list = Array.from(items);
     const imageItem = list.find((item) => item.type.startsWith("image/"));
@@ -145,20 +184,14 @@ function ImageInput({
   async function handleFile(file: File) {
     setUploading(true);
     setUploadMsg("");
-    const form = new FormData();
-    form.append("file", file);
-    const res = await fetch("/api/admin/upload-image", {
-      method: "POST",
-      headers: { "x-admin-password": adminPassword },
-      body: form,
-    });
-    const result = await res.json().catch(() => ({}));
-    setUploading(false);
-    if (result.ok && result.url) {
-      onChange(result.url);
-      setUploadMsg("Upload complete");
-    } else {
-      setUploadMsg(result.message ?? "Upload failed");
+    try {
+      const embeddedUrl = await convertFileToEmbeddedCover(file);
+      onChange(embeddedUrl);
+      setUploadMsg("画像をセットしました");
+    } catch (error) {
+      setUploadMsg(error instanceof Error ? error.message : "画像のセットに失敗しました。");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -249,13 +282,13 @@ function ImageInput({
       )}
 
       {uploadMsg && (
-        <p className={`mt-2 text-xs font-bold ${uploadMsg.toLowerCase().includes("complete") ? "text-emerald-600" : "text-red-600"}`}>
+        <p className={`mt-2 text-xs font-bold ${uploadMsg.includes("セット") ? "text-emerald-600" : "text-red-600"}`}>
           {uploadMsg}
         </p>
       )}
       {mode === "file" && !uploadMsg && (
         <p className="mt-2 text-xs text-slate-400">
-          手元の画像を選ぶか、画像をコピーしてこの欄で貼り付けてください。保存できない場合は、Supabase Storage の `wordbook-images` バケット設定も確認してください。
+          手元の画像を選ぶか、画像をコピーしてこの欄で貼り付けてください。画像はそのままカバーに埋め込まれます。
         </p>
       )}
 
