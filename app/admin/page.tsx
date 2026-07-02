@@ -122,6 +122,7 @@ function ImageInput({
   adminPassword: string;
   titleHint?: string;
 }) {
+  const COVER_ASPECT = 16 / 10;
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
@@ -130,6 +131,11 @@ function ImageInput({
     () => `cover-upload-${Math.random().toString(36).slice(2, 10)}`,
     []
   );
+  const [cropSource, setCropSource] = useState<string | null>(null);
+  const [cropImageSize, setCropImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffsetX, setCropOffsetX] = useState(0);
+  const [cropOffsetY, setCropOffsetY] = useState(0);
 
   function readFileAsDataUrl(file: File) {
     return new Promise<string>((resolve, reject) => {
@@ -152,22 +158,42 @@ function ImageInput({
     });
   }
 
-  async function convertFileToEmbeddedCover(file: File) {
-    const rawUrl = await readFileAsDataUrl(file);
-    const image = await loadImageElement(rawUrl);
-    const maxSide = 1200;
-    const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
+  async function renderEmbeddedCover(
+    source: string,
+    zoom: number,
+    offsetX: number,
+    offsetY: number
+  ) {
+    const image = await loadImageElement(source);
+    const targetWidth = 1280;
+    const targetHeight = Math.round(targetWidth / COVER_ASPECT);
+    const baseScale = Math.max(targetWidth / image.width, targetHeight / image.height);
+    const finalScale = baseScale * zoom;
+    const drawWidth = image.width * finalScale;
+    const drawHeight = image.height * finalScale;
+    const maxShiftX = Math.max(0, (drawWidth - targetWidth) / 2);
+    const maxShiftY = Math.max(0, (drawHeight - targetHeight) / 2);
+    const drawX = (targetWidth - drawWidth) / 2 + maxShiftX * offsetX;
+    const drawY = (targetHeight - drawHeight) / 2 + maxShiftY * offsetY;
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("画像の変換に失敗しました。");
     context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, width, height);
-    context.drawImage(image, 0, 0, width, height);
+    context.fillRect(0, 0, targetWidth, targetHeight);
+    context.drawImage(image, drawX, drawY, drawWidth, drawHeight);
     return canvas.toDataURL("image/jpeg", 0.86);
+  }
+
+  async function openCropEditor(file: File) {
+    const rawUrl = await readFileAsDataUrl(file);
+    const image = await loadImageElement(rawUrl);
+    setCropSource(rawUrl);
+    setCropImageSize({ width: image.width, height: image.height });
+    setCropZoom(1);
+    setCropOffsetX(0);
+    setCropOffsetY(0);
   }
 
   async function uploadClipboardItems(items: DataTransferItemList | DataTransferItem[]) {
@@ -185,8 +211,23 @@ function ImageInput({
     setUploading(true);
     setUploadMsg("");
     try {
-      const embeddedUrl = await convertFileToEmbeddedCover(file);
+      await openCropEditor(file);
+    } catch (error) {
+      setUploadMsg(error instanceof Error ? error.message : "画像のセットに失敗しました。");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function applyCrop() {
+    if (!cropSource) return;
+    setUploading(true);
+    setUploadMsg("");
+    try {
+      const embeddedUrl = await renderEmbeddedCover(cropSource, cropZoom, cropOffsetX, cropOffsetY);
       onChange(embeddedUrl);
+      setCropSource(null);
+      setCropImageSize(null);
       setUploadMsg("画像をセットしました");
     } catch (error) {
       setUploadMsg(error instanceof Error ? error.message : "画像のセットに失敗しました。");
@@ -307,6 +348,97 @@ function ImageInput({
           >
             削除
           </button>
+        </div>
+      )}
+      {cropSource && (
+        <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-slate-900">カバー画像の位置調整</p>
+              <p className="mt-1 text-xs text-slate-500">
+                プレビューを見ながら、見せたい位置に合わせてから反映できます。
+                {cropImageSize ? ` 元画像: ${cropImageSize.width} × ${cropImageSize.height}` : ""}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setCropSource(null); setCropImageSize(null); }}
+              className="rounded-xl border px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white"
+            >
+              キャンセル
+            </button>
+          </div>
+          <div className="mt-4 flex justify-center">
+            <div
+              className="relative overflow-hidden rounded-2xl border bg-white shadow-sm"
+              style={{ width: "100%", maxWidth: 420, aspectRatio: String(COVER_ASPECT) }}
+            >
+              <img
+                src={cropSource}
+                alt="crop-preview"
+                className="pointer-events-none absolute inset-0 h-full w-full select-none"
+                style={{
+                  objectFit: "cover",
+                  transform: `scale(${cropZoom}) translate(${cropOffsetX * 18}%, ${cropOffsetY * 18}%)`,
+                  transformOrigin: "center center",
+                }}
+              />
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <label className="text-xs font-bold text-slate-600">
+              拡大
+              <input
+                type="range"
+                min="1"
+                max="2.4"
+                step="0.01"
+                value={cropZoom}
+                onChange={(e) => setCropZoom(Number(e.target.value))}
+                className="mt-2 w-full"
+              />
+            </label>
+            <label className="text-xs font-bold text-slate-600">
+              左右
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value={cropOffsetX}
+                onChange={(e) => setCropOffsetX(Number(e.target.value))}
+                className="mt-2 w-full"
+              />
+            </label>
+            <label className="text-xs font-bold text-slate-600">
+              上下
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value={cropOffsetY}
+                onChange={(e) => setCropOffsetY(Number(e.target.value))}
+                className="mt-2 w-full"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => { setCropZoom(1); setCropOffsetX(0); setCropOffsetY(0); }}
+              className="rounded-xl border px-4 py-2 text-xs font-bold text-slate-600 hover:bg-white"
+            >
+              リセット
+            </button>
+            <button
+              type="button"
+              onClick={applyCrop}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+            >
+              この位置で反映
+            </button>
+          </div>
         </div>
       )}
     </div>
