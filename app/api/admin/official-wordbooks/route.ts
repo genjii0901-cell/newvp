@@ -10,6 +10,7 @@ import {
   normalizeBookTitle,
 } from "@/lib/official-wordbooks";
 import { requireAdmin } from "@/lib/admin-auth";
+import { embedWordbookMeta } from "@/lib/wordbook-meta";
 
 type IncomingWord = {
   number?: string | number;
@@ -93,19 +94,20 @@ async function insertWordbook(
   }
 ) {
   const { title, description, coverImage, visibility } = input;
+  const embeddedDescription = embedWordbookMeta(description, { coverImage, visibility });
   const attempts: Record<string, unknown>[] = [
-    { owner_id: null, title, description: description || null, cover_image: coverImage || null, is_official: true, visibility },
-    { owner_id: null, title, description: description || null, is_official: true, visibility },
-    { owner_id: null, title, description: description || null, cover_image: coverImage || null, visibility },
-    { owner_id: null, title, description: description || null, visibility },
-    { title, description: description || null, cover_image: coverImage || null, visibility },
-    { title, description: description || null, visibility },
-    { owner_id: null, title, description: description || null, cover_image: coverImage || null, is_official: true },
-    { owner_id: null, title, description: description || null, is_official: true },
-    { owner_id: null, title, description: description || null, cover_image: coverImage || null },
-    { owner_id: null, title, description: description || null },
-    { title, description: description || null, cover_image: coverImage || null },
-    { title, description: description || null },
+    { owner_id: null, title, description: embeddedDescription || null, cover_image: coverImage || null, is_official: true, visibility },
+    { owner_id: null, title, description: embeddedDescription || null, is_official: true, visibility },
+    { owner_id: null, title, description: embeddedDescription || null, cover_image: coverImage || null, visibility },
+    { owner_id: null, title, description: embeddedDescription || null, visibility },
+    { title, description: embeddedDescription || null, cover_image: coverImage || null, visibility },
+    { title, description: embeddedDescription || null, visibility },
+    { owner_id: null, title, description: embeddedDescription || null, cover_image: coverImage || null, is_official: true },
+    { owner_id: null, title, description: embeddedDescription || null, is_official: true },
+    { owner_id: null, title, description: embeddedDescription || null, cover_image: coverImage || null },
+    { owner_id: null, title, description: embeddedDescription || null },
+    { title, description: embeddedDescription || null, cover_image: coverImage || null },
+    { title, description: embeddedDescription || null },
   ];
 
   let lastError: DbError = null;
@@ -232,7 +234,11 @@ async function updateWordbookMeta(
 ) {
   const updatePayload: Record<string, unknown> = {};
   if (typeof meta.title === "string") updatePayload.title = meta.title.trim();
-  if (typeof meta.description === "string") updatePayload.description = meta.description.trim() || null;
+  const embeddedDescription =
+    meta.description !== undefined || meta.coverImage !== undefined || meta.visibility !== undefined
+      ? embedWordbookMeta(meta.description, { coverImage: meta.coverImage, visibility: meta.visibility })
+      : null;
+  if (embeddedDescription !== null) updatePayload.description = embeddedDescription || null;
   if (meta.coverImage !== undefined) updatePayload.cover_image = meta.coverImage?.trim() || null;
   if (meta.visibility) updatePayload.visibility = meta.visibility;
 

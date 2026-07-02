@@ -5,6 +5,7 @@ import {
   normalizeBookTitle,
 } from "@/lib/official-wordbooks";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
 type Visibility = "public" | "personal" | "teacher" | "private" | "admin";
 
@@ -142,7 +143,12 @@ export async function loadOfficialWordbooks(options?: {
   );
 
   const candidateRows = rows.filter((row) => !isHiddenTemplateTombstone(row.description));
-  const visibleRows = includeAdmin ? candidateRows : candidateRows.filter((row) => isPubliclyVisible(row.visibility));
+  const visibleRows = includeAdmin
+    ? candidateRows
+    : candidateRows.filter((row) => {
+        const embeddedMeta = parseEmbeddedWordbookMeta(row.description);
+        return isPubliclyVisible(embeddedMeta.visibility ?? row.visibility);
+      });
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];
@@ -210,12 +216,13 @@ export async function loadOfficialWordbooks(options?: {
   }
 
   const liveBooks: LiveWordbook[] = visibleRows.map((row) => {
-    const visibility = normalizeVisibility(row.visibility);
+    const embeddedMeta = parseEmbeddedWordbookMeta(row.description);
+    const visibility = normalizeVisibility(embeddedMeta.visibility ?? row.visibility);
     return {
       id: String(row.id),
       title: row.title,
-      description: row.description ?? "",
-      coverImage: row.cover_image ?? null,
+      description: stripEmbeddedWordbookMeta(row.description ?? ""),
+      coverImage: row.cover_image ?? embeddedMeta.coverImage ?? null,
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
