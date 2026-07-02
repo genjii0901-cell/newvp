@@ -126,6 +126,10 @@ function ImageInput({
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState("");
   const [mode, setMode] = useState<"url" | "file" | "gallery">("url");
+  const inputId = useMemo(
+    () => `cover-upload-${Math.random().toString(36).slice(2, 10)}`,
+    []
+  );
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -178,19 +182,37 @@ function ImageInput({
         />
       )}
       {mode === "file" && (
-        <div
-          className="rounded-xl border-2 border-dashed border-slate-300 p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleFile(file); }}
-        >
-          {uploading ? <p className="text-sm text-blue-600 font-bold">Uploading...</p> : (
-            <>
-              <p className="text-sm text-slate-500">Click or drag and drop an image file here.</p>
-              <p className="text-xs text-slate-400 mt-1">JPG / PNG / WebP / GIF up to 10MB</p>
-            </>
-          )}
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
+        <div className="space-y-3">
+          <div
+            className="rounded-xl border-2 border-dashed border-slate-300 p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
+            onClick={() => fileRef.current?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file) handleFile(file); }}
+          >
+            {uploading ? <p className="text-sm text-blue-600 font-bold">Uploading...</p> : (
+              <>
+                <p className="text-sm font-bold text-slate-700">画像を選ぶか、ここにドラッグしてください。</p>
+                <p className="mt-1 text-xs text-slate-400">JPG / PNG / WebP / GIF / AVIF, 5MBまで</p>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label
+              htmlFor={inputId}
+              className="inline-flex cursor-pointer items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              ファイルを選ぶ
+            </label>
+            <span className="text-xs text-slate-500">うまく開かないときは、このボタンから選んでください。</span>
+          </div>
+          <input
+            id={inputId}
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            className="block w-full rounded-xl border px-3 py-2 text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-bold"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+          />
         </div>
       )}
       {mode === "gallery" && (
@@ -210,6 +232,11 @@ function ImageInput({
       {uploadMsg && (
         <p className={`mt-2 text-xs font-bold ${uploadMsg.toLowerCase().includes("complete") ? "text-emerald-600" : "text-red-600"}`}>
           {uploadMsg}
+        </p>
+      )}
+      {mode === "file" && !uploadMsg && (
+        <p className="mt-2 text-xs text-slate-400">
+          画像が保存できない場合は、Supabase Storage の `wordbook-images` バケット設定も確認してください。
         </p>
       )}
 
