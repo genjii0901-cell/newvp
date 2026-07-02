@@ -32,6 +32,7 @@ export type LiveWordbook = {
   requiredPlan: "free" | "personal" | "teacher" | "admin";
   visibility: Visibility;
   level: string;
+  wordCount: number;
   words: Array<{ no: number; english: string; japanese: string; unit: string | null }>;
 };
 
@@ -47,8 +48,8 @@ function dedupeWordbooksByTitle(wordbooks: LiveWordbook[]) {
     }
 
     const shouldReplace =
-      book.words.length > existing.words.length ||
-      (book.words.length === existing.words.length &&
+      book.wordCount > existing.wordCount ||
+      (book.wordCount === existing.wordCount &&
         String(book.description ?? "").length > String(existing.description ?? "").length);
 
     if (shouldReplace) {
@@ -89,10 +90,12 @@ export async function loadOfficialWordbooks(options?: {
   includeAdmin?: boolean;
   includeFallback?: boolean;
   dedupeByTitle?: boolean;
+  includeWords?: boolean;
 }) {
   const includeAdmin = Boolean(options?.includeAdmin);
   const includeFallback = options?.includeFallback !== false;
   const dedupeByTitle = options?.dedupeByTitle !== false;
+  const includeWords = options?.includeWords !== false;
   const supabase = getSupabaseAdmin();
 
   const selects = [
@@ -124,6 +127,7 @@ export async function loadOfficialWordbooks(options?: {
       wordbooks: includeFallback
         ? mergeWordbooksById<LiveWordbook>([], fallbackOfficialWordbooksForApi().map((book) => ({
             ...book,
+            wordCount: book.words.length,
             visibility: book.visibility,
           })))
         : [],
@@ -142,16 +146,19 @@ export async function loadOfficialWordbooks(options?: {
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];
+  let wordCountsByBookId = new Map<string, number>();
   if (ids.length > 0) {
     // Supabase/PostgREST は1リクエスト最大1000行。全単語帳の合計語数が1000を超えると
     // 打ち切られ、各単語帳の語数が誤って配分される（合計が常に1000になる）。
     // range でページングして全行を取得する。
     const PAGE = 1000;
-    const selectVariants = [
-      "wordbook_id,number,english,japanese,unit",
-      "wordbook_id,number,english,japanese",
-      "wordbook_id,english,japanese",
-    ];
+    const selectVariants = includeWords
+      ? [
+          "wordbook_id,number,english,japanese,unit",
+          "wordbook_id,number,english,japanese",
+          "wordbook_id,english,japanese",
+        ]
+      : ["wordbook_id"];
 
     for (const select of selectVariants) {
       const acc: WordRow[] = [];
@@ -172,7 +179,15 @@ export async function loadOfficialWordbooks(options?: {
         if (pageRows.length < PAGE) break;
       }
       if (!failed) {
-        words = acc;
+        if (includeWords) {
+          words = acc;
+        } else {
+          wordCountsByBookId = acc.reduce((map, row) => {
+            const key = String(row.wordbook_id);
+            map.set(key, (map.get(key) ?? 0) + 1);
+            return map;
+          }, new Map<string, number>());
+        }
         break;
       }
     }
@@ -204,7 +219,10 @@ export async function loadOfficialWordbooks(options?: {
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
-      words: wordsByBookId.get(String(row.id)) ?? [],
+      wordCount: includeWords
+        ? (wordsByBookId.get(String(row.id)) ?? []).length
+        : wordCountsByBookId.get(String(row.id)) ?? 0,
+      words: includeWords ? wordsByBookId.get(String(row.id)) ?? [] : [],
     };
   });
 
@@ -220,6 +238,7 @@ export async function loadOfficialWordbooks(options?: {
             .filter((book) => !hiddenTitleKeys.has(normalizeBookTitle(book.title)))
             .map((book) => ({
               ...book,
+              wordCount: book.words.length,
               visibility: book.visibility,
             }))
         )

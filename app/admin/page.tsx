@@ -26,6 +26,7 @@ type OfficialBook = {
   coverImage: string | null;
   requiredPlan: string;
   visibility: string;
+  wordCount?: number;
   words: Array<{ no: number; english: string; japanese: string; unit?: string | null }>;
 };
 
@@ -108,6 +109,10 @@ function visibilityColor(v: string) {
   if (v === "teacher") return "bg-purple-50 text-purple-700";
   if (v === "admin") return "bg-red-50 text-red-700";
   return "bg-emerald-50 text-emerald-700";
+}
+
+function getBookWordCount(book: OfficialBook) {
+  return typeof book.wordCount === "number" ? book.wordCount : book.words.length;
 }
 
 /* 笏笏笏 Image Upload Component 笏笏笏 */
@@ -584,18 +589,20 @@ export default function AdminPage() {
   }
 
   /* 笏笏 fetch books 笏笏 */
-  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean }) {
+  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean; includeWords?: boolean }) {
     const requestSeq = ++fetchBooksSeqRef.current;
+    const includeWords = options?.includeWords ?? false;
     if (!options?.silent) setLoadingBooks(true);
     if (!options?.preserveMessage) setManageMsg("");
     const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
-    const res = await fetch("/api/admin/all-wordbooks", {
+    const res = await fetch(`/api/admin/all-wordbooks?includeWords=${includeWords ? "1" : "0"}`, {
       headers: { "x-admin-password": pw },
+      cache: "no-store",
     }).catch(() => null);
-    if (requestSeq !== fetchBooksSeqRef.current) return;
-    if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); setLoadingBooks(false); return; }
+    if (requestSeq !== fetchBooksSeqRef.current) return null;
+    if (!res) { setManageMsg("⚠️ ネットワークエラー: APIに接続できません"); setLoadingBooks(false); return null; }
     const data = await res.json().catch(() => ({}));
-    if (requestSeq !== fetchBooksSeqRef.current) return;
+    if (requestSeq !== fetchBooksSeqRef.current) return null;
     const list = Array.isArray(data?.wordbooks) ? data.wordbooks : [];
     setBooks(list);
     if (!options?.preserveMessage) {
@@ -603,11 +610,15 @@ export default function AdminPage() {
       else if (list.length === 0) setManageMsg("Supabaseに単語帳がありません。「単語帳を登録」タブから追加してください。");
     }
     setLoadingBooks(false);
+    return list as OfficialBook[];
   }
 
-  useEffect(() => { if (unlocked) { fetchBooks(); loadTwoFaStatus(); } }, [unlocked]);
+  useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false }); loadTwoFaStatus(); } }, [unlocked]);
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
-  useEffect(() => { if (unlocked && (tab === "manage" || tab === "pdf")) { fetchBooks({ silent: true }); } }, [tab]);
+  useEffect(() => {
+    if (!unlocked || (tab !== "manage" && tab !== "pdf")) return;
+    fetchBooks({ silent: true, includeWords: tab === "pdf" });
+  }, [tab, unlocked]);
   useEffect(() => {
     if (!pdfBookId && books.length > 0) {
       setPdfBookId(books[0].id);
@@ -698,24 +709,33 @@ export default function AdminPage() {
   async function createWordbook() {
     if (!title.trim() || words.length === 0) { setCreateMsg("タイトルと単語を入力してください。"); return; }
     setSaving(true); setCreateMsg("");
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
       body: JSON.stringify({ title, description: desc, cover_image: coverImage, visibility, words }),
     });
     const result = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setCreateMsg(result.message ?? "保存失敗"); return; }
     setCreateMsg(`✅ 保存しました（${result.wordCount}語）`);
-    await fetchBooks();
+    await fetchBooks({ includeWords: false });
     setTab("manage");
   }
 
   /* 笏笏 edit 笏笏 */
-  function startEdit(book: OfficialBook, mode: "meta" | "words") {
+  async function startEdit(book: OfficialBook, mode: "meta" | "words") {
+    let sourceBook = book;
+    if (book.words.length === 0 && (mode === "words" || tab === "pdf") && getBookWordCount(book) > 0) {
+      const refreshed = await fetchBooks({ silent: true, preserveMessage: true, includeWords: true });
+      const matched = refreshed?.find((candidate) => candidate.id === book.id);
+      if (matched) {
+        sourceBook = matched;
+      }
+    }
     setEditId(book.id); setEditMode(mode);
-    setEditMeta({ title: book.title, desc: book.description, coverImage: book.coverImage ?? "", visibility: book.visibility as Visibility });
-    setEditPaste(book.words.map((w) => `${w.no}\t${w.english}\t${w.japanese}\t${w.unit ?? ""}`).join("\n"));
+    setEditMeta({ title: sourceBook.title, desc: sourceBook.description, coverImage: sourceBook.coverImage ?? "", visibility: sourceBook.visibility as Visibility });
+    setEditPaste(sourceBook.words.map((w) => `${w.no}\t${w.english}\t${w.japanese}\t${w.unit ?? ""}`).join("\n"));
     setManageMsg("");
   }
 
@@ -730,10 +750,11 @@ export default function AdminPage() {
 
     // Supabaseに未登録のテンプレート単語帳は先にPOSTで登録してIDを取得
     let actualId = editId;
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
     if (!isPersistedBookId(editId)) {
       const postRes = await fetch("/api/admin/official-wordbooks", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": password },
+        headers: { "Content-Type": "application/json", "x-admin-password": pw },
         body: JSON.stringify({
           title: editMode === "meta" ? editMeta.title : (targetBook?.title ?? ""),
           description: editMode === "meta" ? editMeta.desc : (targetBook?.description ?? ""),
@@ -747,7 +768,7 @@ export default function AdminPage() {
       actualId = postResult.wordbook?.id ?? actualId;
       setManageMsg("✅ Supabaseに登録して保存しました");
       setEditId(null);
-      await fetchBooks({ silent: true, preserveMessage: true });
+      await fetchBooks({ silent: true, preserveMessage: true, includeWords: false });
       return;
     }
 
@@ -760,7 +781,7 @@ export default function AdminPage() {
     }
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
       body: JSON.stringify(body),
     });
     const result = await res.json().catch(() => ({}));
@@ -771,20 +792,26 @@ export default function AdminPage() {
       setManageMsg(editMode === "words" ? `✅ 単語を更新しました（${result.wordCount}語）` : "✅ メタデータを更新しました");
     }
     setEditId(null);
-    await fetchBooks({ silent: true, preserveMessage: true });
+    await fetchBooks({ silent: true, preserveMessage: true, includeWords: false });
   }
 
   async function deleteBook(id: string, bookTitle: string) {
     if (!confirm(`「${bookTitle}」を削除しますか？`)) return;
+    setBooks((current) => current.filter((book) => book.id !== id));
+    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      headers: { "Content-Type": "application/json", "x-admin-password": pw },
       body: JSON.stringify({ id }),
     });
     const result = await res.json().catch(() => ({}));
-    if (!res.ok) { setManageMsg(result.message ?? "削除失敗"); return; }
+    if (!res.ok) {
+      setManageMsg(result.message ?? "削除失敗");
+      await fetchBooks({ silent: true, preserveMessage: true, includeWords: false });
+      return;
+    }
     setManageMsg(result.hiddenTemplate ? "✅ テンプレート単語帳を非表示にしました" : "✅ 削除しました");
-    await fetchBooks({ silent: true, preserveMessage: true });
+    await fetchBooks({ silent: true, preserveMessage: true, includeWords: false });
   }
 
   /* 笏笏 PDF 笏笏 */
@@ -1364,9 +1391,10 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={async () => {
+                            const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
                             const res = await fetch("/api/admin/official-wordbooks", {
                               method: "POST",
-                              headers: { "Content-Type": "application/json", "x-admin-password": password },
+                              headers: { "Content-Type": "application/json", "x-admin-password": pw },
                               body: JSON.stringify({
                                 title: tmpl.title,
                                 description: tmpl.description,
@@ -1376,7 +1404,7 @@ export default function AdminPage() {
                               }),
                             });
                             const result = await res.json().catch(() => ({}));
-                            if (res.ok) { setManageMsg(`✅ 「${tmpl.title}」を登録しました。単語を追加してください。`); await fetchBooks(); }
+                            if (res.ok) { setManageMsg(`✅ 「${tmpl.title}」を登録しました。単語を追加してください。`); await fetchBooks({ includeWords: false }); }
                             else setManageMsg(result.message ?? "登録失敗");
                           }}
                           className="mt-3 w-full rounded-xl bg-blue-600 py-2 text-xs font-bold text-white hover:bg-blue-700"
@@ -1498,7 +1526,7 @@ export default function AdminPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-black text-slate-900 text-lg">{book.title}</h3>
                             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${visibilityColor(book.visibility)}`}>{visibilityLabel(book.visibility)}</span>
-                            <span className="text-xs text-slate-400">{book.words.length}語</span>
+                            <span className="text-xs text-slate-400">{getBookWordCount(book)}語</span>
                           </div>
                           {book.description && <p className="mt-1 text-sm text-slate-500 line-clamp-1">{book.description}</p>}
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -1530,7 +1558,7 @@ export default function AdminPage() {
                   <option value="">― 選択してください ―</option>
                   {books.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.title}（{b.words.length}語{b.visibility === "admin" ? " 🔒管理者限定" : ""})
+                      {b.title}（{getBookWordCount(b)}語{b.visibility === "admin" ? " 🔒管理者限定" : ""})
                     </option>
                   ))}
                 </select>
@@ -1548,7 +1576,7 @@ export default function AdminPage() {
                       </div>
                     ))}
                     <p className="col-span-3 text-xs text-slate-400">
-                      この単語帳は全{selectedPdfBook.words.length}語。「開始／終了」はリストの何番目かで指定します。
+                      この単語帳は全{getBookWordCount(selectedPdfBook)}語。「開始／終了」はリストの何番目かで指定します。
                     </p>
                   </div>
                 )}
@@ -1785,7 +1813,7 @@ export default function AdminPage() {
                   <p className="mt-1 text-xs text-slate-500">公式単語帳</p>
                 </div>
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-black text-slate-700">{books.reduce((s, b) => s + b.words.length, 0).toLocaleString()}</p>
+                  <p className="text-2xl font-black text-slate-700">{books.reduce((sum, book) => sum + getBookWordCount(book), 0).toLocaleString()}</p>
                   <p className="mt-1 text-xs text-slate-500">総単語数</p>
                 </div>
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
