@@ -521,7 +521,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ ok: false, message: "IDが必要です。" }, { status: 400 });
     }
 
-    if (!isPersistedDbId(id)) {
+    if (!isPersistedDbId(id) && false) {
       return NextResponse.json(
         { ok: false, message: "テンプレート単語帳は直接削除できません。保存済みの単語帳を削除してください。" },
         { status: 400 }
