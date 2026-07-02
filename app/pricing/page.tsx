@@ -198,7 +198,7 @@ export default function PricingPage() {
       return;
     }
 
-    setMessage(result.error ?? "請求ページを開けませんでした。");
+    setMessage(result.error ?? "請求情報ページを開けませんでした。");
   }
 
   return (

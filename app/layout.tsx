@@ -5,14 +5,16 @@ import Nav from "@/components/nav";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 
+const siteDescription =
+  "単語帳や自作データから、一覧・問題・解答のA4 PDFをすぐに作れる英語学習向けWebサービス。授業準備や受験学習のプリント作成をすばやく進められます。";
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
     default: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
     template: "%s | Vocab Print Pro",
   },
-  description:
-    "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。英語学習、受験対策、授業準備に使えます。",
+  description: siteDescription,
   keywords: [
     "Vocab Print Pro",
     "英単語テスト",
@@ -27,19 +29,15 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "Vocab Print Pro",
     title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
-    description:
-      "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
+    description: siteDescription,
   },
   twitter: {
     card: "summary_large_image",
     title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
-    description:
-      "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
+    description: siteDescription,
   },
   icons: {
-    icon: [
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
     shortcut: "/icon.svg",
     apple: "/icon.svg",
   },
@@ -54,8 +52,7 @@ const jsonLd = {
       url: siteUrl,
       name: "Vocab Print Pro",
       inLanguage: "ja",
-      description:
-        "単語帳・小テスト・解答PDFをA4できれいに作れる学習プリント作成サービス。",
+      description: siteDescription,
     },
     {
       "@type": "SoftwareApplication",
@@ -64,8 +61,7 @@ const jsonLd = {
       operatingSystem: "Web",
       url: siteUrl,
       inLanguage: "ja",
-      description:
-        "単語帳から一覧・問題・解答PDFを作成できるWebサービス。学校、塾、自学用プリント作成に対応。",
+      description: "単語帳から一覧・問題・解答のPDFを作成できるWebサービスです。",
       offers: {
         "@type": "Offer",
         price: "0",
