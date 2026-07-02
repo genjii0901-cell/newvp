@@ -158,6 +158,26 @@ function ImageInput({
     });
   }
 
+  function getCoverPlacement(
+    imageWidth: number,
+    imageHeight: number,
+    targetWidth: number,
+    targetHeight: number,
+    zoom: number,
+    offsetX: number,
+    offsetY: number
+  ) {
+    const baseScale = Math.max(targetWidth / imageWidth, targetHeight / imageHeight);
+    const finalScale = baseScale * zoom;
+    const drawWidth = imageWidth * finalScale;
+    const drawHeight = imageHeight * finalScale;
+    const maxShiftX = Math.max(0, (drawWidth - targetWidth) / 2);
+    const maxShiftY = Math.max(0, (drawHeight - targetHeight) / 2);
+    const drawX = (targetWidth - drawWidth) / 2 + maxShiftX * offsetX;
+    const drawY = (targetHeight - drawHeight) / 2 + maxShiftY * offsetY;
+    return { drawWidth, drawHeight, drawX, drawY };
+  }
+
   async function renderEmbeddedCover(
     source: string,
     zoom: number,
@@ -167,14 +187,15 @@ function ImageInput({
     const image = await loadImageElement(source);
     const targetWidth = 1280;
     const targetHeight = Math.round(targetWidth / COVER_ASPECT);
-    const baseScale = Math.max(targetWidth / image.width, targetHeight / image.height);
-    const finalScale = baseScale * zoom;
-    const drawWidth = image.width * finalScale;
-    const drawHeight = image.height * finalScale;
-    const maxShiftX = Math.max(0, (drawWidth - targetWidth) / 2);
-    const maxShiftY = Math.max(0, (drawHeight - targetHeight) / 2);
-    const drawX = (targetWidth - drawWidth) / 2 + maxShiftX * offsetX;
-    const drawY = (targetHeight - drawHeight) / 2 + maxShiftY * offsetY;
+    const { drawWidth, drawHeight, drawX, drawY } = getCoverPlacement(
+      image.width,
+      image.height,
+      targetWidth,
+      targetHeight,
+      zoom,
+      offsetX,
+      offsetY
+    );
     const canvas = document.createElement("canvas");
     canvas.width = targetWidth;
     canvas.height = targetHeight;
@@ -252,6 +273,21 @@ function ImageInput({
     window.addEventListener("paste", onWindowPaste);
     return () => window.removeEventListener("paste", onWindowPaste);
   }, []);
+
+  const cropPreviewPlacement = useMemo(() => {
+    if (!cropImageSize) return null;
+    const previewWidth = 420;
+    const previewHeight = Math.round(previewWidth / COVER_ASPECT);
+    return getCoverPlacement(
+      cropImageSize.width,
+      cropImageSize.height,
+      previewWidth,
+      previewHeight,
+      cropZoom,
+      cropOffsetX,
+      cropOffsetY
+    );
+  }, [cropImageSize, cropZoom, cropOffsetX, cropOffsetY, COVER_ASPECT]);
 
   return (
     <div onPaste={handlePaste}>
@@ -376,11 +412,12 @@ function ImageInput({
               <img
                 src={cropSource}
                 alt="crop-preview"
-                className="pointer-events-none absolute inset-0 h-full w-full select-none"
+                className="pointer-events-none absolute select-none"
                 style={{
-                  objectFit: "cover",
-                  transform: `scale(${cropZoom}) translate(${cropOffsetX * 18}%, ${cropOffsetY * 18}%)`,
-                  transformOrigin: "center center",
+                  left: cropPreviewPlacement ? `${cropPreviewPlacement.drawX}px` : 0,
+                  top: cropPreviewPlacement ? `${cropPreviewPlacement.drawY}px` : 0,
+                  width: cropPreviewPlacement ? `${cropPreviewPlacement.drawWidth}px` : "100%",
+                  height: cropPreviewPlacement ? `${cropPreviewPlacement.drawHeight}px` : "100%",
                 }}
               />
             </div>
