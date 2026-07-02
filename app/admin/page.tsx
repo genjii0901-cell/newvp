@@ -990,7 +990,7 @@ export default function AdminPage() {
         <div className="flex gap-1 rounded-2xl bg-slate-200 p-1 w-fit">
           {([
             ["create", "📚 単語帳を登録"],
-            ["manage", `📋 管理（${books.length}件）`],
+            ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
             ["pdf", "📄 単語テスト作成"],
           ] as const).map(([t, label]) => (
             <button
