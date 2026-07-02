@@ -131,6 +131,17 @@ function ImageInput({
     []
   );
 
+  async function uploadClipboardItems(items: DataTransferItemList | DataTransferItem[]) {
+    const list = Array.from(items);
+    const imageItem = list.find((item) => item.type.startsWith("image/"));
+    if (!imageItem) return false;
+    const file = imageItem.getAsFile();
+    if (!file) return false;
+    setMode("file");
+    await handleFile(file);
+    return true;
+  }
+
   async function handleFile(file: File) {
     setUploading(true);
     setUploadMsg("");
@@ -152,17 +163,24 @@ function ImageInput({
   }
 
   function handlePaste(e: React.ClipboardEvent) {
-    const items = Array.from(e.clipboardData.items);
-    const img = items.find((i) => i.type.startsWith("image/"));
-    if (img) {
-      e.preventDefault();
-      const file = img.getAsFile();
-      if (file) handleFile(file);
-    }
+    uploadClipboardItems(e.clipboardData.items).then((handled) => {
+      if (handled) e.preventDefault();
+    });
   }
 
+  useEffect(() => {
+    async function onWindowPaste(event: ClipboardEvent) {
+      if (!event.clipboardData) return;
+      const handled = await uploadClipboardItems(event.clipboardData.items);
+      if (handled) event.preventDefault();
+    }
+
+    window.addEventListener("paste", onWindowPaste);
+    return () => window.removeEventListener("paste", onWindowPaste);
+  }, []);
+
   return (
-    <div>
+    <div onPaste={handlePaste}>
       <div className="flex flex-wrap gap-2 mb-2">
         <button type="button" onClick={() => setMode("url")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${mode === "url" ? "bg-blue-600 text-white" : "border text-slate-600"}`}>URL</button>
         <button type="button" onClick={() => setMode("file")} className={`rounded-lg px-3 py-1.5 text-xs font-bold ${mode === "file" ? "bg-blue-600 text-white" : "border text-slate-600"}`}>Upload</button>
@@ -193,6 +211,7 @@ function ImageInput({
               <>
                 <p className="text-sm font-bold text-slate-700">画像を選ぶか、ここにドラッグしてください。</p>
                 <p className="mt-1 text-xs text-slate-400">JPG / PNG / WebP / GIF / AVIF, 5MBまで</p>
+                <p className="mt-1 text-xs font-bold text-blue-600">コピーした画像をここで Ctrl+V / Command+V でも貼り付けできます。</p>
               </>
             )}
           </div>
@@ -236,7 +255,7 @@ function ImageInput({
       )}
       {mode === "file" && !uploadMsg && (
         <p className="mt-2 text-xs text-slate-400">
-          画像が保存できない場合は、Supabase Storage の `wordbook-images` バケット設定も確認してください。
+          手元の画像を選ぶか、画像をコピーしてこの欄で貼り付けてください。保存できない場合は、Supabase Storage の `wordbook-images` バケット設定も確認してください。
         </p>
       )}
 
