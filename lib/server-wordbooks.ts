@@ -161,19 +161,16 @@ export async function loadOfficialWordbooks(options?: {
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];
-  let wordCountsByBookId = new Map<string, number>();
   if (ids.length > 0) {
     // Supabase/PostgREST は1リクエスト最大1000行。全単語帳の合計語数が1000を超えると
     // 打ち切られ、各単語帳の語数が誤って配分される（合計が常に1000になる）。
     // range でページングして全行を取得する。
     const PAGE = 1000;
-    const selectVariants = includeWords
-      ? [
-          "wordbook_id,number,english,japanese,unit",
-          "wordbook_id,number,english,japanese",
-          "wordbook_id,english,japanese",
-        ]
-      : ["wordbook_id"];
+    const selectVariants = [
+      "wordbook_id,number,english,japanese,unit",
+      "wordbook_id,number,english,japanese",
+      "wordbook_id,english,japanese",
+    ];
 
     for (const select of selectVariants) {
       const acc: WordRow[] = [];
@@ -194,15 +191,7 @@ export async function loadOfficialWordbooks(options?: {
         if (pageRows.length < PAGE) break;
       }
       if (!failed) {
-        if (includeWords) {
-          words = acc;
-        } else {
-          wordCountsByBookId = acc.reduce((map, row) => {
-            const key = String(row.wordbook_id);
-            map.set(key, (map.get(key) ?? 0) + 1);
-            return map;
-          }, new Map<string, number>());
-        }
+        words = acc;
         break;
       }
     }
@@ -235,9 +224,7 @@ export async function loadOfficialWordbooks(options?: {
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
-      wordCount: includeWords
-        ? (wordsByBookId.get(String(row.id)) ?? []).length
-        : wordCountsByBookId.get(String(row.id)) ?? 0,
+      wordCount: (wordsByBookId.get(String(row.id)) ?? []).length,
       words: includeWords ? wordsByBookId.get(String(row.id)) ?? [] : [],
     };
   });
