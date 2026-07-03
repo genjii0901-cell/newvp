@@ -1,10 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// SNS共有用のOGP画像（1200x630）。Vercel上にCJKフォントが無いため文言はASCIIで統一し、
-// 文字化け（tofu）を避ける。日本語の訴求はメタデータの description 側で表示される。
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Vocab Print Pro — word lists to printable A4 vocabulary tests";
+export const alt = "Vocab Print Pro の共有カード画像";
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -15,10 +13,10 @@ export default function OpengraphImage() {
           height: "100%",
           display: "flex",
           flexDirection: "column",
-          justifyContent: "center",
-          padding: "80px",
-          background: "linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #047857 100%)",
+          justifyContent: "space-between",
+          background: "linear-gradient(135deg, #0f172a 0%, #1d4ed8 58%, #38bdf8 100%)",
           color: "#ffffff",
+          padding: "56px 64px",
           fontFamily: "sans-serif",
         }}
       >
@@ -28,30 +26,47 @@ export default function OpengraphImage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 84,
-              height: 84,
-              borderRadius: 20,
+              width: 96,
+              height: 96,
+              borderRadius: 24,
               background: "#ffffff",
-              color: "#1e3a8a",
-              fontSize: 44,
+              color: "#1d4ed8",
+              fontSize: 46,
               fontWeight: 800,
             }}
           >
             VP
           </div>
-          <div style={{ fontSize: 40, fontWeight: 700, letterSpacing: -1 }}>Vocab Print Pro</div>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ fontSize: 42, fontWeight: 800 }}>Vocab Print Pro</div>
+            <div style={{ fontSize: 22, color: "#dbeafe", marginTop: 6 }}>A4 vocabulary test generator</div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 48, fontSize: 70, fontWeight: 800, lineHeight: 1.1, maxWidth: 980 }}>
-          Word lists into printable A4 vocabulary tests
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: "column", fontSize: 64, fontWeight: 900, lineHeight: 1.1, maxWidth: 980 }}>
+            単語帳から
+            <div>英単語テストPDFを自動作成</div>
+          </div>
+          <div style={{ fontSize: 28, color: "#e2e8f0", maxWidth: 960, lineHeight: 1.4 }}>
+            一覧・問題・解答のA4 PDFをすぐ作成。授業準備や受験学習のプリント作成に。
+          </div>
         </div>
 
-        <div style={{ marginTop: 28, fontSize: 34, color: "#cbd5e1", maxWidth: 940 }}>
-          Vocabulary lists, quizzes & answer keys — ready to print. Free to start.
-        </div>
-
-        <div style={{ marginTop: "auto", fontSize: 30, fontWeight: 700, color: "#a7f3d0" }}>
-          vocabprint.com
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 14,
+              fontSize: 22,
+              color: "#bfdbfe",
+            }}
+          >
+            <div style={{ padding: "10px 16px", borderRadius: 999, background: "rgba(255,255,255,0.12)" }}>無料で開始</div>
+            <div style={{ padding: "10px 16px", borderRadius: 999, background: "rgba(255,255,255,0.12)" }}>A4最適化</div>
+            <div style={{ padding: "10px 16px", borderRadius: 999, background: "rgba(255,255,255,0.12)" }}>授業向け</div>
+          </div>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#a7f3d0" }}>vocabprint.com</div>
         </div>
       </div>
     ),

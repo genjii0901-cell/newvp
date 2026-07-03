@@ -4,17 +4,21 @@ import "./globals.css";
 import Nav from "@/components/nav";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
-
+const siteName = "Vocab Print Pro";
+const titleText = "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成";
 const siteDescription =
   "単語帳や自作データから、一覧・問題・解答のA4 PDFをすぐに作れる英語学習向けWebサービス。授業準備や受験学習のプリント作成をすばやく進められます。";
+const ogImage = `${siteUrl}/opengraph-image`;
+const twitterImage = `${siteUrl}/twitter-image`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
+    default: titleText,
     template: "%s | Vocab Print Pro",
   },
   description: siteDescription,
+  applicationName: siteName,
   keywords: [
     "Vocab Print Pro",
     "英単語テスト",
@@ -22,19 +26,32 @@ export const metadata: Metadata = {
     "PDF作成",
     "学習プリント",
     "A4印刷",
+    "英語教材",
   ],
   openGraph: {
     type: "website",
     locale: "ja_JP",
     url: siteUrl,
-    siteName: "Vocab Print Pro",
-    title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
+    siteName,
+    title: titleText,
     description: siteDescription,
+    images: [
+      {
+        url: ogImage,
+        width: 1200,
+        height: 630,
+        alt: "Vocab Print Pro の共有カード画像",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成",
+    title: titleText,
     description: siteDescription,
+    images: [twitterImage],
+  },
+  alternates: {
+    canonical: "/",
   },
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
@@ -50,13 +67,13 @@ const jsonLd = {
       "@type": "WebSite",
       "@id": `${siteUrl}/#website`,
       url: siteUrl,
-      name: "Vocab Print Pro",
+      name: siteName,
       inLanguage: "ja",
       description: siteDescription,
     },
     {
       "@type": "SoftwareApplication",
-      name: "Vocab Print Pro",
+      name: siteName,
       applicationCategory: "EducationalApplication",
       operatingSystem: "Web",
       url: siteUrl,
