@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
+import {
+  getSupabaseAdmin,
+  isSupabaseServerConfigured,
+  readableError,
+} from "@/lib/supabase/admin";
 
 const PERSONAL_PRICE_JPY = 780;
 const TEACHER_PRICE_JPY = 2980;
@@ -53,6 +57,24 @@ function topEntries<T extends string | number>(items: T[]) {
     .slice(0, 5);
 }
 
+function looksMissingTableOrColumn(message: string) {
+  return /does not exist|schema cache|relation .* does not exist|Could not find/i.test(message);
+}
+
+async function safeSelect<T>(
+  run: () => Promise<{ data: T[] | null; error: { message?: string } | null }>
+) {
+  const result = await run();
+  if (!result.error) {
+    return { data: (result.data ?? []) as T[], warning: null };
+  }
+  const message = result.error.message ?? "Unknown error";
+  if (looksMissingTableOrColumn(message)) {
+    return { data: [] as T[], warning: message };
+  }
+  throw result.error;
+}
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -76,25 +98,34 @@ export async function GET(request: Request) {
     const supabase = getSupabaseAdmin();
 
     const [profilesResult, subscriptionsResult, pdfResult, wordbooksResult] = await Promise.all([
-      supabase.from("profiles").select("id,plan,role,created_at").limit(5000),
-      supabase.from("subscriptions").select("plan,status,created_at,current_period_end").limit(5000),
-      supabase
-        .from("pdf_generations")
-        .select("id,type,word_count,user_id,wordbook_id,created_at")
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000),
+      safeSelect<ProfileRow>(() =>
+        supabase.from("profiles").select("id,plan,role,created_at").limit(5000)
+      ),
+      safeSelect<SubscriptionRow>(() =>
+        supabase.from("subscriptions").select("plan,status,created_at,current_period_end").limit(5000)
+      ),
+      safeSelect<PdfGenerationRow>(() =>
+        supabase
+          .from("pdf_generations")
+          .select("id,type,word_count,user_id,wordbook_id,created_at")
+          .order("created_at", { ascending: false })
+          .limit(5000)
+      ),
+      safeSelect<WordbookRow>(() =>
+        supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000)
+      ),
     ]);
 
-    if (profilesResult.error) throw profilesResult.error;
-    if (subscriptionsResult.error) throw subscriptionsResult.error;
-    if (pdfResult.error) throw pdfResult.error;
-    if (wordbooksResult.error) throw wordbooksResult.error;
-
-    const profiles = (profilesResult.data ?? []) as ProfileRow[];
-    const subscriptions = (subscriptionsResult.data ?? []) as SubscriptionRow[];
-    const pdfGenerations = (pdfResult.data ?? []) as PdfGenerationRow[];
-    const wordbooks = (wordbooksResult.data ?? []) as WordbookRow[];
+    const profiles = profilesResult.data;
+    const subscriptions = subscriptionsResult.data;
+    const pdfGenerations = pdfResult.data;
+    const wordbooks = wordbooksResult.data;
+    const warnings = [
+      profilesResult.warning,
+      subscriptionsResult.warning,
+      pdfResult.warning,
+      wordbooksResult.warning,
+    ].filter((value): value is string => Boolean(value));
 
     const freeCount = profiles.filter((profile) => (profile.plan ?? "free") === "free").length;
     const personalCount = profiles.filter((profile) => profile.plan === "personal").length;
@@ -103,20 +134,34 @@ export async function GET(request: Request) {
     const signup7d = profiles.filter((profile) => isRecent(profile.created_at, 7)).length;
     const signup30d = profiles.filter((profile) => isRecent(profile.created_at, 30)).length;
 
-    const activeSubscriptions = subscriptions.filter((subscription) =>
-      subscription.status === "active" || subscription.status === "trialing"
+    const activeSubscriptions = subscriptions.filter(
+      (subscription) => subscription.status === "active" || subscription.status === "trialing"
     ).length;
-    const trialingSubscriptions = subscriptions.filter((subscription) => subscription.status === "trialing").length;
-    const canceledSubscriptions = subscriptions.filter((subscription) => subscription.status === "canceled").length;
+    const trialingSubscriptions = subscriptions.filter(
+      (subscription) => subscription.status === "trialing"
+    ).length;
+    const canceledSubscriptions = subscriptions.filter(
+      (subscription) => subscription.status === "canceled"
+    ).length;
 
     const pdf7d = pdfGenerations.filter((item) => isRecent(item.created_at, 7));
     const pdf30d = pdfGenerations.filter((item) => isRecent(item.created_at, 30));
-    const totalWordsGenerated = pdfGenerations.reduce((sum, item) => sum + (item.word_count ?? 0), 0);
-    const totalWordsGenerated30d = pdf30d.reduce((sum, item) => sum + (item.word_count ?? 0), 0);
+    const totalWordsGenerated = pdfGenerations.reduce(
+      (sum, item) => sum + (item.word_count ?? 0),
+      0
+    );
+    const totalWordsGenerated30d = pdf30d.reduce(
+      (sum, item) => sum + (item.word_count ?? 0),
+      0
+    );
 
-    const wordbookTitleById = new Map(wordbooks.map((book) => [String(book.id), book.title ?? `ID ${book.id}`]));
+    const wordbookTitleById = new Map(
+      wordbooks.map((book) => [String(book.id), book.title ?? `ID ${book.id}`])
+    );
     const topWordbooks = topEntries(
-      pdf30d.map((item) => item.wordbook_id).filter((value): value is string => typeof value === "string" && value.length > 0)
+      pdf30d
+        .map((item) => item.wordbook_id)
+        .filter((value): value is string => typeof value === "string" && value.length > 0)
     ).map(([wordbookId, uses]) => ({
       wordbookId,
       title: wordbookTitleById.get(wordbookId) ?? `ID ${wordbookId}`,
@@ -124,14 +169,18 @@ export async function GET(request: Request) {
     }));
 
     const topTypes = topEntries(
-      pdf30d.map((item) => item.type ?? "unknown").filter((value): value is string => value.length > 0)
+      pdf30d
+        .map((item) => item.type ?? "unknown")
+        .filter((value): value is string => value.length > 0)
     ).map(([type, count]) => ({ type, count }));
 
     const officialBooks = wordbooks.filter((book) => book.is_official !== false);
     const adminOnlyBooks = officialBooks.filter((book) => book.visibility === "admin").length;
     const teacherBooks = officialBooks.filter((book) => book.visibility === "teacher").length;
     const personalBooks = officialBooks.filter((book) => book.visibility === "personal").length;
-    const publicBooks = officialBooks.filter((book) => !book.visibility || book.visibility === "public").length;
+    const publicBooks = officialBooks.filter(
+      (book) => !book.visibility || book.visibility === "public"
+    ).length;
 
     const recentPdfGenerations = pdfGenerations.slice(0, 10).map((item) => ({
       id: item.id,
@@ -139,11 +188,14 @@ export async function GET(request: Request) {
       type: item.type ?? "unknown",
       word_count: item.word_count ?? 0,
       wordbook_id: item.wordbook_id,
-      wordbook_title: item.wordbook_id ? wordbookTitleById.get(item.wordbook_id) ?? `ID ${item.wordbook_id}` : "未指定",
+      wordbook_title: item.wordbook_id
+        ? wordbookTitleById.get(item.wordbook_id) ?? `ID ${item.wordbook_id}`
+        : "未設定",
       user_id: item.user_id,
     }));
 
-    const estimatedMonthlyRevenue = personalCount * PERSONAL_PRICE_JPY + teacherCount * TEACHER_PRICE_JPY;
+    const estimatedMonthlyRevenue =
+      personalCount * PERSONAL_PRICE_JPY + teacherCount * TEACHER_PRICE_JPY;
 
     return NextResponse.json(
       {
@@ -152,8 +204,9 @@ export async function GET(request: Request) {
         visitorMetrics: {
           available: false,
           message:
-            "閲覧者数はまだ外部解析未接続です。Vercel Analytics または Google Analytics をつなぐと管理者画面に追加できます。",
+            "閲覧者数はまだ管理画面に連携していません。Vercel Analytics または Google Analytics をつなぐと、ここに訪問数や流入元を表示できます。",
         },
+        warnings,
         overview: {
           totalUsers: profiles.length,
           freeCount,
@@ -192,7 +245,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: readableError(error),
       },
       { status: 500, headers: { "Cache-Control": "no-store, max-age=0" } }
     );
