@@ -52,7 +52,10 @@ export default function WordbookDetailPage() {
         return;
       }
 
-      const nextBook = result.wordbooks[0] ?? null;
+      const nextBook =
+        Array.isArray(result.wordbooks)
+          ? result.wordbooks.find((item: OfficialWordbook) => item.id === id) ?? null
+          : null;
       if (!nextBook) {
         setError("単語帳が見つかりませんでした。");
         setLoading(false);

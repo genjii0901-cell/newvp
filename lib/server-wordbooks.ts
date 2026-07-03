@@ -125,15 +125,18 @@ export async function loadOfficialWordbooks(options?: {
   }
 
   if (rows === null) {
+    const fallbackBooks = fallbackOfficialWordbooksForApi()
+      .filter((book) => !filterIdSet || filterIdSet.has(String(book.id)))
+      .map((book) => ({
+        ...book,
+        wordCount: book.words.length,
+        visibility: book.visibility,
+      }));
     return {
       ok: false as const,
       error: dbError ?? "Failed to load wordbooks.",
       wordbooks: includeFallback
-        ? mergeWordbooksById<LiveWordbook>([], fallbackOfficialWordbooksForApi().map((book) => ({
-            ...book,
-            wordCount: book.words.length,
-            visibility: book.visibility,
-          })))
+        ? mergeWordbooksById<LiveWordbook>([], fallbackBooks)
         : [],
     };
   }
@@ -248,7 +251,11 @@ export async function loadOfficialWordbooks(options?: {
       ? mergeWordbooksById(
           primaryBooks,
           fallbackOfficialWordbooksForApi()
-            .filter((book) => !hiddenTitleKeys.has(normalizeBookTitle(book.title)))
+            .filter(
+              (book) =>
+                !hiddenTitleKeys.has(normalizeBookTitle(book.title)) &&
+                (!filterIdSet || filterIdSet.has(String(book.id)))
+            )
             .map((book) => ({
               ...book,
               wordCount: book.words.length,

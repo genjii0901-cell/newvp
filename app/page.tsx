@@ -402,7 +402,9 @@ export default function Home() {
           `/api/wordbooks/official?id=${encodeURIComponent(targetBookId)}&includeWords=1`
         );
         const result = await response.json().catch(() => ({}));
-        const rawBook = Array.isArray(result.wordbooks) ? result.wordbooks[0] : null;
+        const rawBook = Array.isArray(result.wordbooks)
+          ? result.wordbooks.find((book: { id?: string | number }) => String(book.id) === targetBookId) ?? null
+          : null;
         if (!response.ok || !rawBook) return existingBook;
 
         const nextWords = Array.isArray(rawBook.words)
