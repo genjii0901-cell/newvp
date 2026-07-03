@@ -1032,6 +1032,39 @@ export default function Home() {
           </p>
         </div>
 
+        <a
+          href="https://www.vocabprint.com/"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-4 block overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <div className="grid gap-0 md:grid-cols-[220px_1fr]">
+            <div className="relative min-h-[160px] bg-slate-100">
+              <img
+                src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=900&q=80"
+                alt="Vocab Print Pro link card"
+                className="h-full w-full object-cover"
+              />
+              <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-blue-700">
+                公式サイト
+              </div>
+            </div>
+            <div className="flex flex-col justify-center p-5">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Vocab Print Pro</p>
+              <h3 className="mt-2 text-xl font-black text-slate-900">URLをカード型でシェア</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                単語テスト作成ページを、画像つきの見やすいカードとして案内できます。SNSやnoteに貼るときの入口にも使いやすい形です。
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                  https://www.vocabprint.com/
+                </span>
+                <span className="text-sm font-bold text-slate-700">カードを開く</span>
+              </div>
+            </div>
+          </div>
+        </a>
+
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
