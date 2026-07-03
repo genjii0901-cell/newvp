@@ -284,6 +284,8 @@ function buildOverlapRows(baseBook: WordBook | null, compareBook: WordBook | nul
       const pair = compareMap.get(normalizeWordKey(word.english));
       return {
         no: index + 1,
+        baseNo: word.no,
+        compareNo: pair?.no ?? null,
         english: word.english,
         japanese: pair && pair.japanese !== word.japanese ? `${word.japanese} / ${pair.japanese}` : word.japanese,
         bucket: "common" as const,
@@ -295,6 +297,8 @@ function buildOverlapRows(baseBook: WordBook | null, compareBook: WordBook | nul
     .filter((word) => !compareMap.has(normalizeWordKey(word.english)))
     .map((word, index) => ({
       no: index + 1,
+      baseNo: word.no,
+      compareNo: null,
       english: word.english,
       japanese: word.japanese,
       bucket: "base-only" as const,
@@ -305,6 +309,8 @@ function buildOverlapRows(baseBook: WordBook | null, compareBook: WordBook | nul
     .filter((word) => !baseMap.has(normalizeWordKey(word.english)))
     .map((word, index) => ({
       no: index + 1,
+      baseNo: null,
+      compareNo: word.no,
       english: word.english,
       japanese: word.japanese,
       bucket: "compare-only" as const,
@@ -991,8 +997,11 @@ export default function Home() {
 
     const printableWords: Word[] = rows.map((row, index) => ({
       no: index + 1,
-      english: overlapMode === "all" ? `[${row.source}] ${row.english}` : row.english,
-      japanese: row.japanese,
+      english:
+        overlapMode === "all"
+          ? `[${row.source}] ${row.english}`
+          : row.english,
+      japanese: `A:${row.baseNo ?? "-"} / B:${row.compareNo ?? "-"}  ${row.japanese}`,
     }));
 
     await printWords(
@@ -1738,7 +1747,7 @@ export default function Home() {
             <div>
               <h3 className="text-lg font-black">かぶり調査</h3>
               <p className="mt-1 text-sm text-slate-500">
-                2冊の単語帳を比べて、共通語・Aのみ・Bのみを見やすく確認して、そのまま印刷できます。
+                2冊の単語帳を比べて、共通語・基準単語帳のみ・比較単語帳のみを見やすく確認して、そのまま印刷できます。
               </p>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
@@ -1777,11 +1786,22 @@ export default function Home() {
             </div>
           </div>
 
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span className="font-black">基準単語帳</span>
+              <span className="ml-2 text-amber-700">{overlapBaseBook?.title ?? "未選択"}</span>
+            </div>
+            <div className="rounded-2xl bg-violet-50 px-4 py-3 text-sm text-violet-800">
+              <span className="font-black">比較単語帳</span>
+              <span className="ml-2 text-violet-700">{overlapCompareBook?.title ?? "未選択"}</span>
+            </div>
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2">
             {([
               ["common", "共通のみ"],
-              ["base-only", "Aのみ"],
-              ["compare-only", "Bのみ"],
+              ["base-only", "基準単語帳のみ"],
+              ["compare-only", "比較単語帳のみ"],
               ["all", "全部見る"],
             ] as const).map(([value, label]) => (
               <button
@@ -1797,31 +1817,44 @@ export default function Home() {
             ))}
           </div>
 
+          <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+            <span className="font-bold text-slate-700">見方:</span>{" "}
+            共通のみ = 両方の単語帳にある単語 / 基準単語帳のみ = 左で選んだ単語帳だけにある単語 /
+            比較単語帳のみ = 右で選んだ単語帳だけにある単語
+          </div>
+
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
             <span className="rounded-full bg-slate-100 px-3 py-1 font-bold">
               表示中 {overlapRows.length}語
             </span>
             {overlapBaseBook && overlapCompareBook ? (
               <span>
-                {overlapBaseBook.title} × {overlapCompareBook.title}
+                基準: {overlapBaseBook.title} / 比較: {overlapCompareBook.title}
               </span>
             ) : null}
           </div>
 
-          <div className="mt-4 max-h-[360px] overflow-auto rounded-2xl border">
+          <div
+            className="mt-4 max-h-[360px] overflow-auto rounded-2xl border select-none"
+            onCopy={(event) => event.preventDefault()}
+            onCut={(event) => event.preventDefault()}
+            onContextMenu={(event) => event.preventDefault()}
+          >
             <table className="w-full table-fixed border-collapse text-sm">
               <thead className="bg-slate-100">
                 <tr>
-                  <th className="w-[12%] border p-2 text-center">番号</th>
-                  <th className="w-[22%] border p-2 text-center">区分</th>
-                  <th className="w-[24%] border p-2 text-left">英語</th>
+                  <th className="w-[10%] border p-2 text-center">表示</th>
+                  <th className="w-[16%] border p-2 text-center">基準番号</th>
+                  <th className="w-[16%] border p-2 text-center">比較番号</th>
+                  <th className="w-[18%] border p-2 text-center">区分</th>
+                  <th className="w-[18%] border p-2 text-left">英語</th>
                   <th className="border p-2 text-left">意味</th>
                 </tr>
               </thead>
               <tbody>
                 {overlapRows.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-slate-400">
+                    <td colSpan={6} className="p-6 text-center text-slate-400">
                       2冊選ぶと、かぶりがここに出ます。
                     </td>
                   </tr>
@@ -1829,6 +1862,8 @@ export default function Home() {
                   overlapRows.map((row) => (
                     <tr key={`${row.bucket}-${row.english}-${row.no}`}>
                       <td className="border p-2 text-center font-bold">{row.no}</td>
+                      <td className="border p-2 text-center font-bold text-slate-700">{row.baseNo ?? "-"}</td>
+                      <td className="border p-2 text-center font-bold text-slate-700">{row.compareNo ?? "-"}</td>
                       <td className="border p-2 text-center">
                         <span
                           className={`rounded-full px-2 py-1 text-xs font-bold ${
@@ -1868,7 +1903,7 @@ export default function Home() {
               }}
               className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
             >
-              今の単語帳をAに入れる
+              今の単語帳を基準単語帳にする
             </button>
           </div>
         </section>
