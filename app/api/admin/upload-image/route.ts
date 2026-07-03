@@ -3,7 +3,7 @@ import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/adm
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   if (!isSupabaseServerConfigured()) {

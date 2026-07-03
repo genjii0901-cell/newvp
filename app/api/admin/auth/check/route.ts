@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import {
-  issueAdminToken,
-  verifyTotp,
   getAdminTotpSecret,
   isLockedOut,
+  issueAdminToken,
+  lockRemainingSeconds,
   recordFail,
   resetAttempts,
-  lockRemainingSeconds,
+  verifyTotp,
 } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
@@ -14,19 +14,22 @@ export async function POST(request: Request) {
 
   if (!adminPassword) {
     return NextResponse.json(
-      { ok: false, message: "ADMIN_PASSWORD is not configured." },
+      {
+        ok: false,
+        message:
+          "管理者ログイン用の環境変数 `ADMIN_PASSWORD` が未設定です。ローカルなら `.env.local`、公開版なら Vercel の Environment Variables に設定してください。",
+      },
       { status: 500 }
     );
   }
 
-  // ロックアウト中は受け付けない
   if (isLockedOut()) {
     const sec = lockRemainingSeconds();
     return NextResponse.json(
       {
         ok: false,
         locked: true,
-        message: `ログイン試行回数の上限に達しました。約${Math.ceil(sec / 60)}分後に再度お試しください。`,
+        message: `ログイン試行回数の上限に達しました。約${Math.ceil(sec / 60)}分後にもう一度お試しください。`,
       },
       { status: 429 }
     );
@@ -38,7 +41,6 @@ export async function POST(request: Request) {
 
   const totpSecret = await getAdminTotpSecret();
   const passwordOk = password === adminPassword;
-  // TOTP未設定なら検証をスキップ（2FA無効＝要設定）
   const totpOk = totpSecret ? verifyTotp(code, totpSecret) : true;
 
   if (!passwordOk || !totpOk) {

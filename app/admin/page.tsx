@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import {
   buildPrintHtml,
@@ -13,6 +14,7 @@ import {
   type PrintStyle,
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
+import { createClient } from "@/lib/supabase/client";
 
 /* 笏笏笏 Types 笏笏笏 */
 type Visibility = "public" | "personal" | "teacher" | "admin";
@@ -28,6 +30,49 @@ type OfficialBook = {
   visibility: string;
   wordCount?: number;
   words: Array<{ no: number; english: string; japanese: string; unit?: string | null }>;
+};
+
+type AdminMetrics = {
+  visitorMetrics?: { available?: boolean; message?: string };
+  overview: {
+    totalUsers: number;
+    freeCount: number;
+    personalCount: number;
+    teacherCount: number;
+    adminCount: number;
+    signup7d: number;
+    signup30d: number;
+    activeSubscriptions: number;
+    trialingSubscriptions: number;
+    canceledSubscriptions: number;
+    estimatedMonthlyRevenue: number;
+  };
+  pdf: {
+    totalGenerations: number;
+    generations7d: number;
+    generations30d: number;
+    totalWordsGenerated: number;
+    totalWordsGenerated30d: number;
+    topTypes: Array<{ type: string; count: number }>;
+    recent: Array<{
+      id: string;
+      created_at: string | null;
+      type: string;
+      word_count: number;
+      wordbook_id: string | null;
+      wordbook_title: string;
+      user_id: string | null;
+    }>;
+  };
+  wordbooks: {
+    total: number;
+    official: number;
+    publicCount: number;
+    personalCount: number;
+    teacherCount: number;
+    adminOnlyCount: number;
+    topWordbooks: Array<{ wordbookId: string; title: string; uses: number }>;
+  };
 };
 
 /* 笏笏笏 Image presets 笏笏笏 */
@@ -113,6 +158,26 @@ function visibilityColor(v: string) {
 
 function getBookWordCount(book: OfficialBook) {
   return typeof book.wordCount === "number" ? book.wordCount : book.words.length;
+}
+
+function formatAdminDate(iso: string | null | undefined) {
+  if (!iso) return "未記録";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "未記録";
+  return date.toLocaleString("ja-JP", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatCurrencyJPY(value: number) {
+  return new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency: "JPY",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 /* 笏笏笏 Image Upload Component 笏笏笏 */
@@ -489,6 +554,9 @@ function ImageInput({
 
 /* 笏笏笏 Main Component 笏笏笏 */
 export default function AdminPage() {
+  const supabase = useMemo(() => createClient(), []);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authRole, setAuthRole] = useState<"user" | "admin">("user");
   const [unlocked, setUnlocked] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem("vpp-admin-unlocked") === "1";
@@ -499,6 +567,8 @@ export default function AdminPage() {
   });
   const [authCode, setAuthCode] = useState("");
   const [authMsg, setAuthMsg] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   /* 2FA */
   const [twoFaEnabled, setTwoFaEnabled] = useState<boolean | null>(null);
@@ -509,7 +579,7 @@ export default function AdminPage() {
   const [twoFaConfirming, setTwoFaConfirming] = useState(false);
   const [twoFaOk, setTwoFaOk] = useState(false);
 
-  const [tab, setTab] = useState<"create" | "manage" | "pdf">("create");
+  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf">("dashboard");
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -578,14 +648,85 @@ export default function AdminPage() {
   /* 笏笏 diagnose 笏笏 */
   const [diagResult, setDiagResult] = useState<Record<string, unknown> | null>(null);
   const [diagLoading, setDiagLoading] = useState(false);
+  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsMsg, setMetricsMsg] = useState("");
+
+  async function getAdminHeaders(): Promise<Record<string, string>> {
+    const token = sessionStorage.getItem("vpp-admin-pw");
+    if (token) {
+      return { "x-admin-password": token };
+    }
+    if (!supabase) return {};
+    const { data } = await supabase.auth.getSession();
+    const accessToken = data.session?.access_token;
+    return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  }
+
+  async function loadSupabaseAdminSession() {
+    if (!supabase) return;
+    const { data: userData } = await supabase.auth.getUser();
+    const currentUser = userData.user ?? null;
+    setAuthUser(currentUser);
+    if (!currentUser) {
+      setAuthRole("user");
+      return;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) {
+      setAuthRole("user");
+      return;
+    }
+
+    const response = await fetch("/api/me/profile", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    }).catch(() => null);
+    const result = await response?.json().catch(() => ({}));
+    const nextRole = result?.profile?.role === "admin" ? "admin" : "user";
+    setAuthRole(nextRole);
+    if (nextRole === "admin") {
+      sessionStorage.setItem("vpp-admin-unlocked", "1");
+      setUnlocked(true);
+      setAuthMsg("");
+    }
+  }
+
   async function runDiagnose() {
     setDiagLoading(true);
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
-    const res = await fetch("/api/admin/diagnose", { headers: { "x-admin-password": pw } }).catch(() => null);
+    const headers = await getAdminHeaders();
+    const res = await fetch("/api/admin/diagnose", { headers }).catch(() => null);
     if (!res) { setDiagResult({ error: "API request failed" }); setDiagLoading(false); return; }
     const data = await res.json().catch(() => ({ error: "Failed to parse response" }));
     setDiagResult(data);
     setDiagLoading(false);
+  }
+
+  async function fetchMetrics(options?: { silent?: boolean }) {
+    if (!options?.silent) setMetricsLoading(true);
+    setMetricsMsg("");
+    const headers = await getAdminHeaders();
+    const res = await fetch("/api/admin/metrics", {
+      headers,
+      cache: "no-store",
+    }).catch(() => null);
+    if (!res) {
+      setMetricsMsg("⚠️ ダッシュボードAPIに接続できませんでした。");
+      setMetricsLoading(false);
+      return null;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.ok) {
+      setMetrics(null);
+      setMetricsMsg(typeof data?.message === "string" ? data.message : "ダッシュボードの読み込みに失敗しました。");
+      setMetricsLoading(false);
+      return null;
+    }
+    setMetrics(data as AdminMetrics);
+    setMetricsLoading(false);
+    return data as AdminMetrics;
   }
 
   /* 笏笏 fetch books 笏笏 */
@@ -594,9 +735,9 @@ export default function AdminPage() {
     const includeWords = options?.includeWords ?? false;
     if (!options?.silent) setLoadingBooks(true);
     if (!options?.preserveMessage) setManageMsg("");
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const headers = await getAdminHeaders();
     const res = await fetch(`/api/admin/all-wordbooks?includeWords=${includeWords ? "1" : "0"}`, {
-      headers: { "x-admin-password": pw },
+      headers,
       cache: "no-store",
     }).catch(() => null);
     if (requestSeq !== fetchBooksSeqRef.current) return null;
@@ -613,11 +754,26 @@ export default function AdminPage() {
     return list as OfficialBook[];
   }
 
-  useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false }); loadTwoFaStatus(); } }, [unlocked]);
+  useEffect(() => {
+    void loadSupabaseAdminSession();
+    if (!supabase) return;
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void loadSupabaseAdminSession();
+    });
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false }); fetchMetrics({ silent: true }); loadTwoFaStatus(); } }, [unlocked]);
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
   useEffect(() => {
     if (!unlocked || (tab !== "manage" && tab !== "pdf")) return;
     fetchBooks({ silent: true, includeWords: tab === "pdf" });
+  }, [tab, unlocked]);
+  useEffect(() => {
+    if (!unlocked || tab !== "dashboard") return;
+    fetchMetrics({ silent: false });
   }, [tab, unlocked]);
   useEffect(() => {
     if (!pdfBookId && books.length > 0) {
@@ -627,21 +783,41 @@ export default function AdminPage() {
 
   /* 笏笏 auth 笏笏 */
   async function unlock() {
+    if (authLoading) return;
     setAuthMsg("");
-    const res = await fetch("/api/admin/auth/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password, code: authCode }),
-    });
-    const result = await res.json().catch(() => ({}));
-    if (!res.ok || !result.ok) { setAuthMsg(result.message ?? "認証失敗"); return; }
-    // 以降のAPIはトークンで認証する（x-admin-passwordヘッダーにトークンを入れる）
-    const token = typeof result.token === "string" ? result.token : password;
-    sessionStorage.setItem("vpp-admin-unlocked", "1");
-    sessionStorage.setItem("vpp-admin-pw", token);
-    setPassword(token);
-    setAuthCode("");
-    setUnlocked(true);
+    if (!password.trim()) {
+      if (authUser && authRole === "admin") {
+        sessionStorage.setItem("vpp-admin-unlocked", "1");
+        setUnlocked(true);
+        return;
+      }
+      setAuthMsg("管理者パスワードを入力してください。管理者アカウントでログイン済みなら、そのまま入れる場合があります。");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch("/api/admin/auth/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, code: authCode }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.ok) {
+        setAuthMsg(result.message ?? "認証に失敗しました。");
+        return;
+      }
+      // 以降のAPIはトークンで認証する（x-admin-passwordヘッダーにトークンを入れる）
+      const token = typeof result.token === "string" ? result.token : password;
+      sessionStorage.setItem("vpp-admin-unlocked", "1");
+      sessionStorage.setItem("vpp-admin-pw", token);
+      setPassword(token);
+      setAuthCode("");
+      setUnlocked(true);
+    } catch {
+      setAuthMsg("管理者ログインAPIに接続できませんでした。");
+    } finally {
+      setAuthLoading(false);
+    }
   }
 
   function lockAdmin() {
@@ -652,8 +828,8 @@ export default function AdminPage() {
   }
 
   async function loadTwoFaStatus() {
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
-    const res = await fetch("/api/admin/2fa", { headers: { "x-admin-password": pw } }).catch(() => null);
+    const headers = await getAdminHeaders();
+    const res = await fetch("/api/admin/2fa", { headers }).catch(() => null);
     if (!res) return;
     const r = await res.json().catch(() => ({}));
     if (r.ok) setTwoFaEnabled(Boolean(r.enabled));
@@ -661,8 +837,8 @@ export default function AdminPage() {
 
   async function setupTwoFa() {
     setTwoFaMsg("");
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
-    const res = await fetch("/api/admin/2fa", { method: "POST", headers: { "x-admin-password": pw } }).catch(() => null);
+    const headers = await getAdminHeaders();
+    const res = await fetch("/api/admin/2fa", { method: "POST", headers }).catch(() => null);
     if (!res) { setTwoFaMsg("通信エラー"); return; }
     const r = await res.json().catch(() => ({}));
     if (!r.ok) { setTwoFaMsg(r.message ?? "設定に失敗しました"); return; }
@@ -689,10 +865,10 @@ export default function AdminPage() {
     const code = twoFaCode.trim();
     if (!/^\d{6}$/.test(code)) { setTwoFaMsg("6桁の数字コードを入力してください。"); return; }
     setTwoFaConfirming(true);
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const headers = await getAdminHeaders();
     const res = await fetch("/api/admin/2fa/confirm", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ code }),
     }).catch(() => null);
     setTwoFaConfirming(false);
@@ -709,10 +885,10 @@ export default function AdminPage() {
   async function createWordbook() {
     if (!title.trim() || words.length === 0) { setCreateMsg("タイトルと単語を入力してください。"); return; }
     setSaving(true); setCreateMsg("");
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const headers = await getAdminHeaders();
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ title, description: desc, cover_image: coverImage, visibility, words }),
     });
     const result = await res.json().catch(() => ({}));
@@ -750,11 +926,11 @@ export default function AdminPage() {
 
     // Supabaseに未登録のテンプレート単語帳は先にPOSTで登録してIDを取得
     let actualId = editId;
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const headers = await getAdminHeaders();
     if (!isPersistedBookId(editId)) {
       const postRes = await fetch("/api/admin/official-wordbooks", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": pw },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({
           title: editMode === "meta" ? editMeta.title : (targetBook?.title ?? ""),
           description: editMode === "meta" ? editMeta.desc : (targetBook?.description ?? ""),
@@ -781,7 +957,7 @@ export default function AdminPage() {
     }
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     });
     const result = await res.json().catch(() => ({}));
@@ -798,10 +974,10 @@ export default function AdminPage() {
   async function deleteBook(id: string, bookTitle: string) {
     if (!confirm(`「${bookTitle}」を削除しますか？`)) return;
     setBooks((current) => current.filter((book) => book.id !== id));
-    const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+    const headers = await getAdminHeaders();
     const res = await fetch("/api/admin/official-wordbooks", {
       method: "DELETE",
-      headers: { "Content-Type": "application/json", "x-admin-password": pw },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify({ id }),
     });
     const result = await res.json().catch(() => ({}));
@@ -1144,17 +1320,31 @@ export default function AdminPage() {
             <span className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-2xl font-black text-white shadow-lg">VP</span>
             <h1 className="mt-4 text-2xl font-black text-slate-900">管理者ログイン</h1>
             <p className="mt-2 text-sm text-slate-500">パスワードと認証アプリの6桁コードを入力してください</p>
+            {authUser && authRole === "admin" && (
+              <p className="mt-2 text-xs font-bold text-emerald-600">
+                管理者アカウント（{authUser.email ?? "ログイン中"}）を検出しました。パスワード入力なしでも入れる場合があります。
+              </p>
+            )}
           </div>
           <div className="rounded-3xl border bg-white p-8 shadow-sm">
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && unlock()}
-              type="password"
-              placeholder="管理者パスワード"
-              autoFocus
-              className="w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
+            <div className="relative">
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && unlock()}
+                type={showPassword ? "text" : "password"}
+                placeholder="管理者パスワード"
+                autoFocus
+                className="w-full rounded-xl border px-4 py-3 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                {showPassword ? "非表示" : "表示"}
+              </button>
+            </div>
             <input
               value={authCode}
               onChange={(e) => setAuthCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
@@ -1168,9 +1358,10 @@ export default function AdminPage() {
             <p className="mt-2 text-xs text-slate-400">認証アプリ（Google Authenticator等）の6桁コード。未設定の場合は空欄でログインできます。</p>
             <button
               onClick={unlock}
+              disabled={authLoading}
               className="mt-4 w-full rounded-2xl bg-blue-600 py-3 font-black text-white hover:bg-blue-700 transition-colors"
             >
-              ログイン
+              {authLoading ? "確認中..." : "ログイン"}
             </button>
             {authMsg && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{authMsg}</p>}
             <div className="mt-5 text-center">
@@ -1264,6 +1455,7 @@ export default function AdminPage() {
         {/* Tabs */}
         <div className="flex gap-1 rounded-2xl bg-slate-200 p-1 w-fit">
           {([
+            ["dashboard", `📊 ダッシュボード${metricsLoading && !metrics ? "（読込中）" : ""}`],
             ["create", "📚 単語帳を登録"],
             ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
             ["pdf", "📄 単語テスト作成"],
@@ -1277,6 +1469,211 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {tab === "dashboard" && (
+          <div className="mt-6 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-slate-900">運営ダッシュボード</h2>
+                <p className="text-sm text-slate-500">登録者数・プラン・PDF利用状況を管理者画面でまとめて確認できます。</p>
+              </div>
+              <button
+                onClick={() => fetchMetrics()}
+                className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
+              >
+                🔄 集計を更新
+              </button>
+            </div>
+
+            {metricsMsg && (
+              <div className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">{metricsMsg}</div>
+            )}
+
+            {!metrics && metricsLoading && (
+              <div className="rounded-3xl border bg-white p-10 text-center shadow-sm">
+                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+                <p className="mt-3 text-sm text-slate-400">ダッシュボードを集計しています...</p>
+              </div>
+            )}
+
+            {metrics && (
+              <>
+                <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">登録ユーザー</p>
+                    <p className="mt-2 text-3xl font-black text-slate-900">{metrics.overview.totalUsers.toLocaleString()}</p>
+                    <p className="mt-2 text-xs text-slate-500">7日: {metrics.overview.signup7d}人 / 30日: {metrics.overview.signup30d}人</p>
+                  </div>
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">有料プラン</p>
+                    <p className="mt-2 text-3xl font-black text-blue-700">{metrics.overview.personalCount + metrics.overview.teacherCount}</p>
+                    <p className="mt-2 text-xs text-slate-500">Personal {metrics.overview.personalCount} / Teacher {metrics.overview.teacherCount}</p>
+                  </div>
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">アクティブ購読</p>
+                    <p className="mt-2 text-3xl font-black text-emerald-700">{metrics.overview.activeSubscriptions}</p>
+                    <p className="mt-2 text-xs text-slate-500">トライアル中 {metrics.overview.trialingSubscriptions} / 解約済み {metrics.overview.canceledSubscriptions}</p>
+                  </div>
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">推定月額売上</p>
+                    <p className="mt-2 text-3xl font-black text-violet-700">{formatCurrencyJPY(metrics.overview.estimatedMonthlyRevenue)}</p>
+                    <p className="mt-2 text-xs text-slate-500">固定料金ベースの概算です</p>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">プラン内訳</h3>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {[
+                        { label: "Free", value: metrics.overview.freeCount, tone: "text-slate-700 bg-slate-50" },
+                        { label: "Personal", value: metrics.overview.personalCount, tone: "text-blue-700 bg-blue-50" },
+                        { label: "Teacher", value: metrics.overview.teacherCount, tone: "text-purple-700 bg-purple-50" },
+                        { label: "Admin", value: metrics.overview.adminCount, tone: "text-red-700 bg-red-50" },
+                      ].map((item) => (
+                        <div key={item.label} className={`rounded-2xl p-4 ${item.tone}`}>
+                          <p className="text-xs font-bold">{item.label}</p>
+                          <p className="mt-2 text-2xl font-black">{item.value.toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">PDF利用状況</h3>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl bg-blue-50 p-4 text-blue-700">
+                        <p className="text-xs font-bold">累計生成</p>
+                        <p className="mt-2 text-2xl font-black">{metrics.pdf.totalGenerations.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+                        <p className="text-xs font-bold">30日生成</p>
+                        <p className="mt-2 text-2xl font-black">{metrics.pdf.generations30d.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-2xl bg-violet-50 p-4 text-violet-700">
+                        <p className="text-xs font-bold">累計語数</p>
+                        <p className="mt-2 text-2xl font-black">{metrics.pdf.totalWordsGenerated.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-2xl bg-amber-50 p-4 text-amber-700">
+                        <p className="text-xs font-bold">30日語数</p>
+                        <p className="mt-2 text-2xl font-black">{metrics.pdf.totalWordsGenerated30d.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">閲覧者数</h3>
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-bold text-slate-700">
+                        {metrics.visitorMetrics?.available ? "閲覧者数を表示中" : "まだ未接続"}
+                      </p>
+                      <p className="mt-2 text-xs leading-6 text-slate-500">
+                        {metrics.visitorMetrics?.message ??
+                          "Vercel Analytics または Google Analytics をつなぐと、ここに訪問数・ページ別PV・流入元を表示できます。"}
+                      </p>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-900">よく使われた単語帳（30日）</h3>
+                      <span className="text-xs text-slate-400">PDF生成ベース</span>
+                    </div>
+                    <div className="mt-4 space-y-3">
+                      {metrics.wordbooks.topWordbooks.length === 0 ? (
+                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">まだ利用データがありません。</p>
+                      ) : (
+                        metrics.wordbooks.topWordbooks.map((item, index) => (
+                          <div key={`${item.wordbookId}-${index}`} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">{item.title}</p>
+                              <p className="text-xs text-slate-400">ID: {item.wordbookId}</p>
+                            </div>
+                            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">{item.uses}回</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-900">最近のPDF生成</h3>
+                      <span className="text-xs text-slate-400">最新10件</span>
+                    </div>
+                    <div className="mt-4 overflow-hidden rounded-2xl border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-slate-50 text-xs text-slate-500">
+                          <tr>
+                            <th className="px-3 py-2 text-left">日時</th>
+                            <th className="px-3 py-2 text-left">単語帳</th>
+                            <th className="px-3 py-2 text-left">種類</th>
+                            <th className="px-3 py-2 text-right">語数</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.pdf.recent.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="px-3 py-6 text-center text-slate-400">まだPDF生成履歴がありません。</td>
+                            </tr>
+                          ) : (
+                            metrics.pdf.recent.map((item) => (
+                              <tr key={item.id} className="border-t">
+                                <td className="px-3 py-2 text-slate-500">{formatAdminDate(item.created_at)}</td>
+                                <td className="px-3 py-2 font-bold text-slate-800">{item.wordbook_title}</td>
+                                <td className="px-3 py-2 text-slate-500">{item.type}</td>
+                                <td className="px-3 py-2 text-right font-bold text-slate-700">{item.word_count.toLocaleString()}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">単語帳の公開状況</h3>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {[
+                        { label: "全単語帳", value: metrics.wordbooks.total, tone: "bg-slate-50 text-slate-700" },
+                        { label: "公式単語帳", value: metrics.wordbooks.official, tone: "bg-blue-50 text-blue-700" },
+                        { label: "公開中", value: metrics.wordbooks.publicCount, tone: "bg-emerald-50 text-emerald-700" },
+                        { label: "Personal限定", value: metrics.wordbooks.personalCount, tone: "bg-indigo-50 text-indigo-700" },
+                        { label: "Teacher限定", value: metrics.wordbooks.teacherCount, tone: "bg-purple-50 text-purple-700" },
+                        { label: "管理者限定", value: metrics.wordbooks.adminOnlyCount, tone: "bg-red-50 text-red-700" },
+                      ].map((item) => (
+                        <div key={item.label} className={`rounded-2xl p-4 ${item.tone}`}>
+                          <p className="text-xs font-bold">{item.label}</p>
+                          <p className="mt-2 text-2xl font-black">{item.value.toLocaleString()}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">PDFタイプ内訳（30日）</h3>
+                    <div className="mt-4 space-y-3">
+                      {metrics.pdf.topTypes.length === 0 ? (
+                        <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">まだ集計対象のPDF生成がありません。</p>
+                      ) : (
+                        metrics.pdf.topTypes.map((item) => (
+                          <div key={item.type} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                            <span className="text-sm font-bold text-slate-800">{item.type}</span>
+                            <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold text-slate-700">{item.count}件</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </section>
+              </>
+            )}
+          </div>
+        )}
 
         {/* 笏笏 単語帳登録 笏笏 */}
         {tab === "create" && (
@@ -1391,10 +1788,10 @@ export default function AdminPage() {
                         <button
                           type="button"
                           onClick={async () => {
-                            const pw = sessionStorage.getItem("vpp-admin-pw") ?? password;
+                            const headers = await getAdminHeaders();
                             const res = await fetch("/api/admin/official-wordbooks", {
                               method: "POST",
-                              headers: { "Content-Type": "application/json", "x-admin-password": pw },
+                              headers: { "Content-Type": "application/json", ...headers },
                               body: JSON.stringify({
                                 title: tmpl.title,
                                 description: tmpl.description,

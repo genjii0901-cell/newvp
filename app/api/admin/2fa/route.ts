@@ -8,7 +8,7 @@ import {
 
 // 現在の2FA設定状況を返す
 export async function GET(request: Request) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   const secret = await getAdminTotpSecret();
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
 // 新しい秘密鍵を生成してDBに保存し、登録用の情報を返す（管理者の画面でのみ表示）
 export async function POST(request: Request) {
-  const unauthorized = requireAdmin(request);
+  const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
 
   // 環境変数で固定設定されている場合はそちらが優先なので変更不可

@@ -281,7 +281,7 @@ async function updateWordbookMeta(
 }
 
 export async function POST(request: Request) {
-  const unauthorized = checkAdminPassword(request);
+  const unauthorized = await checkAdminPassword(request);
   if (unauthorized) return unauthorized;
   if (!isSupabaseServerConfigured()) return supabaseServerConfigResponse();
 
@@ -358,7 +358,7 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const unauthorized = checkAdminPassword(request);
+  const unauthorized = await checkAdminPassword(request);
   if (unauthorized) return unauthorized;
   if (!isSupabaseServerConfigured()) return supabaseServerConfigResponse();
 
@@ -515,7 +515,7 @@ export async function PATCH(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const unauthorized = checkAdminPassword(request);
+  const unauthorized = await checkAdminPassword(request);
   if (unauthorized) return unauthorized;
   if (!isSupabaseServerConfigured()) return supabaseServerConfigResponse();
 
