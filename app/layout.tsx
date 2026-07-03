@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import "./globals.css";
 import Nav from "@/components/nav";
+import VisitTracker from "@/app/visit-tracker";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 const siteName = "Vocab Print Pro";
@@ -101,6 +103,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
+        <Suspense fallback={null}>
+          <VisitTracker />
+        </Suspense>
         <Nav />
         <div className="flex-1">{children}</div>
         <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">

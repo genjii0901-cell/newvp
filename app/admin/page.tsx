@@ -33,7 +33,17 @@ type OfficialBook = {
 };
 
 type AdminMetrics = {
-  visitorMetrics?: { available?: boolean; message?: string };
+  visitorMetrics?: {
+    available?: boolean;
+    message?: string;
+    viewsToday?: number;
+    views7d?: number;
+    views30d?: number;
+    uniqueToday?: number;
+    unique7d?: number;
+    unique30d?: number;
+    topPaths?: Array<{ path: string; views: number }>;
+  };
   overview: {
     totalUsers: number;
     freeCount: number;
@@ -1563,14 +1573,51 @@ export default function AdminPage() {
 
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
                     <h3 className="text-sm font-black text-slate-900">閲覧者数</h3>
-                    <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
-                      <p className="text-sm font-bold text-slate-700">
-                        {metrics.visitorMetrics?.available ? "閲覧者数を表示中" : "まだ未接続"}
-                      </p>
-                      <p className="mt-2 text-xs leading-6 text-slate-500">
-                        {metrics.visitorMetrics?.message ??
-                          "Vercel Analytics または Google Analytics をつなぐと、ここに訪問数・ページ別PV・流入元を表示できます。"}
-                      </p>
+                    <div className="mt-4 space-y-3">
+                      <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
+                        <p className="text-sm font-bold text-slate-700">
+                          {metrics.visitorMetrics?.available ? "閲覧者数を集計中" : "まだ閲覧データなし"}
+                        </p>
+                        <p className="mt-2 text-xs leading-6 text-slate-500">
+                          {metrics.visitorMetrics?.message ?? "閲覧者数をここに表示します。"}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl bg-blue-50 p-4 text-blue-700">
+                          <p className="text-xs font-bold">今日のPV</p>
+                          <p className="mt-2 text-2xl font-black">{(metrics.visitorMetrics?.viewsToday ?? 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl bg-emerald-50 p-4 text-emerald-700">
+                          <p className="text-xs font-bold">今日の訪問者</p>
+                          <p className="mt-2 text-2xl font-black">{(metrics.visitorMetrics?.uniqueToday ?? 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl bg-violet-50 p-4 text-violet-700">
+                          <p className="text-xs font-bold">7日PV</p>
+                          <p className="mt-2 text-2xl font-black">{(metrics.visitorMetrics?.views7d ?? 0).toLocaleString()}</p>
+                        </div>
+                        <div className="rounded-2xl bg-amber-50 p-4 text-amber-700">
+                          <p className="text-xs font-bold">30日PV</p>
+                          <p className="mt-2 text-2xl font-black">{(metrics.visitorMetrics?.views30d ?? 0).toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-black text-slate-900">よく見られているページ</p>
+                          <span className="text-xs text-slate-400">30日</span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {(metrics.visitorMetrics?.topPaths?.length ?? 0) === 0 ? (
+                            <p className="text-sm text-slate-400">まだ閲覧ページの集計がありません。</p>
+                          ) : (
+                            metrics.visitorMetrics?.topPaths?.map((item) => (
+                              <div key={item.path} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                                <span className="truncate pr-3 text-sm font-bold text-slate-700">{item.path}</span>
+                                <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">{item.views} PV</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </section>

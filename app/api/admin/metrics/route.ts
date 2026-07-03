@@ -39,6 +39,11 @@ type WordbookRow = {
   is_official?: boolean | null;
 };
 
+type AppSettingRow = {
+  key: string;
+  value: string | null;
+};
+
 function isRecent(value: string | null | undefined, days: number) {
   if (!value) return false;
   const time = new Date(value).getTime();
@@ -97,7 +102,7 @@ export async function GET(request: Request) {
   try {
     const supabase = getSupabaseAdmin();
 
-    const [profilesResult, subscriptionsResult, pdfResult, wordbooksResult] = await Promise.all([
+    const [profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
       safeSelect<ProfileRow>(() =>
         supabase.from("profiles").select("id,plan,role,created_at").limit(5000)
       ),
@@ -114,6 +119,13 @@ export async function GET(request: Request) {
       safeSelect<WordbookRow>(() =>
         supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000)
       ),
+      safeSelect<AppSettingRow>(() =>
+        supabase
+          .from("app_settings")
+          .select("key,value")
+          .or("key.like.visit_total::%,key.like.visit_unique_total::%,key.like.visit_path::%")
+          .limit(5000)
+      ),
     ]);
 
     const profiles = profilesResult.data;
@@ -125,7 +137,10 @@ export async function GET(request: Request) {
       subscriptionsResult.warning,
       pdfResult.warning,
       wordbooksResult.warning,
+      settingsResult.warning,
     ].filter((value): value is string => Boolean(value));
+
+    const settings = settingsResult.data;
 
     const freeCount = profiles.filter((profile) => (profile.plan ?? "free") === "free").length;
     const personalCount = profiles.filter((profile) => profile.plan === "personal").length;
@@ -197,14 +212,69 @@ export async function GET(request: Request) {
     const estimatedMonthlyRevenue =
       personalCount * PERSONAL_PRICE_JPY + teacherCount * TEACHER_PRICE_JPY;
 
+    const date30dThreshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const date7dThreshold = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let viewsToday = 0;
+    let views7d = 0;
+    let views30d = 0;
+    let uniqueToday = 0;
+    let unique7d = 0;
+    let unique30d = 0;
+    const pathCounts = new Map<string, number>();
+    const today = new Date().toISOString().slice(0, 10);
+
+    for (const row of settings) {
+      const key = row.key ?? "";
+      const rawValue = Number(row.value ?? "0");
+      const count = Number.isFinite(rawValue) ? rawValue : 0;
+
+      if (key.startsWith("visit_total::")) {
+        const dateText = key.slice("visit_total::".length, "visit_total::".length + 10);
+        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        if (!Number.isFinite(time)) continue;
+        if (dateText === today) viewsToday += count;
+        if (time >= date7dThreshold) views7d += count;
+        if (time >= date30dThreshold) views30d += count;
+      } else if (key.startsWith("visit_unique_total::")) {
+        const dateText = key.slice("visit_unique_total::".length, "visit_unique_total::".length + 10);
+        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        if (!Number.isFinite(time)) continue;
+        if (dateText === today) uniqueToday += count;
+        if (time >= date7dThreshold) unique7d += count;
+        if (time >= date30dThreshold) unique30d += count;
+      } else if (key.startsWith("visit_path::")) {
+        const match = key.match(/^visit_path::(\d{4}-\d{2}-\d{2})::(.+)$/);
+        if (!match) continue;
+        const [, dateText, encodedPath] = match;
+        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        if (!Number.isFinite(time) || time < date30dThreshold) continue;
+        const path = decodeURIComponent(encodedPath);
+        pathCounts.set(path, (pathCounts.get(path) ?? 0) + count);
+      }
+    }
+
+    const topPaths = Array.from(pathCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([path, views]) => ({ path, views }));
+
     return NextResponse.json(
       {
         ok: true,
         supabaseConfigured: true,
         visitorMetrics: {
-          available: false,
+          available: settings.length > 0,
           message:
-            "閲覧者数はまだ管理画面に連携していません。Vercel Analytics または Google Analytics をつなぐと、ここに訪問数や流入元を表示できます。",
+            settings.length > 0
+              ? "サイト表示時に自動で閲覧数を記録しています。"
+              : "まだ閲覧データがありません。数回ページ表示するとここに集計が出ます。",
+          viewsToday,
+          views7d,
+          views30d,
+          uniqueToday,
+          unique7d,
+          unique30d,
+          topPaths,
         },
         warnings,
         overview: {
