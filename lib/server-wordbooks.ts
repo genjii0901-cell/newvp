@@ -92,11 +92,14 @@ export async function loadOfficialWordbooks(options?: {
   includeFallback?: boolean;
   dedupeByTitle?: boolean;
   includeWords?: boolean;
+  filterIds?: string[];
 }) {
   const includeAdmin = Boolean(options?.includeAdmin);
   const includeFallback = options?.includeFallback !== false;
   const dedupeByTitle = options?.dedupeByTitle !== false;
   const includeWords = options?.includeWords !== false;
+  const filterIds = (options?.filterIds ?? []).map(String);
+  const filterIdSet = filterIds.length > 0 ? new Set(filterIds) : null;
   const supabase = getSupabaseAdmin();
 
   const selects = [
@@ -143,12 +146,15 @@ export async function loadOfficialWordbooks(options?: {
   );
 
   const candidateRows = rows.filter((row) => !isHiddenTemplateTombstone(row.description));
-  const visibleRows = includeAdmin
+  const visibilityFilteredRows = includeAdmin
     ? candidateRows
     : candidateRows.filter((row) => {
         const embeddedMeta = parseEmbeddedWordbookMeta(row.description);
         return isPubliclyVisible(embeddedMeta.visibility ?? row.visibility);
       });
+  const visibleRows = filterIdSet
+    ? visibilityFilteredRows.filter((row) => filterIdSet.has(String(row.id)))
+    : visibilityFilteredRows;
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];

@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
@@ -20,6 +20,7 @@ type WordBook = {
   requiredPlan: Plan;
   description?: string;
   coverImage?: string;
+  wordCount?: number;
   words: Word[];
 };
 
@@ -28,6 +29,7 @@ type PdfType = "list" | "test" | "answer";
 type Direction = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type Role = "user" | "admin";
+type OverlapMode = "common" | "base-only" | "compare-only" | "all";
 
 const planLimits: Record<
   Plan,
@@ -76,6 +78,10 @@ function parsePastedWords(text: string) {
 
 function formatPrintDate(date = new Date()) {
   return date.toLocaleDateString("ja-JP");
+}
+
+function normalizeWordKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function localUsageKey(userId: string, plan: Plan) {
@@ -260,6 +266,63 @@ function getBookCover(book: WordBook, index: number) {
   return defaultCoverImages[index % defaultCoverImages.length];
 }
 
+function getBookWordCount(book: WordBook) {
+  return typeof book.wordCount === "number" ? book.wordCount : book.words.length;
+}
+
+function buildOverlapRows(baseBook: WordBook | null, compareBook: WordBook | null, mode: OverlapMode) {
+  if (!baseBook || !compareBook) return [];
+  if (baseBook.id === compareBook.id) return [];
+  if (baseBook.words.length === 0 || compareBook.words.length === 0) return [];
+
+  const compareMap = new Map(compareBook.words.map((word) => [normalizeWordKey(word.english), word] as const));
+  const baseMap = new Map(baseBook.words.map((word) => [normalizeWordKey(word.english), word] as const));
+
+  const common = baseBook.words
+    .filter((word) => compareMap.has(normalizeWordKey(word.english)))
+    .map((word, index) => {
+      const pair = compareMap.get(normalizeWordKey(word.english));
+      return {
+        no: index + 1,
+        english: word.english,
+        japanese: pair && pair.japanese !== word.japanese ? `${word.japanese} / ${pair.japanese}` : word.japanese,
+        bucket: "common" as const,
+        source: "共通",
+      };
+    });
+
+  const baseOnly = baseBook.words
+    .filter((word) => !compareMap.has(normalizeWordKey(word.english)))
+    .map((word, index) => ({
+      no: index + 1,
+      english: word.english,
+      japanese: word.japanese,
+      bucket: "base-only" as const,
+      source: `${baseBook.title}のみ`,
+    }));
+
+  const compareOnly = compareBook.words
+    .filter((word) => !baseMap.has(normalizeWordKey(word.english)))
+    .map((word, index) => ({
+      no: index + 1,
+      english: word.english,
+      japanese: word.japanese,
+      bucket: "compare-only" as const,
+      source: `${compareBook.title}のみ`,
+    }));
+
+  const merged =
+    mode === "common"
+      ? common
+      : mode === "base-only"
+        ? baseOnly
+        : mode === "compare-only"
+          ? compareOnly
+          : [...common, ...baseOnly, ...compareOnly];
+
+  return merged.map((row, index) => ({ ...row, no: index + 1 }));
+}
+
 export default function Home() {
   const supabase = useMemo(() => createClient(), []);
 
@@ -291,6 +354,9 @@ export default function Home() {
   const [studentNumber, setStudentNumber] = useState("");
   const [studentName, setStudentName] = useState("");
   const [includeDate, setIncludeDate] = useState(true);
+  const [overlapBaseBookId, setOverlapBaseBookId] = useState("");
+  const [overlapCompareBookId, setOverlapCompareBookId] = useState("");
+  const [overlapMode, setOverlapMode] = useState<OverlapMode>("common");
   const [pasteText, setPasteText] = useState(
     "number\tenglish\tjapanese\n1\tcustomize\t〜をカスタマイズする\n2\tevaluate\t〜を評価する\n3\tsustain\t〜を維持する"
   );
@@ -302,6 +368,7 @@ export default function Home() {
   });
   const [pdfTitle, setPdfTitle] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [loadingBookWordsId, setLoadingBookWordsId] = useState("");
   const [titleOffset, setTitleOffset] = useState({ x: 0, y: 0 });
   const [dateOffset, setDateOffset] = useState({ x: 0, y: 0 });
   const [infoOffset, setInfoOffset] = useState({ x: 0, y: 0 });
@@ -310,6 +377,52 @@ export default function Home() {
   const [dragging, setDragging] = useState<"title" | "date" | "info" | "grid" | "pageNo" | null>(null);
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
+
+  const ensureBookWords = useCallback(
+    async (targetBookId: string) => {
+      const existingBook = books.find((book) => book.id === targetBookId);
+      if (!existingBook) return null;
+      if (existingBook.words.length > 0 || targetBookId.startsWith("custom-") || targetBookId.startsWith("wb-")) {
+        return existingBook;
+      }
+      if (loadingBookWordsId === targetBookId) {
+        return existingBook;
+      }
+
+      setLoadingBookWordsId(targetBookId);
+
+      try {
+        const response = await fetch(
+          `/api/wordbooks/official?id=${encodeURIComponent(targetBookId)}&includeWords=1`
+        );
+        const result = await response.json().catch(() => ({}));
+        const rawBook = Array.isArray(result.wordbooks) ? result.wordbooks[0] : null;
+        if (!response.ok || !rawBook) return existingBook;
+
+        const nextWords = Array.isArray(rawBook.words)
+          ? rawBook.words
+              .filter((word: { english?: string; japanese?: string }) => word.english && word.japanese)
+              .map((word: { no?: number; english?: string; japanese?: string }, index: number) => ({
+                no: Number(word.no) || index + 1,
+                english: word.english ?? "",
+                japanese: word.japanese ?? "",
+              }))
+          : [];
+
+        const detailedBook: WordBook = {
+          ...existingBook,
+          wordCount: typeof rawBook.wordCount === "number" ? rawBook.wordCount : nextWords.length,
+          words: nextWords,
+        };
+
+        setBooks((prev) => prev.map((book) => (book.id === targetBookId ? { ...book, ...detailedBook } : book)));
+        return detailedBook;
+      } finally {
+        setLoadingBookWordsId((current) => (current === targetBookId ? "" : current));
+      }
+    },
+    [books, loadingBookWordsId]
+  );
 
   useEffect(() => {
     if (!supabase) {
@@ -359,17 +472,16 @@ export default function Home() {
 
   useEffect(() => {
     async function loadOfficialWordbooks() {
-      const response = await fetch("/api/wordbooks/official", { cache: "no-store" });
+      const response = await fetch("/api/wordbooks/official");
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(result.wordbooks) || result.wordbooks.length === 0) {
         return;
       }
 
       const officialBooks = result.wordbooks
-        .filter((book: { id?: unknown; title?: unknown; words?: unknown }) =>
+        .filter((book: { id?: unknown; title?: unknown }) =>
           book?.id != null &&
-          typeof book?.title === "string" &&
-          Array.isArray(book?.words)
+          typeof book?.title === "string"
         )
         .map(
           (book: {
@@ -378,7 +490,8 @@ export default function Home() {
             description?: string;
             coverImage?: string | null;
             requiredPlan?: Plan;
-            words: Array<{ no?: number; english?: string; japanese?: string }>;
+            wordCount?: number;
+            words?: Array<{ no?: number; english?: string; japanese?: string }>;
           }) => ({
             id: String(book.id),
             title: book.title,
@@ -392,7 +505,8 @@ export default function Home() {
                   : "Official",
             premium: book.requiredPlan === "personal" || book.requiredPlan === "teacher",
             requiredPlan: normalizePlan(book.requiredPlan),
-            words: book.words
+            wordCount: typeof book.wordCount === "number" ? book.wordCount : book.words?.length ?? 0,
+            words: (book.words ?? [])
               .filter((word) => word.english && word.japanese)
               .map((word, index) => ({
                 no: Number(word.no) || index + 1,
@@ -426,6 +540,16 @@ export default function Home() {
       setBooksLoaded(true);
     });
   }, []);
+
+  useEffect(() => {
+    if (!books.length) return;
+
+    setOverlapBaseBookId((prev) => (prev && books.some((book) => book.id === prev) ? prev : books[0].id));
+    setOverlapCompareBookId((prev) => {
+      if (prev && books.some((book) => book.id === prev)) return prev;
+      return books[1]?.id ?? books[0].id;
+    });
+  }, [books]);
 
   useEffect(() => {
     if (!supabase || !user) {
@@ -539,8 +663,25 @@ export default function Home() {
 
   const featuredBooks = useMemo(() => books.slice(0, 6), [books]);
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
+  const overlapBaseBook = books.find((book) => book.id === overlapBaseBookId) ?? null;
+  const overlapCompareBook = books.find((book) => book.id === overlapCompareBookId) ?? null;
   const locked =
     selectedBook ? selectedBook.requiredPlan === "teacher" && plan !== "teacher" : false;
+
+  useEffect(() => {
+    if (!selectedBook) return;
+    if (selectedBook.words.length > 0) return;
+    if (getBookWordCount(selectedBook) === 0) return;
+    if (loadingBookWordsId === selectedBook.id) return;
+    void ensureBookWords(selectedBook.id);
+  }, [ensureBookWords, loadingBookWordsId, selectedBook]);
+
+  useEffect(() => {
+    if (!overlapBaseBookId || !overlapCompareBookId) return;
+    if (overlapBaseBookId === overlapCompareBookId) return;
+    void loadOverlapBooks(overlapBaseBookId, overlapCompareBookId);
+  }, [overlapBaseBookId, overlapCompareBookId]);
+
   const outputWords = useMemo(() => {
     if (!selectedBook) return [];
     const all = selectedBook.words;
@@ -559,18 +700,30 @@ export default function Home() {
     return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
 
+  const overlapRows = useMemo(() => {
+    return buildOverlapRows(overlapBaseBook, overlapCompareBook, overlapMode);
+  }, [overlapBaseBook, overlapCompareBook, overlapMode]);
+
   function pickBook(nextBookId: string) {
     const nextBook = books.find((book) => book.id === nextBookId);
     if (!nextBook) return;
 
     setBookId(nextBookId);
     setStartNo(1);
-    setEndNo(nextBook.words.length);
-    setCount(Math.min(nextBook.words.length, 50));
+    setEndNo(getBookWordCount(nextBook));
+    setCount(Math.min(getBookWordCount(nextBook), 50));
+    if (nextBook.words.length === 0) {
+      void ensureBookWords(nextBookId);
+    }
 
     if (typeof window !== "undefined") {
       document.getElementById("pdf-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+  }
+
+  async function loadOverlapBooks(baseId: string, compareId: string) {
+    const targets = [baseId, compareId].filter(Boolean);
+    return Promise.all(targets.map((targetId) => ensureBookWords(targetId)));
   }
 
   async function handleAuth() {
@@ -788,6 +941,11 @@ export default function Home() {
       alert("単語帳が読み込まれていません。少し待ってからもう一度お試しください。");
       return;
     }
+    if (selectedBook.words.length === 0 && getBookWordCount(selectedBook) > 0) {
+      await ensureBookWords(selectedBook.id);
+      alert("単語帳を読み込み中です。数秒待ってからもう一度お試しください。");
+      return;
+    }
     if (locked) {
       alert("この単語帳はTeacherプラン用です。Teacherに変更してください。");
       return;
@@ -802,6 +960,46 @@ export default function Home() {
       return;
     }
     await printWords(words, "貼り付け単語帳", "Excel/CSV貼り付け");
+  }
+
+  async function printOverlapWords() {
+    if (!overlapBaseBook || !overlapCompareBook) {
+      alert("比較する単語帳を2冊選んでください。");
+      return;
+    }
+    if (overlapBaseBook.id === overlapCompareBook.id) {
+      alert("別々の単語帳を選んでください。");
+      return;
+    }
+
+    const [loadedBaseBook, loadedCompareBook] = await loadOverlapBooks(
+      overlapBaseBook.id,
+      overlapCompareBook.id
+    );
+
+    const baseBook = loadedBaseBook ?? overlapBaseBook;
+    const compareBook = loadedCompareBook ?? overlapCompareBook;
+    if (baseBook.words.length === 0 || compareBook.words.length === 0) {
+      alert("単語帳を読み込み中です。数秒待ってからもう一度お試しください。");
+      return;
+    }
+    const rows = buildOverlapRows(baseBook, compareBook, overlapMode);
+    if (rows.length === 0) {
+      alert("この条件に合う単語はありません。");
+      return;
+    }
+
+    const printableWords: Word[] = rows.map((row, index) => ({
+      no: index + 1,
+      english: overlapMode === "all" ? `[${row.source}] ${row.english}` : row.english,
+      japanese: row.japanese,
+    }));
+
+    await printWords(
+      printableWords,
+      `${baseBook.title} × ${compareBook.title} かぶり調査`,
+      "かぶり調査"
+    );
   }
 
   // CSV / TSV / TXT / Excel(.xlsx) ファイルを読み込み、貼り付け欄へ展開する。
@@ -1101,7 +1299,7 @@ export default function Home() {
                         {planLabel(book.requiredPlan)}
                       </span>
                       <span className="rounded-full bg-blue-500/90 px-2.5 py-1 text-xs font-bold text-white">
-                        {book.words.length} words
+                        {getBookWordCount(book)} words
                       </span>
                     </div>
                   </div>
@@ -1219,7 +1417,7 @@ export default function Home() {
             ) : (
               <select
                 value={bookId}
-                onChange={(event) => setBookId(event.target.value)}
+                onChange={(event) => pickBook(event.target.value)}
                 className="mt-1 w-full rounded-xl border px-3 py-3 text-base"
               >
                 {books.map((book) => (
@@ -1436,6 +1634,7 @@ export default function Home() {
                 <h3 className="text-lg font-black">単語リスト</h3>
                 <p className="text-sm text-slate-500">
                   {selectedBook?.title ?? "単語帳"} / {outputWords.length}語
+                  {selectedBook && loadingBookWordsId === selectedBook.id ? " ・ 読み込み中..." : ""}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1532,6 +1731,146 @@ export default function Home() {
           <p className="mt-2 text-xs text-slate-500">
             英語 / 日本語 / スペルテスト、空欄や赤字の設定は上のPDF設定がそのまま使えます。名前欄とクラス欄は、印刷する紙の上部に出る入力欄です。
           </p>
+        </section>
+
+        <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-black">かぶり調査</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                2冊の単語帳を比べて、共通語・Aのみ・Bのみを見やすく確認して、そのまま印刷できます。
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+              ローカル試作
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-bold">基準の単語帳</label>
+              <select
+                value={overlapBaseBookId}
+                onChange={(event) => setOverlapBaseBookId(event.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              >
+                {books.map((book) => (
+                  <option key={book.id} value={book.id}>
+                    {book.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-bold">比較する単語帳</label>
+              <select
+                value={overlapCompareBookId}
+                onChange={(event) => setOverlapCompareBookId(event.target.value)}
+                className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              >
+                {books.map((book) => (
+                  <option key={book.id} value={book.id}>
+                    {book.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {([
+              ["common", "共通のみ"],
+              ["base-only", "Aのみ"],
+              ["compare-only", "Bのみ"],
+              ["all", "全部見る"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setOverlapMode(value)}
+                className={`rounded-full px-4 py-2 text-sm font-bold ${
+                  overlapMode === value ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-bold">
+              表示中 {overlapRows.length}語
+            </span>
+            {overlapBaseBook && overlapCompareBook ? (
+              <span>
+                {overlapBaseBook.title} × {overlapCompareBook.title}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-4 max-h-[360px] overflow-auto rounded-2xl border">
+            <table className="w-full table-fixed border-collapse text-sm">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="w-[12%] border p-2 text-center">番号</th>
+                  <th className="w-[22%] border p-2 text-center">区分</th>
+                  <th className="w-[24%] border p-2 text-left">英語</th>
+                  <th className="border p-2 text-left">意味</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overlapRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="p-6 text-center text-slate-400">
+                      2冊選ぶと、かぶりがここに出ます。
+                    </td>
+                  </tr>
+                ) : (
+                  overlapRows.map((row) => (
+                    <tr key={`${row.bucket}-${row.english}-${row.no}`}>
+                      <td className="border p-2 text-center font-bold">{row.no}</td>
+                      <td className="border p-2 text-center">
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-bold ${
+                            row.bucket === "common"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : row.bucket === "base-only"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-violet-50 text-violet-700"
+                          }`}
+                        >
+                          {row.source}
+                        </span>
+                      </td>
+                      <td className="border p-2 font-bold">{row.english}</td>
+                      <td className="border p-2 text-slate-600">{row.japanese}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={printOverlapWords}
+              className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              この結果を印刷
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedBook) {
+                  setOverlapBaseBookId(selectedBook.id);
+                }
+              }}
+              className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            >
+              今の単語帳をAに入れる
+            </button>
+          </div>
         </section>
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">

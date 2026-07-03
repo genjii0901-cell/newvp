@@ -41,7 +41,9 @@ export default function WordbookDetailPage() {
   useEffect(() => {
     async function loadBook() {
       setLoading(true);
-      const response = await fetch("/api/wordbooks/official");
+      const response = await fetch(
+        `/api/wordbooks/official?id=${encodeURIComponent(id)}&includeWords=1`
+      );
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !Array.isArray(result.wordbooks)) {
@@ -50,7 +52,7 @@ export default function WordbookDetailPage() {
         return;
       }
 
-      const nextBook = result.wordbooks.find((item: OfficialWordbook) => item.id === id) ?? null;
+      const nextBook = result.wordbooks[0] ?? null;
       if (!nextBook) {
         setError("単語帳が見つかりませんでした。");
         setLoading(false);

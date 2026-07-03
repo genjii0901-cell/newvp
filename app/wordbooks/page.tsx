@@ -18,7 +18,8 @@ type OfficialWordbook = {
   description: string;
   coverImage?: string | null;
   requiredPlan: Plan;
-  words: Word[];
+  wordCount?: number;
+  words?: Word[];
 };
 
 function planLabel(plan: Plan) {
@@ -36,7 +37,7 @@ export default function WordbooksPage() {
   useEffect(() => {
     async function loadBooks() {
       setLoading(true);
-      const response = await fetch("/api/wordbooks/official", { cache: "no-store" });
+      const response = await fetch("/api/wordbooks/official");
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -111,7 +112,9 @@ export default function WordbooksPage() {
       ) : (
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredBooks.map((book) => {
-            const units = new Set(book.words.map((word) => word.unit).filter(Boolean)).size;
+            const words = Array.isArray(book.words) ? book.words : [];
+            const units = new Set(words.map((word) => word.unit).filter(Boolean)).size;
+            const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
             return (
               <article key={book.id} className="overflow-hidden rounded-3xl border bg-white shadow-sm">
                 {book.coverImage ? (
@@ -122,7 +125,7 @@ export default function WordbooksPage() {
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                       {planLabel(book.requiredPlan)}
                     </span>
-                    <span className="text-xs text-slate-400">{book.words.length}語</span>
+                    <span className="text-xs text-slate-400">{wordCount}語</span>
                   </div>
                   <h2 className="mt-3 text-xl font-black text-slate-900">{book.title}</h2>
                   <p className="mt-2 line-clamp-3 text-sm text-slate-500">
@@ -130,7 +133,7 @@ export default function WordbooksPage() {
                   </p>
                   <div className="mt-4 flex gap-4 text-xs text-slate-500">
                     <span>{units}ユニット</span>
-                    <span>最初: {book.words[0]?.english ?? "-"}</span>
+                    <span>最初: {words[0]?.english ?? "-"}</span>
                   </div>
                   <Link
                     href={`/wordbooks/${book.id}`}
