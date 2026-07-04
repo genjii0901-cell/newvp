@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
@@ -44,6 +45,12 @@ type AppSettingRow = {
   value: string | null;
 };
 
+type AuthUserSummary = {
+  id: string;
+  email: string | null;
+  created_at?: string | null;
+};
+
 function isRecent(value: string | null | undefined, days: number) {
   if (!value) return false;
   const time = new Date(value).getTime();
@@ -64,6 +71,51 @@ function topEntries<T extends string | number>(items: T[]) {
 
 function looksMissingTableOrColumn(message: string) {
   return /does not exist|schema cache|relation .* does not exist|Could not find/i.test(message);
+}
+
+function getObject(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function hashVisitor(input: string) {
+  return createHash("sha256").update(input).digest("hex").slice(0, 24);
+}
+
+function toPublicReferrerLabel(referrer: string) {
+  if (!referrer) return "direct";
+  try {
+    const url = new URL(referrer);
+    return `${url.hostname}${url.pathname === "/" ? "" : url.pathname}`;
+  } catch {
+    return referrer;
+  }
+}
+
+async function listAuthUsers() {
+  const supabase = getSupabaseAdmin();
+  const users: AuthUserSummary[] = [];
+  let page = 1;
+  const perPage = 200;
+
+  while (page <= 20) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const batch =
+      data?.users?.map((user) => ({
+        id: user.id,
+        email: user.email ?? null,
+        created_at: user.created_at ?? null,
+      })) ?? [];
+    users.push(...batch);
+    if (batch.length < perPage) break;
+    page += 1;
+  }
+
+  return users;
 }
 
 async function safeSelect<T>(
@@ -102,7 +154,8 @@ export async function GET(request: Request) {
   try {
     const supabase = getSupabaseAdmin();
 
-    const [profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
+    const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
+      listAuthUsers(),
       safeSelect<ProfileRow>(() =>
         supabase.from("profiles").select("id,plan,role,created_at").limit(5000)
       ),
@@ -123,7 +176,7 @@ export async function GET(request: Request) {
         supabase
           .from("app_settings")
           .select("key,value")
-          .or("key.like.visit_total::%,key.like.visit_unique_total::%,key.like.visit_path::%")
+          .or("key.like.visit_total::%,key.like.visit_unique_total::%,key.like.visit_path::%,key.like.visit_referrer::%,key.like.visit_unique::%")
           .limit(5000)
       ),
     ]);
@@ -142,12 +195,23 @@ export async function GET(request: Request) {
 
     const settings = settingsResult.data;
 
+    const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const missingProfileCount = authUsers.filter((user) => !profilesById.has(user.id)).length;
+    const usersForCounts =
+      authUsers.length > 0
+        ? authUsers
+        : profiles.map((profile) => ({
+            id: profile.id,
+            email: null,
+            created_at: profile.created_at ?? null,
+          }));
+
     const freeCount = profiles.filter((profile) => (profile.plan ?? "free") === "free").length;
     const personalCount = profiles.filter((profile) => profile.plan === "personal").length;
     const teacherCount = profiles.filter((profile) => profile.plan === "teacher").length;
     const adminCount = profiles.filter((profile) => profile.role === "admin").length;
-    const signup7d = profiles.filter((profile) => isRecent(profile.created_at, 7)).length;
-    const signup30d = profiles.filter((profile) => isRecent(profile.created_at, 30)).length;
+    const signup7d = usersForCounts.filter((user) => isRecent(user.created_at, 7)).length;
+    const signup30d = usersForCounts.filter((user) => isRecent(user.created_at, 30)).length;
 
     const activeSubscriptions = subscriptions.filter(
       (subscription) => subscription.status === "active" || subscription.status === "trialing"
@@ -221,7 +285,25 @@ export async function GET(request: Request) {
     let unique7d = 0;
     let unique30d = 0;
     const pathCounts = new Map<string, number>();
+    const referrerCounts = new Map<string, { url: string | null; views: number }>();
+    const visitorGroups = new Map<
+      string,
+      {
+        stableVisitorHash: string;
+        visits: number;
+        daysSeen: number;
+        firstSeen: string;
+        lastSeen: string;
+        lastPath: string;
+        referrer: string;
+        ua: string;
+      }
+    >();
     const today = new Date().toISOString().slice(0, 10);
+    const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
+    const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
+    const currentUa = request.headers.get("user-agent") ?? "";
+    const currentStableVisitorHash = hashVisitor(`${ip}|${currentUa}`);
 
     for (const row of settings) {
       const key = row.key ?? "";
@@ -250,13 +332,92 @@ export async function GET(request: Request) {
         if (!Number.isFinite(time) || time < date30dThreshold) continue;
         const path = decodeURIComponent(encodedPath);
         pathCounts.set(path, (pathCounts.get(path) ?? 0) + count);
+      } else if (key.startsWith("visit_referrer::")) {
+        const match = key.match(/^visit_referrer::(\d{4}-\d{2}-\d{2})::(.+)$/);
+        if (!match) continue;
+        const [, dateText, encodedReferrer] = match;
+        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        if (!Number.isFinite(time) || time < date30dThreshold) continue;
+        const referrer = decodeURIComponent(encodedReferrer);
+        const label = toPublicReferrerLabel(referrer === "direct" ? "" : referrer);
+        const existing = referrerCounts.get(label);
+        referrerCounts.set(label, {
+          url: referrer && referrer !== "direct" ? referrer : null,
+          views: (existing?.views ?? 0) + count,
+        });
+      } else if (key.startsWith("visit_unique::")) {
+        const match = key.match(/^visit_unique::(\d{4}-\d{2}-\d{2})::([a-f0-9]+)$/i);
+        if (!match) continue;
+        const [, dateText] = match;
+        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        if (!Number.isFinite(time) || time < date30dThreshold) continue;
+        const payload = getObject(
+          (() => {
+            try {
+              return JSON.parse(row.value ?? "{}");
+            } catch {
+              return null;
+            }
+          })()
+        );
+        if (!payload) continue;
+        const stableVisitorHash = getString(payload.stableVisitorHash) || getString(payload.visitorHash);
+        if (!stableVisitorHash) continue;
+        const createdAt = getString(payload.createdAt) || `${dateText}T00:00:00.000Z`;
+        const existing = visitorGroups.get(stableVisitorHash);
+        if (!existing) {
+          visitorGroups.set(stableVisitorHash, {
+            stableVisitorHash,
+            visits: 1,
+            daysSeen: 1,
+            firstSeen: createdAt,
+            lastSeen: createdAt,
+            lastPath: getString(payload.path) || "/",
+            referrer: getString(payload.referrer),
+            ua: getString(payload.ua),
+          });
+        } else {
+          existing.visits += 1;
+          existing.daysSeen += 1;
+          if (createdAt < existing.firstSeen) existing.firstSeen = createdAt;
+          if (createdAt >= existing.lastSeen) {
+            existing.lastSeen = createdAt;
+            existing.lastPath = getString(payload.path) || existing.lastPath;
+            existing.referrer = getString(payload.referrer) || existing.referrer;
+            existing.ua = getString(payload.ua) || existing.ua;
+          }
+        }
       }
     }
 
     const topPaths = Array.from(pathCounts.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([path, views]) => ({ path, views }));
+      .map(([path, views]) => ({ path, views, href: path }));
+
+    const topReferrers = Array.from(referrerCounts.entries())
+      .sort((a, b) => b[1].views - a[1].views)
+      .slice(0, 5)
+      .map(([label, value]) => ({ label, url: value.url, views: value.views }));
+
+    const recentVisitors = Array.from(visitorGroups.values())
+      .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
+      .slice(0, 8)
+      .map((item) => ({
+        stableVisitorHash: item.stableVisitorHash,
+        visits: item.visits,
+        daysSeen: item.daysSeen,
+        firstSeen: item.firstSeen,
+        lastSeen: item.lastSeen,
+        lastPath: item.lastPath,
+        referrer: item.referrer,
+        referrerLabel: toPublicReferrerLabel(item.referrer),
+        ua: item.ua,
+        isCurrentBrowser: item.stableVisitorHash === currentStableVisitorHash,
+      }));
+
+    const currentBrowserSummary =
+      recentVisitors.find((item) => item.stableVisitorHash === currentStableVisitorHash) ?? null;
 
     return NextResponse.json(
       {
@@ -274,11 +435,22 @@ export async function GET(request: Request) {
           uniqueToday,
           unique7d,
           unique30d,
+          topReferrers,
           topPaths,
+          recentVisitors,
+          currentBrowserSummary: currentBrowserSummary
+            ? {
+                estimatedSelfVisits30d: currentBrowserSummary.visits,
+                estimatedSelfDays30d: currentBrowserSummary.daysSeen,
+                lastPath: currentBrowserSummary.lastPath,
+              }
+            : null,
         },
         warnings,
         overview: {
-          totalUsers: profiles.length,
+          totalUsers: usersForCounts.length,
+          profileUsers: profiles.length,
+          missingProfileCount,
           freeCount,
           personalCount,
           teacherCount,

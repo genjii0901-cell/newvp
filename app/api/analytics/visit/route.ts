@@ -17,6 +17,12 @@ function hashVisitor(input: string) {
   return crypto.createHash("sha256").update(input).digest("hex").slice(0, 24);
 }
 
+function normalizeReferrer(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.slice(0, 300);
+}
+
 async function getSettingValue(key: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -43,16 +49,20 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const path = normalizePath(body.path);
-    const referrer = typeof body.referrer === "string" ? body.referrer.slice(0, 300) : "";
+    const referrer = typeof body.referrer === "string" ? normalizeReferrer(body.referrer) : "";
     const ua = request.headers.get("user-agent") ?? "";
     const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
     const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
     const date = todayKey();
     const visitorHash = hashVisitor(`${ip}|${ua}|${date}`);
+    const stableVisitorHash = hashVisitor(`${ip}|${ua}`);
     const encodedPath = encodeURIComponent(path);
+    const encodedReferrer = encodeURIComponent(referrer || "direct");
+    const uaLabel = ua.slice(0, 160);
 
     await incrementSetting(`visit_total::${date}`);
     await incrementSetting(`visit_path::${date}::${encodedPath}`);
+    await incrementSetting(`visit_referrer::${date}::${encodedReferrer}`);
 
     const uniqueKey = `visit_unique::${date}::${visitorHash}`;
     const existingUnique = await getSettingValue(uniqueKey);
@@ -62,6 +72,9 @@ export async function POST(request: Request) {
         JSON.stringify({
           path,
           referrer,
+          visitorHash,
+          stableVisitorHash,
+          ua: uaLabel,
           createdAt: new Date().toISOString(),
         })
       );

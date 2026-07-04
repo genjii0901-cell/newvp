@@ -42,10 +42,30 @@ type AdminMetrics = {
     uniqueToday?: number;
     unique7d?: number;
     unique30d?: number;
-    topPaths?: Array<{ path: string; views: number }>;
+    topPaths?: Array<{ path: string; views: number; href?: string }>;
+    topReferrers?: Array<{ label: string; url: string | null; views: number }>;
+    recentVisitors?: Array<{
+      stableVisitorHash: string;
+      visits: number;
+      daysSeen: number;
+      firstSeen: string;
+      lastSeen: string;
+      lastPath: string;
+      referrer: string;
+      referrerLabel: string;
+      ua: string;
+      isCurrentBrowser: boolean;
+    }>;
+    currentBrowserSummary?: {
+      estimatedSelfVisits30d: number;
+      estimatedSelfDays30d: number;
+      lastPath: string;
+    } | null;
   };
   overview: {
     totalUsers: number;
+    profileUsers?: number;
+    missingProfileCount?: number;
     freeCount: number;
     personalCount: number;
     teacherCount: number;
@@ -1513,6 +1533,9 @@ export default function AdminPage() {
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">登録ユーザー</p>
                     <p className="mt-2 text-3xl font-black text-slate-900">{metrics.overview.totalUsers.toLocaleString()}</p>
                     <p className="mt-2 text-xs text-slate-500">7日: {metrics.overview.signup7d}人 / 30日: {metrics.overview.signup30d}人</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      profiles {metrics.overview.profileUsers ?? 0}件 / 未作成 {metrics.overview.missingProfileCount ?? 0}件
+                    </p>
                   </div>
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">有料プラン</p>
@@ -1581,6 +1604,11 @@ export default function AdminPage() {
                         <p className="mt-2 text-xs leading-6 text-slate-500">
                           {metrics.visitorMetrics?.message ?? "閲覧者数をここに表示します。"}
                         </p>
+                        {metrics.visitorMetrics?.currentBrowserSummary && (
+                          <p className="mt-2 text-xs leading-6 text-blue-700">
+                            このブラウザ由来と見られる訪問は、30日で約{metrics.visitorMetrics.currentBrowserSummary.estimatedSelfVisits30d}回 / {metrics.visitorMetrics.currentBrowserSummary.estimatedSelfDays30d}日です。
+                          </p>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-2xl bg-blue-50 p-4 text-blue-700">
@@ -1611,8 +1639,66 @@ export default function AdminPage() {
                           ) : (
                             metrics.visitorMetrics?.topPaths?.map((item) => (
                               <div key={item.path} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-                                <span className="truncate pr-3 text-sm font-bold text-slate-700">{item.path}</span>
+                                <a
+                                  href={item.href ?? item.path}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="truncate pr-3 text-sm font-bold text-blue-700 hover:underline"
+                                >
+                                  {item.path}
+                                </a>
                                 <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">{item.views} PV</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-black text-slate-900">流入元</p>
+                          <span className="text-xs text-slate-400">30日</span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {(metrics.visitorMetrics?.topReferrers?.length ?? 0) === 0 ? (
+                            <p className="text-sm text-slate-400">まだ流入元の集計がありません。</p>
+                          ) : (
+                            metrics.visitorMetrics?.topReferrers?.map((item) => (
+                              <div key={`${item.label}-${item.views}`} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
+                                {item.url ? (
+                                  <a href={item.url} target="_blank" rel="noreferrer" className="truncate pr-3 text-sm font-bold text-blue-700 hover:underline">
+                                    {item.label}
+                                  </a>
+                                ) : (
+                                  <span className="truncate pr-3 text-sm font-bold text-slate-700">{item.label}</span>
+                                )}
+                                <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">{item.views} PV</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-white p-4 ring-1 ring-slate-200">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-black text-slate-900">最近の訪問者</p>
+                          <span className="text-xs text-slate-400">30日</span>
+                        </div>
+                        <div className="mt-3 space-y-2">
+                          {(metrics.visitorMetrics?.recentVisitors?.length ?? 0) === 0 ? (
+                            <p className="text-sm text-slate-400">まだ訪問者データがありません。</p>
+                          ) : (
+                            metrics.visitorMetrics?.recentVisitors?.map((item) => (
+                              <div key={item.stableVisitorHash} className="rounded-xl bg-slate-50 px-3 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="truncate text-sm font-black text-slate-800">
+                                    {item.isCurrentBrowser ? "このブラウザ" : `訪問者 ${item.stableVisitorHash.slice(0, 8)}`}
+                                  </p>
+                                  <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">
+                                    {item.visits}日
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">最終ページ: {item.lastPath}</p>
+                                <p className="mt-1 text-xs text-slate-500">流入元: {item.referrerLabel || "direct"}</p>
+                                <p className="mt-1 text-xs text-slate-400">UA: {item.ua || "unknown"}</p>
                               </div>
                             ))
                           )}
