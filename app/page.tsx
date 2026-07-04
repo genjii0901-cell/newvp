@@ -337,6 +337,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
 
   const [plan, setPlan] = useState<Plan>("free");
   const [books, setBooks] = useState<WordBook[]>([]);
@@ -433,6 +434,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!supabase) {
+      setMessageTone("info");
       setMessage("Supabase環境変数が未設定です。ログイン機能は設定後に有効になります。");
       return;
     }
@@ -462,6 +464,25 @@ export default function Home() {
       listener.subscription.unsubscribe();
     };
   }, [supabase]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const authStatus = params.get("auth");
+    if (!authStatus) return;
+
+    if (authStatus === "confirmed") {
+      setMessageTone("success");
+      setMessage("メール認証が完了しました。ログインして利用を始められます。");
+    } else if (authStatus === "error") {
+      setMessageTone("error");
+      setMessage("認証リンクの確認に失敗しました。もう一度メール内のリンクを開くか、再登録を試してください。");
+    }
+
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete("auth");
+    window.history.replaceState({}, "", nextUrl.pathname + nextUrl.search + nextUrl.hash);
+  }, []);
 
   useEffect(() => {
     fetch("/api/stripe/config-status")
@@ -735,21 +756,40 @@ export default function Home() {
 
   async function handleAuth() {
     setMessage("");
+    setMessageTone("info");
 
     if (!supabase) {
+      setMessageTone("error");
       setMessage("SupabaseのURLとAnon KeyをVercelの環境変数に設定してください。");
       return;
     }
 
     if (!email || !password) {
+      setMessageTone("error");
       setMessage("メールアドレスとパスワードを入力してください。");
       return;
     }
 
+    if (authMode === "signup" && password.length < 6) {
+      setMessageTone("error");
+      setMessage("パスワードは6文字以上で入力してください。");
+      return;
+    }
+
     if (authMode === "signup") {
-      const { data, error } = await supabase.auth.signUp({ email, password });
+      const appUrl =
+        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+        (typeof window !== "undefined" ? window.location.origin : "https://www.vocabprint.com");
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${appUrl}/auth/callback?next=/`,
+        },
+      });
 
       if (error) {
+        setMessageTone("error");
         setMessage(error.message);
         return;
       }
@@ -763,17 +803,20 @@ export default function Home() {
         setRole("user");
       }
 
-      setMessage("登録しました。メール確認が必要な場合は、メールを確認してください。");
+      setMessageTone("success");
+      setMessage("確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。");
       return;
     }
 
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
+      setMessageTone("error");
       setMessage(error.message);
       return;
     }
 
+    setMessageTone("success");
     setMessage("ログインしました。");
   }
 
@@ -782,6 +825,7 @@ export default function Home() {
     await supabase.auth.signOut();
     setUser(null);
     setRole("user");
+    setMessageTone("info");
     setMessage("ログアウトしました。");
   }
 
@@ -1334,6 +1378,9 @@ export default function Home() {
             <p className="mt-1 text-sm text-slate-500">
               ログインすると作成履歴の保存や、有料プランの利用ができます。
             </p>
+            <p className="mt-2 text-xs text-slate-400">
+              新規登録後は確認メールが届きます。メール内のリンクを開くと、このサイトに戻って認証が完了します。
+            </p>
 
             <div className="mt-4 flex gap-2">
               <button
@@ -1365,7 +1412,7 @@ export default function Home() {
               <input
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="パスワード"
+                placeholder={authMode === "signup" ? "パスワード（6文字以上）" : "パスワード"}
                 type="password"
                 className="rounded-xl border px-3 py-2"
                 disabled={!supabase}
@@ -1380,7 +1427,19 @@ export default function Home() {
               {authMode === "login" ? "ログインする" : "新規登録する"}
             </button>
 
-            {message && <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm">{message}</p>}
+            {message && (
+              <p
+                className={`mt-3 rounded-xl p-3 text-sm font-bold ${
+                  messageTone === "error"
+                    ? "bg-red-50 text-red-700"
+                    : messageTone === "success"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-50 text-slate-700"
+                }`}
+              >
+                {message}
+              </p>
+            )}
           </section>
         )}
 
@@ -1403,7 +1462,15 @@ export default function Home() {
               )}
             </div>
             {message && (
-              <p className="rounded-2xl bg-slate-100 p-4 text-sm font-bold text-slate-700">
+              <p
+                className={`rounded-2xl p-4 text-sm font-bold ${
+                  messageTone === "error"
+                    ? "bg-red-50 text-red-700"
+                    : messageTone === "success"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-slate-100 text-slate-700"
+                }`}
+              >
                 {message}
               </p>
             )}
