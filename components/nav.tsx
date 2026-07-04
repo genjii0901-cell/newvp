@@ -30,11 +30,13 @@ export default function Nav() {
 
   const links = [
     { href: "/", label: "単語テスト作成", always: true },
-    { href: "/wordbooks", label: "単語帳", always: false },
+    { href: "/wordbooks", label: "みんなの単語帳", always: true },
+    { href: "/my-wordbooks", label: "マイ単語帳", always: false },
+    { href: "/listening", label: "聞き流し", always: true },
     { href: "/history", label: "履歴", always: false },
     { href: "/pricing", label: "料金", always: true },
     { href: "/account", label: "アカウント", always: false },
-  ].filter((l) => l.always || !!user);
+  ].filter((link) => link.always || !!user);
 
   return (
     <nav className="sticky top-0 z-50 border-b bg-white shadow-sm">
@@ -46,19 +48,16 @@ export default function Nav() {
           <span className="text-base font-black tracking-tight text-slate-900">Vocab Print Pro</span>
         </Link>
 
-        {/* Desktop */}
         <div className="hidden items-center gap-1 md:flex">
-          {links.map((l) => (
+          {links.map((link) => (
             <Link
-              key={l.href}
-              href={l.href}
+              key={link.href}
+              href={link.href}
               className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${
-                pathname === l.href
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-600 hover:bg-slate-100"
+                pathname === link.href ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"
               }`}
             >
-              {l.label}
+              {link.label}
             </Link>
           ))}
           {user ? (
@@ -78,10 +77,9 @@ export default function Nav() {
           )}
         </div>
 
-        {/* Mobile hamburger */}
         <button
           className="flex flex-col gap-1 p-2 md:hidden"
-          onClick={() => setOpen(!open)}
+          onClick={() => setOpen((value) => !value)}
           aria-label="メニュー"
         >
           <span className={`block h-0.5 w-5 bg-slate-700 transition-transform ${open ? "translate-y-1.5 rotate-45" : ""}`} />
@@ -90,28 +88,35 @@ export default function Nav() {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {open && (
         <div className="border-t bg-white px-5 pb-4 md:hidden">
-          {links.map((l) => (
+          {links.map((link) => (
             <Link
-              key={l.href}
-              href={l.href}
+              key={link.href}
+              href={link.href}
               onClick={() => setOpen(false)}
-              className={`block py-3 text-sm font-bold border-b last:border-0 ${
-                pathname === l.href ? "text-blue-600" : "text-slate-700"
+              className={`block border-b py-3 text-sm font-bold last:border-0 ${
+                pathname === link.href ? "text-blue-600" : "text-slate-700"
               }`}
             >
-              {l.label}
+              {link.label}
             </Link>
           ))}
-          {user && (
+          {user ? (
             <button
               onClick={logout}
               className="mt-3 block w-full rounded-xl border py-2 text-sm font-bold text-slate-600"
             >
               ログアウト
             </button>
+          ) : (
+            <Link
+              href="/#auth"
+              onClick={() => setOpen(false)}
+              className="mt-3 block rounded-xl bg-blue-600 py-2 text-center text-sm font-bold text-white"
+            >
+              ログイン
+            </Link>
           )}
         </div>
       )}

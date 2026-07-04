@@ -251,6 +251,7 @@ const defaultCoverImages = [
   "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=900&q=80",
   "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=900&q=80",
 ];
+const PASTE_STORAGE_KEY = "vpp-pasted-words";
 
 const sharedInitialBooks: WordBook[] = fallbackOfficialWordbooks.map((book) => ({
   id: book.id,
@@ -398,6 +399,17 @@ export default function Home() {
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const listeningTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedPaste = window.localStorage.getItem(PASTE_STORAGE_KEY);
+    if (savedPaste) setPasteText(savedPaste);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PASTE_STORAGE_KEY, pasteText);
+  }, [pasteText]);
 
   const ensureBookWords = useCallback(
     async (targetBookId: string) => {
@@ -586,6 +598,54 @@ export default function Home() {
       setBooksLoaded(true);
     });
   }, []);
+
+  useEffect(() => {
+    async function loadMyWordbooks() {
+      if (!supabase || !user) return;
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch("/api/me/wordbooks", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !Array.isArray(result.wordbooks)) return;
+
+      const myBooks = result.wordbooks.map((book: any) => ({
+        id: String(book.id),
+        title: book.title ?? "マイ単語帳",
+        description: book.description ?? "",
+        coverImage: undefined,
+        level: "自作",
+        premium: false,
+        requiredPlan: "free" as Plan,
+        wordCount: typeof book.wordCount === "number" ? book.wordCount : (book.words ?? []).length,
+        words: (book.words ?? []).map((word: any, index: number) => ({
+          no: Number(word.no) || index + 1,
+          english: word.english ?? "",
+          japanese: word.japanese ?? "",
+        })),
+      }));
+
+      setBooks((prev) => {
+        const nonMine = prev.filter((book) => !(isUuid(book.id) || book.id.startsWith("wb-")));
+        return [...myBooks, ...nonMine];
+      });
+    }
+
+    loadMyWordbooks();
+  }, [supabase, user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requestedBookId = new URLSearchParams(window.location.search).get("book");
+    if (!requestedBookId) return;
+    const existing = books.find((book) => book.id === requestedBookId);
+    if (existing) {
+      pickBook(requestedBookId);
+    }
+  }, [books]);
 
   useEffect(() => {
     setListeningIndex(0);
@@ -905,7 +965,7 @@ export default function Home() {
     setMessage("ログアウトしました。");
   }
 
-  function addCustomBook() {
+  async function addCustomBook() {
     if (!user) {
       alert("マイ単語帳の保存にはログインが必要です。");
       return;
@@ -922,17 +982,53 @@ export default function Home() {
       return;
     }
 
-    const newBook: WordBook = {
-      id: `custom-${Date.now()}`,
-      title: "マイ単語帳",
+    if (!supabase) {
+      alert("Supabase の設定が必要です。");
+      return;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      alert("ログイン状態を確認できませんでした。");
+      return;
+    }
+
+    const response = await fetch("/api/me/wordbooks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: "マイ単語帳",
+        words: rows,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.wordbook) {
+      alert(result.error ?? "マイ単語帳の保存に失敗しました。");
+      return;
+    }
+
+    const savedBook: WordBook = {
+      id: String(result.wordbook.id),
+      title: result.wordbook.title ?? "マイ単語帳",
+      description: result.wordbook.description ?? "",
       level: "自作",
       premium: false,
       requiredPlan: "free",
-      words: rows,
+      wordCount: typeof result.wordbook.wordCount === "number" ? result.wordbook.wordCount : rows.length,
+      words: (result.wordbook.words ?? rows).map((word: any, index: number) => ({
+        no: Number(word.no) || index + 1,
+        english: word.english ?? "",
+        japanese: word.japanese ?? "",
+      })),
     };
 
-    setBooks([newBook, ...books]);
-    setBookId(newBook.id);
+    setBooks((prev) => [savedBook, ...prev.filter((book) => book.id !== savedBook.id)]);
+    setBookId(savedBook.id);
+    setPdfMessage("マイ単語帳として保存しました。");
   }
 
   function makeQuestion(word: Word) {
@@ -1627,6 +1723,12 @@ export default function Home() {
             <div className="flex flex-wrap gap-2">
               <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                 みんなの単語帳
+              </Link>
+              <Link href="/my-wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
+                マイ単語帳
+              </Link>
+              <Link href="/listening" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
+                聞き流し
               </Link>
               <Link href="/pricing" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                 料金プラン
