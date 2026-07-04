@@ -47,7 +47,6 @@ export default function AccountPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
@@ -117,7 +116,7 @@ export default function AccountPage() {
     setMsg(
       error
         ? `メールアドレス変更に失敗しました: ${error.message}`
-        : "確認メールを送信しました。新しいメールアドレス側で承認すると変更が完了します。"
+        : "確認メールを送信しました。新しいメールアドレスで承認すると変更が完了します。"
     );
     setNewEmail("");
     setSavingEmail(false);
@@ -177,10 +176,11 @@ export default function AccountPage() {
 
   async function deleteAccount() {
     if (!supabase || !user) return;
-    if (deleteConfirmText !== "DELETE") {
-      setMsg("アカウント削除には DELETE と入力してください。");
-      return;
-    }
+
+    const confirmed = window.confirm(
+      "本当にアカウントを削除しますか？\n\n作成履歴、自分の単語帳、プロフィール情報が削除されます。"
+    );
+    if (!confirmed) return;
 
     setDeleteLoading(true);
     const { data: session } = await supabase.auth.getSession();
@@ -258,7 +258,7 @@ export default function AccountPage() {
               {portalLoading ? "開いています..." : "請求情報・解約を開く"}
             </button>
             <p className="mt-2 text-xs text-slate-500">
-              有料プランの解約はここから開く Stripe の請求ポータルで行えます。
+              解約は、ここから開く Stripe の請求ポータルで手続きできます。
             </p>
           </>
         ) : (
@@ -267,7 +267,7 @@ export default function AccountPage() {
               料金ページへ
             </Link>
             <p className="mt-2 text-xs text-slate-500">
-              Freeプランは料金の発生がないため、解約手続きは不要です。ログアウトだけで利用を止められます。
+              Freeプランは料金の発生がないため、解約手続きは不要です。
             </p>
           </>
         )}
@@ -316,7 +316,7 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
         <p className="mt-2 text-sm text-slate-500">
-          変更して大丈夫です。新しいメールアドレス宛てに確認メールが届き、その承認が終わると変更されます。
+          新しいメールアドレスに確認メールが届き、承認が完了すると変更されます。
         </p>
         <div className="mt-4 flex gap-2">
           <input
@@ -384,26 +384,18 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
         <h2 className="text-lg font-black text-red-700">アカウント削除</h2>
         <p className="mt-2 text-sm text-red-700">
-          アカウント、プロフィール、作成履歴、自分の単語帳を削除します。削除後は同じメールアドレスで再登録できます。
+          アカウント、プロフィール、作成履歴、自分の単語帳を削除します。
         </p>
         <p className="mt-2 text-xs text-red-600">
-          有料プランまたはトライアル中のアカウントは、先に請求ポータルで解約してから削除してください。
+          有料プランまたはトライアル中の場合は、先に解約してから削除してください。
         </p>
-        <div className="mt-4 flex gap-2">
-          <input
-            value={deleteConfirmText}
-            onChange={(e) => setDeleteConfirmText(e.target.value)}
-            placeholder="確認のため DELETE と入力"
-            className="flex-1 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
-          />
-          <button
-            onClick={deleteAccount}
-            disabled={deleteLoading || deleteConfirmText !== "DELETE"}
-            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:bg-red-300"
-          >
-            {deleteLoading ? "削除中..." : "アカウントを削除"}
-          </button>
-        </div>
+        <button
+          onClick={deleteAccount}
+          disabled={deleteLoading}
+          className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:bg-red-300"
+        >
+          {deleteLoading ? "削除中..." : "アカウントを削除"}
+        </button>
       </section>
 
       <div className="mt-6 text-center">
