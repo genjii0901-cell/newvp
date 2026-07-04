@@ -12,25 +12,36 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   free: {
     label: "Free",
     color: "bg-slate-100 text-slate-700",
-    limit: "1日2回・1回1ページまで・通算10回まで",
+    limit: "1日2回・1回1ページまで / 合計10回まで",
     price: "無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
-    limit: "月300回まで・1回5ページまで",
-    price: "¥780/月",
+    limit: "1回5ページまで / 履歴保存・自作単語帳対応",
+    price: "¥780 / 月",
   },
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "月5000回まで・大規模運用向け",
-    price: "¥2,980/月",
+    limit: "教材管理・公式単語帳管理・拡張機能",
+    price: "¥2,980 / 月",
   },
 };
 
-function normalizePlan(v: unknown): Plan {
-  return v === "personal" || v === "teacher" ? v : "free";
+function normalizePlan(value: unknown): Plan {
+  return value === "personal" || value === "teacher" ? value : "free";
+}
+
+function getAppUrl() {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (envUrl) {
+    return envUrl.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    return window.location.origin.replace(/\/$/, "");
+  }
+  return "https://www.vocabprint.com";
 }
 
 export default function AccountPage() {
@@ -48,6 +59,23 @@ export default function AccountPage() {
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const currentUrl = new URL(window.location.href);
+    const authStatus = currentUrl.searchParams.get("auth");
+    if (!authStatus) return;
+
+    if (authStatus === "confirmed") {
+      setMsg("メールアドレスの確認が完了しました。Vocab Print Pro でそのまま利用できます。");
+    } else if (authStatus === "error") {
+      setMsg("確認リンクの処理に失敗しました。もう一度メールのリンクを開いてください。");
+    }
+
+    currentUrl.searchParams.delete("auth");
+    window.history.replaceState({}, "", currentUrl.pathname + currentUrl.search);
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -111,12 +139,20 @@ export default function AccountPage() {
 
   async function changeEmail() {
     if (!supabase || !newEmail) return;
+
     setSavingEmail(true);
-    const { error } = await supabase.auth.updateUser({ email: newEmail });
+    setMsg("");
+
+    const redirectUrl = `${getAppUrl()}/auth/callback?next=/account`;
+    const { error } = await supabase.auth.updateUser(
+      { email: newEmail },
+      { emailRedirectTo: redirectUrl }
+    );
+
     setMsg(
       error
         ? `メールアドレス変更に失敗しました: ${error.message}`
-        : "確認メールを送信しました。新しいメールアドレスで承認すると変更が完了します。"
+        : "確認メールを送信しました。メール内のボタンを開くと Vocab Print Pro に戻って変更が完了します。"
     );
     setNewEmail("");
     setSavingEmail(false);
@@ -178,7 +214,7 @@ export default function AccountPage() {
     if (!supabase || !user) return;
 
     const confirmed = window.confirm(
-      "本当にアカウントを削除しますか？\n\n作成履歴、自分の単語帳、プロフィール情報が削除されます。"
+      "本当にアカウントを削除しますか？\n\n保存した履歴や作成データも削除されます。"
     );
     if (!confirmed) return;
 
@@ -227,7 +263,7 @@ export default function AccountPage() {
   }
 
   const info = planInfo[plan];
-  const isError = msg.includes("失敗");
+  const isError = msg.includes("失敗") || msg.includes("できません");
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-8">
@@ -255,19 +291,19 @@ export default function AccountPage() {
               disabled={portalLoading}
               className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
-              {portalLoading ? "開いています..." : "請求情報・解約を開く"}
+              {portalLoading ? "開いています..." : "請求・解約を開く"}
             </button>
             <p className="mt-2 text-xs text-slate-500">
-              解約は、ここから開く Stripe の請求ポータルで手続きできます。
+              Stripe の請求ページで、支払い方法の変更や解約ができます。
             </p>
           </>
         ) : (
           <>
             <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-              料金ページへ
+              有料プランを見る
             </Link>
             <p className="mt-2 text-xs text-slate-500">
-              Freeプランは料金の発生がないため、解約手続きは不要です。
+              Freeプランでは試用ができます。印刷回数や機能に制限があります。
             </p>
           </>
         )}
@@ -277,7 +313,7 @@ export default function AccountPage() {
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
           <h2 className="text-lg font-black text-amber-900">管理者プレビュー</h2>
           <p className="mt-2 text-sm text-amber-800">
-            管理者アカウントは Free / Personal / Teacher を自由に切り替えて確認できます。
+            管理者アカウントは Free / Personal / Teacher を切り替えて表示確認できます。
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {(["free", "personal", "teacher"] as Plan[]).map((nextPlan) => {
@@ -316,7 +352,7 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
         <p className="mt-2 text-sm text-slate-500">
-          新しいメールアドレスに確認メールが届き、承認が完了すると変更されます。
+          新しいメールアドレスに確認メールを送信します。確認後に Vocab Print Pro のアカウントへ反映されます。
         </p>
         <div className="mt-4 flex gap-2">
           <input
@@ -384,10 +420,10 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
         <h2 className="text-lg font-black text-red-700">アカウント削除</h2>
         <p className="mt-2 text-sm text-red-700">
-          アカウント、プロフィール、作成履歴、自分の単語帳を削除します。
+          アカウントを削除すると、保存済みの履歴や利用情報も削除されます。
         </p>
         <p className="mt-2 text-xs text-red-600">
-          有料プランまたはトライアル中の場合は、先に解約してから削除してください。
+          有料プラン利用中の場合は、先に請求ページから解約しておくと安心です。
         </p>
         <button
           onClick={deleteAccount}

@@ -12,7 +12,7 @@ function normalizeNextPath(value: string | null) {
 export default function AuthCallbackPage() {
   const supabase = useMemo(() => createClient(), []);
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [message, setMessage] = useState("認証を確認しています...");
+  const [message, setMessage] = useState("確認を処理しています...");
 
   useEffect(() => {
     async function run() {
@@ -24,13 +24,13 @@ export default function AuthCallbackPage() {
 
       if (!supabase) {
         setStatus("error");
-        setMessage("Supabaseの設定が見つかりません。");
+        setMessage("Supabase の設定が見つかりませんでした。");
         return;
       }
 
       if (errorCode || errorDescription) {
         setStatus("error");
-        setMessage(errorDescription || errorCode || "認証リンクの確認に失敗しました。");
+        setMessage(errorDescription || errorCode || "確認リンクの処理に失敗しました。");
         return;
       }
 
@@ -38,13 +38,13 @@ export default function AuthCallbackPage() {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
           setStatus("error");
-          setMessage(error.message || "認証リンクの処理に失敗しました。");
+          setMessage(error.message || "確認リンクの処理に失敗しました。");
           return;
         }
       }
 
       setStatus("success");
-      setMessage("メール認証が完了しました。トップページへ移動します...");
+      setMessage("メール確認が完了しました。Vocab Print Pro に戻ります...");
       window.setTimeout(() => {
         const destination = new URL(next, window.location.origin);
         destination.searchParams.set("auth", "confirmed");
@@ -59,7 +59,7 @@ export default function AuthCallbackPage() {
     <main className="min-h-screen bg-slate-50 px-5 py-16 text-slate-900">
       <div className="mx-auto max-w-xl rounded-3xl border bg-white p-8 shadow-sm">
         <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
-        <h1 className="mt-2 text-2xl font-black">メール認証</h1>
+        <h1 className="mt-2 text-2xl font-black">メール確認</h1>
         <p
           className={`mt-4 rounded-2xl p-4 text-sm font-bold ${
             status === "error"
