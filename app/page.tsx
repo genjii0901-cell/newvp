@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
+import { getPageCount, planLimits } from "@/lib/plan-limits";
 
 type Word = {
   no: number;
@@ -30,15 +31,6 @@ type Direction = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type Role = "user" | "admin";
 type OverlapMode = "common" | "base-only" | "compare-only" | "all";
-
-const planLimits: Record<
-  Plan,
-  { period: "day" | "month"; maxGenerations: number; maxWords: number; maxTotalGenerations?: number }
-> = {
-  free: { period: "day", maxGenerations: 2, maxWords: 50, maxTotalGenerations: 10 },
-  personal: { period: "month", maxGenerations: 300, maxWords: 300 },
-  teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
-};
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -114,10 +106,17 @@ function writeCachedPlan(userId: string, nextPlan: Plan) {
   }
 }
 
-function checkLocalUsage(userId: string, plan: Plan, wordCount: number) {
+function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCount: number) {
   const rule = planLimits[plan];
 
-  if (wordCount > rule.maxWords) {
+  if (typeof rule.maxPages === "number" && pageCount > rule.maxPages) {
+    return {
+      ok: false,
+      message: `${planLabel(plan)} plan allows up to ${rule.maxPages} pages per export.`,
+    };
+  }
+
+  if (typeof rule.maxWords === "number" && wordCount > rule.maxWords) {
     return {
       ok: false,
       message: `${planLabel(plan)} plan allows up to ${rule.maxWords} words per export.`,
@@ -837,6 +836,7 @@ export default function Home() {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     let usageCheckedByServer = false;
+    const pageCount = getPageCount(words.length);
 
     if (token) {
       const usageResponse = await fetch("/api/usage/check", {
@@ -845,7 +845,7 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ wordCount: words.length }),
+        body: JSON.stringify({ wordCount: words.length, pageCount }),
       });
       const usageResult = await usageResponse.json().catch(() => ({}));
 
@@ -857,7 +857,7 @@ export default function Home() {
           writeCachedPlan(user.id, serverPlan);
         }
       } else if (usageResponse.status !== 401) {
-        const fallback = checkLocalUsage(user.id, plan, words.length);
+        const fallback = checkLocalUsage(user.id, plan, words.length, pageCount);
         if (!fallback.ok) {
           alert(usageResult.message ?? fallback.message);
           return;
@@ -866,7 +866,7 @@ export default function Home() {
     }
 
     if (!usageCheckedByServer) {
-      const fallback = checkLocalUsage(user.id, plan, words.length);
+      const fallback = checkLocalUsage(user.id, plan, words.length, pageCount);
       if (!fallback.ok) {
         alert(fallback.message);
         return;
@@ -1915,7 +1915,7 @@ export default function Home() {
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="7日無料トライアル。履歴保存・単語帳保存対応。月300回まで利用可能。"
+            text="7日無料トライアル。履歴保存・単語帳保存対応。1回5ページ、月300回まで利用可能。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}

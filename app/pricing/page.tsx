@@ -18,34 +18,35 @@ const plans = [
     description: "まず試したい人向けの無料プランです。",
     features: [
       "1日2回までPDF作成",
-      "1回50語・1ページまで",
-      "累計10回まで使える",
-      "みんなの単語帳を体験",
+      "1回1ページまで",
+      "通算10回まで利用可能",
+      "Personal単語帳もお試し利用可能",
+      "透かし付きで出力",
     ],
   },
   {
     id: "personal" as const,
     title: "Personal",
     price: "¥780/月",
-    description: "個人学習向け。保存や履歴も使える本命プランです。",
+    description: "個人学習向け。保存や履歴も使える本番プランです。",
     features: [
       "初回7日無料トライアル",
-      "月300回・300語まで作成",
+      "月300回まで作成",
+      "1回5ページまで出力",
       "マイ単語帳の保存",
-      "PDF履歴の保存",
-      "画像つき単語帳の管理",
-      "みんなの単語帳をまとめて使える",
+      "PDF生成履歴の保存",
+      "みんなの単語帳をまとめて利用可能",
     ],
   },
   {
     id: "teacher" as const,
     title: "Teacher",
     price: "¥2,980/月",
-    description: "先生・塾向け。現在は準備中です。",
+    description: "先生・塾向けの拡張プランです。現在は準備中です。",
     features: [
-      "クラス配布向けの強化機能",
-      "教材の一括管理",
-      "管理者向けの高度な作成機能",
+      "クラス別教材管理",
+      "複数教材の一括作成",
+      "管理機能の強化版を予定",
     ],
   },
 ] as const;
@@ -132,7 +133,7 @@ export default function PricingPage() {
 
     if (!configuredPlans[plan]) {
       if (plan === "personal" && !stripeLiveMode) {
-        setMessage("現在は本番Stripeの最終確認中です。");
+        setMessage("現在は本番Stripeの設定確認中です。");
         return;
       }
       setMessage(`Stripe設定が未完了です: ${missingStripeVars.join(" / ")}`);
@@ -279,7 +280,7 @@ export default function PricingPage() {
         </div>
 
         <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-black">プランの考え方</h2>
+          <h2 className="text-xl font-black">プランの使い分け</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">まず試せる</p>
@@ -294,7 +295,7 @@ export default function PricingPage() {
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">授業向けに広げる</p>
+              <p className="text-sm font-black text-slate-900">学校向けに拡張予定</p>
               <p className="mt-2 text-sm text-slate-600">
                 Teacherは現在準備中です。管理や一括作成の強化を予定しています。
               </p>
@@ -308,7 +309,7 @@ export default function PricingPage() {
             className="rounded-xl border bg-white px-4 py-2 text-sm font-bold shadow-sm disabled:bg-slate-100 disabled:text-slate-400"
             disabled={currentPlan === "free"}
           >
-            請求情報を管理
+            請求情報を確認
           </button>
           <p className="text-xs text-slate-500">
             Personalは初回7日無料トライアル付きです。期間中の解約なら料金は発生しません。

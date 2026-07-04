@@ -6,17 +6,7 @@ import {
   requireSupabaseUser,
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
-
-type Plan = "free" | "personal" | "teacher";
-
-const limits: Record<
-  Plan,
-  { period: "day" | "month"; maxGenerations: number; maxWords: number; maxTotalGenerations?: number }
-> = {
-  free: { period: "day", maxGenerations: 2, maxWords: 50, maxTotalGenerations: 10 },
-  personal: { period: "month", maxGenerations: 300, maxWords: 300 },
-  teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
-};
+import { getPageCount, planLimits, type Plan } from "@/lib/plan-limits";
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -45,11 +35,21 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const wordCount = Number(body.wordCount ?? 0);
+    const pageCount = Number(body.pageCount ?? getPageCount(wordCount));
     const profile = await ensureProfile(auth.user);
     const plan = normalizePlan(profile?.plan);
-    const rule = limits[plan];
+    const rule = planLimits[plan];
 
-    if (wordCount > rule.maxWords) {
+    if (typeof rule.maxPages === "number" && pageCount > rule.maxPages) {
+      return NextResponse.json({
+        ok: false,
+        plan,
+        maxPages: rule.maxPages,
+        message: `${plan}プランでは1回に${rule.maxPages}ページまで作成できます。`,
+      });
+    }
+
+    if (typeof rule.maxWords === "number" && wordCount > rule.maxWords) {
       return NextResponse.json({
         ok: false,
         plan,
@@ -109,6 +109,7 @@ export async function POST(request: Request) {
       ok: true,
       plan,
       remaining,
+      maxPages: rule.maxPages ?? null,
       maxWords: rule.maxWords,
       maxGenerations: rule.maxGenerations,
       period: rule.period,

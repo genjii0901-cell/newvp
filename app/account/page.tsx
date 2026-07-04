@@ -12,19 +12,19 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   free: {
     label: "Free",
     color: "bg-slate-100 text-slate-700",
-    limit: "1日2回・1ページまで・累計10回まで",
+    limit: "1日2回・1回1ページまで・通算10回まで",
     price: "無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
-    limit: "月300回・300語まで",
+    limit: "月300回まで・1回5ページまで",
     price: "¥780/月",
   },
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "月5000回・1900語まで",
+    limit: "月5000回まで・大規模運用向け",
     price: "¥2,980/月",
   },
 };
@@ -46,6 +46,7 @@ export default function AccountPage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -59,6 +60,7 @@ export default function AccountPage() {
       const { data } = await supabase.auth.getUser();
       const nextUser = data.user ?? null;
       if (!cancelled) setUser(nextUser);
+
       if (!nextUser) {
         if (!cancelled) setLoading(false);
         return;
@@ -80,6 +82,7 @@ export default function AccountPage() {
         setPlan(normalizePlan(result.profile?.plan));
         setRole(result.profile?.role === "admin" ? "admin" : "user");
       }
+
       if (!cancelled) setLoading(false);
     }
 
@@ -166,10 +169,20 @@ export default function AccountPage() {
     window.location.href = "/";
   }
 
-  if (!user && !loading) {
+  if (loading) {
+    return (
+      <main className="mx-auto max-w-2xl px-5 py-8">
+        <div className="rounded-3xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
+          アカウント情報を読み込んでいます...
+        </div>
+      </main>
+    );
+  }
+
+  if (!user) {
     return (
       <div className="mx-auto max-w-2xl px-5 py-20 text-center">
-        <p className="mt-4 font-bold text-slate-700">ログインが必要です。</p>
+        <p className="mt-4 font-bold text-slate-700">ログイン後に利用できます。</p>
         <Link href="/" className="mt-4 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">
           トップへ戻る
         </Link>
@@ -184,7 +197,11 @@ export default function AccountPage() {
       <h1 className="text-2xl font-black text-slate-900">アカウント設定</h1>
 
       {msg && (
-        <div className={`mt-4 rounded-2xl p-4 text-sm font-bold ${msg.includes("失敗") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
+        <div
+          className={`mt-4 rounded-2xl p-4 text-sm font-bold ${
+            msg.includes("失敗") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
+          }`}
+        >
           {msg}
         </div>
       )}
@@ -204,7 +221,7 @@ export default function AccountPage() {
             disabled={portalLoading}
             className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
           >
-            {portalLoading ? "開いています..." : "請求情報を管理"}
+            {portalLoading ? "開いています..." : "請求情報を確認"}
           </button>
         ) : (
           <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
@@ -245,11 +262,11 @@ export default function AccountPage() {
         <h2 className="text-lg font-black">アカウント情報</h2>
         <div className="mt-4">
           <label className="text-sm font-bold text-slate-500">メールアドレス</label>
-          <p className="mt-1 font-bold text-slate-900">{user?.email}</p>
+          <p className="mt-1 font-bold text-slate-900">{user.email}</p>
         </div>
         <div className="mt-4">
           <label className="text-sm font-bold text-slate-500">ユーザーID</label>
-          <p className="mt-1 font-mono text-xs text-slate-400">{user?.id}</p>
+          <p className="mt-1 font-mono text-xs text-slate-400">{user.id}</p>
         </div>
       </section>
 
@@ -279,10 +296,17 @@ export default function AccountPage() {
           <input
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            type="password"
+            type={showPassword ? "text" : "password"}
             placeholder="新しいパスワード"
             className="flex-1 rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword((value) => !value)}
+            className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          >
+            {showPassword ? "隠す" : "表示"}
+          </button>
           <button
             onClick={changePassword}
             disabled={savingPw || newPassword.length < 6}
@@ -296,10 +320,18 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">クイックリンク</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <Link href="/" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">単語テスト作成</Link>
-          <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">みんなの単語帳</Link>
-          <Link href="/history" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">作成履歴</Link>
-          <Link href="/pricing" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">料金プラン</Link>
+          <Link href="/" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
+            単語テスト作成
+          </Link>
+          <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
+            みんなの単語帳
+          </Link>
+          <Link href="/history" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
+            生成履歴
+          </Link>
+          <Link href="/pricing" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
+            料金プラン
+          </Link>
         </div>
       </section>
 
