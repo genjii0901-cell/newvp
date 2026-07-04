@@ -8,6 +8,15 @@ import {
   isSupabaseServerConfigured,
 } from "@/lib/supabase/admin";
 
+function isMissingTableError(error: unknown, tableName: string) {
+  const message = readableError(error);
+  return (
+    message.includes(`Could not find the table 'public.${tableName}'`) ||
+    message.includes(`relation "public.${tableName}" does not exist`) ||
+    message.includes(`relation "${tableName}" does not exist`)
+  );
+}
+
 export async function POST(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
@@ -70,7 +79,7 @@ export async function POST(request: Request) {
     }
 
     const { error: pdfError } = await supabase.from("pdf_generations").delete().eq("user_id", auth.user.id);
-    if (pdfError) {
+    if (pdfError && !isMissingTableError(pdfError, "pdf_generations")) {
       return NextResponse.json({ ok: false, error: readableError(pdfError) }, { status: 500 });
     }
 
