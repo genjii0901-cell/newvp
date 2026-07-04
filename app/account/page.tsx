@@ -140,7 +140,7 @@ export default function AccountPage() {
     setSavingEmail(true);
     setMsg("");
 
-    const redirectUrl = `${getAppUrl()}/auth/callback?next=/account`;
+    const redirectUrl = `${getAppUrl()}/auth/confirm?next=/account`;
     const { error } = await supabase.auth.updateUser(
       { email: newEmail },
       { emailRedirectTo: redirectUrl }

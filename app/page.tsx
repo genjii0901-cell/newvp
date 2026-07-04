@@ -919,7 +919,7 @@ export default function Home() {
         email,
         password,
         options: {
-          emailRedirectTo: `${appUrl}/auth/callback?next=/`,
+          emailRedirectTo: `${appUrl}/auth/confirm?next=/`,
         },
       });
 
