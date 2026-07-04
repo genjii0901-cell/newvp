@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 type AuthCallbackPageProps = {
   searchParams?: Promise<{
+    code?: string;
     message?: string;
     next?: string;
     status?: string;
@@ -16,6 +18,14 @@ function normalizeNextPath(value?: string) {
 export default async function AuthCallbackPage({ searchParams }: AuthCallbackPageProps) {
   const params = (await searchParams) ?? {};
   const next = normalizeNextPath(params.next);
+
+  if (params.code) {
+    const confirmParams = new URLSearchParams();
+    confirmParams.set("code", params.code);
+    confirmParams.set("next", next);
+    redirect(`/auth/confirm?${confirmParams.toString()}`);
+  }
+
   const status = params.status === "success" ? "success" : "error";
   const message =
     params.message ||
@@ -29,9 +39,7 @@ export default async function AuthCallbackPage({ searchParams }: AuthCallbackPag
         <h1 className="mt-2 text-2xl font-black">メール確認</h1>
         <p
           className={`mt-4 rounded-2xl p-4 text-sm font-bold ${
-            status === "error"
-              ? "bg-red-50 text-red-700"
-              : "bg-emerald-50 text-emerald-700"
+            status === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
           }`}
         >
           {message}

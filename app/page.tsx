@@ -2244,13 +2244,6 @@ export default function Home() {
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
               <button
                 type="button"
-                onClick={loadPastedWordsIntoPreview}
-                className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100"
-              >
-                貼り付けデータを聞き流しで確認
-              </button>
-              <button
-                type="button"
                 onClick={printPastedPdf}
                 className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
               >

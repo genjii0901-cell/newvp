@@ -35,10 +35,16 @@ function parsePastedWords(text: string) {
     .filter((word) => word.english && word.japanese);
 }
 
-function getListeningPlaceholder(word: Word, title: string) {
+function getListeningPlaceholder(word: Word | null, title: string) {
   return `https://dummyimage.com/900x540/e2e8f0/334155&text=${encodeURIComponent(
-    word.english || title || "Listening"
+    word?.english || title || "Listening",
   )}`;
+}
+
+function modeLabel(mode: ListeningVoiceMode) {
+  if (mode === "en-only") return "英語のみ";
+  if (mode === "ja-en") return "日本語 → 英語";
+  return "英語 → 日本語";
 }
 
 export default function ListeningPage() {
@@ -48,7 +54,9 @@ export default function ListeningPage() {
   const [myBooks, setMyBooks] = useState<Wordbook[]>([]);
   const [officialId, setOfficialId] = useState("");
   const [myBookId, setMyBookId] = useState("");
-  const [pasteText, setPasteText] = useState("number\tenglish\tjapanese\n1\tapple\tりんご\n2\tbook\t本");
+  const [pasteText, setPasteText] = useState(
+    "number\tenglish\tjapanese\n1\tapple\tりんご\n2\tbook\t本\n3\tstudy\t勉強する",
+  );
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(20);
   const [listeningIndex, setListeningIndex] = useState(0);
@@ -129,11 +137,11 @@ export default function ListeningPage() {
     () => ({
       id: "paste",
       title: "貼り付けデータ",
-      description: "Excel / CSV / 手入力のデータをそのまま聞き流しできます。",
+      description: "Excel / CSV / テキストをそのまま聞き流しに使えます。",
       wordCount: parsePastedWords(pasteText).length,
       words: parsePastedWords(pasteText),
     }),
-    [pasteText]
+    [pasteText],
   );
 
   const activeBook = useMemo(() => {
@@ -143,21 +151,22 @@ export default function ListeningPage() {
   }, [myBookId, myBooks, officialBooks, officialId, pastedBook, tab]);
 
   const allWords = activeBook?.words ?? [];
-  const safeStart = Math.min(Math.max(1, Number(rangeStart) || 1), Math.max(1, allWords.length));
-  const safeEnd = Math.min(Math.max(safeStart, Number(rangeEnd) || allWords.length), Math.max(1, allWords.length));
-  const words = allWords.slice(safeStart - 1, safeEnd);
+  const totalWords = allWords.length;
+  const safeStart = totalWords > 0 ? Math.min(Math.max(1, Number(rangeStart) || 1), totalWords) : 1;
+  const safeEnd = totalWords > 0 ? Math.min(Math.max(safeStart, Number(rangeEnd) || totalWords), totalWords) : 1;
+  const words = totalWords > 0 ? allWords.slice(safeStart - 1, safeEnd) : [];
   const currentWord = words[listeningIndex] ?? null;
 
   useEffect(() => {
     const total = Math.max(1, allWords.length);
     setRangeStart(1);
     setRangeEnd(Math.min(total, 20));
+    setListeningIndex(0);
   }, [activeBook?.id, allWords.length]);
 
   useEffect(() => {
-    setListeningIndex(0);
-    setIsListening(false);
     stopListening();
+    setListeningIndex(0);
   }, [tab, officialId, myBookId, pasteText, safeStart, safeEnd]);
 
   function stopListening() {
@@ -177,11 +186,11 @@ export default function ListeningPage() {
 
   function speakWord(word: Word) {
     if (!("speechSynthesis" in window)) {
-      setError("このブラウザでは音声読み上げが使えません。");
+      setError("このブラウザでは音声読み上げを利用できません。");
       return;
     }
-    setError("");
 
+    setError("");
     const synth = window.speechSynthesis;
     synth.cancel();
 
@@ -191,6 +200,7 @@ export default function ListeningPage() {
       utter.rate = 0.9;
       synth.speak(utter);
     };
+
     const speakJapanese = () => {
       const utter = new SpeechSynthesisUtterance(word.japanese);
       utter.lang = "ja-JP";
@@ -212,12 +222,15 @@ export default function ListeningPage() {
     if (!words.length) return;
     setIsListening(true);
     setListeningIndex(startIndex);
+
     const nextWord = words[startIndex];
     if (!nextWord) {
       stopListening();
       return;
     }
+
     speakWord(nextWord);
+
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
       const nextIndex = startIndex + 1;
@@ -236,184 +249,199 @@ export default function ListeningPage() {
           <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
           <h1 className="text-2xl font-black text-slate-900">聞き流し</h1>
           <p className="mt-1 text-sm text-slate-500">
-            単語帳を選んで、範囲を絞って、聞き流し学習できます。
+            単語帳を選んで、範囲を決めて、そのまま音声学習に使えます。
           </p>
         </div>
         <div className="flex gap-2">
           <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
             単語帳へ
           </Link>
-          <Link href="/?book=" className="hidden" />
+          <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
+            単語テスト作成へ
+          </Link>
         </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
-        <button
-          onClick={() => setTab("official")}
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
-            tab === "official" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-          }`}
-        >
-          みんなの単語帳
-        </button>
-        <button
-          onClick={() => setTab("my")}
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
-            tab === "my" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-          }`}
-        >
-          マイ単語帳
-        </button>
-        <button
-          onClick={() => setTab("paste")}
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
-            tab === "paste" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-          }`}
-        >
-          CSV / 貼り付け
-        </button>
+        {[
+          { id: "official", label: "みんなの単語帳" },
+          { id: "my", label: "マイ単語帳" },
+          { id: "paste", label: "CSV / 貼り付け" },
+        ].map((item) => (
+          <button
+            key={item.id}
+            onClick={() => setTab(item.id as SourceTab)}
+            className={`rounded-full px-4 py-2 text-sm font-bold ${
+              tab === item.id ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[360px_1fr]">
         <section className="rounded-3xl border bg-white p-5 shadow-sm">
-          {tab === "official" && (
-            <div>
-              <label className="block text-sm font-bold">みんなの単語帳を選ぶ</label>
-              <select
-                value={officialId}
-                onChange={(e) => setOfficialId(e.target.value)}
-                className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
-              >
-                {officialBooks.map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {tab === "my" && (
-            <div>
-              <label className="block text-sm font-bold">マイ単語帳を選ぶ</label>
-              <select
-                value={myBookId}
-                onChange={(e) => setMyBookId(e.target.value)}
-                className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
-              >
-                {myBooks.map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.title}
-                  </option>
-                ))}
-              </select>
-              {myBooks.length === 0 && <p className="mt-3 text-sm text-slate-500">まだマイ単語帳はありません。</p>}
-            </div>
-          )}
-
-          {tab === "paste" && (
-            <div>
-              <label className="block text-sm font-bold">CSV / 貼り付けデータ</label>
-              <textarea
-                value={pasteText}
-                onChange={(e) => setPasteText(e.target.value)}
-                className="mt-2 h-52 w-full rounded-2xl border p-4 font-mono text-sm"
-              />
-            </div>
-          )}
-
-          <div className="mt-5 grid gap-3">
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-5">
+            {tab === "official" && (
               <div>
-                <label className="block text-sm font-bold">開始</label>
-                <input
-                  type="number"
-                  value={rangeStart}
-                  min={1}
-                  max={Math.max(1, allWords.length)}
-                  onChange={(e) => setRangeStart(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                <label className="block text-sm font-bold">みんなの単語帳を選ぶ</label>
+                <select
+                  value={officialId}
+                  onChange={(e) => setOfficialId(e.target.value)}
+                  className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
+                >
+                  {officialBooks.map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {tab === "my" && (
+              <div>
+                <label className="block text-sm font-bold">マイ単語帳を選ぶ</label>
+                <select
+                  value={myBookId}
+                  onChange={(e) => setMyBookId(e.target.value)}
+                  className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
+                >
+                  {myBooks.map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.title}
+                    </option>
+                  ))}
+                </select>
+                {myBooks.length === 0 && (
+                  <p className="mt-3 text-sm text-slate-500">マイ単語帳がまだない場合は、単語帳ページから追加できます。</p>
+                )}
+              </div>
+            )}
+
+            {tab === "paste" && (
+              <div>
+                <label className="block text-sm font-bold">CSV / 貼り付けデータ</label>
+                <textarea
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  className="mt-2 h-56 w-full rounded-2xl border p-4 font-mono text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-bold">終了</label>
-                <input
-                  type="number"
-                  value={rangeEnd}
-                  min={1}
-                  max={Math.max(1, allWords.length)}
-                  onChange={(e) => setRangeEnd(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                />
+            )}
+
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-bold tracking-wide text-slate-500">再生範囲</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-bold">開始</label>
+                  <input
+                    type="number"
+                    value={rangeStart}
+                    min={1}
+                    max={Math.max(1, totalWords)}
+                    onChange={(e) => setRangeStart(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold">終了</label>
+                  <input
+                    type="number"
+                    value={rangeEnd}
+                    min={1}
+                    max={Math.max(1, totalWords)}
+                    onChange={(e) => setRangeEnd(Number(e.target.value))}
+                    className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div>
-                <label className="block text-sm font-bold">読み上げパターン</label>
-                <select
-                  value={listeningVoiceMode}
-                  onChange={(e) => setListeningVoiceMode(e.target.value as ListeningVoiceMode)}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value="en-ja">英語 → 日本語</option>
-                  <option value="en-only">英語のみ</option>
-                  <option value="ja-en">日本語 → 英語</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold">繰り返し回数</label>
-                <select
-                  value={listeningRepeat}
-                  onChange={(e) => setListeningRepeat(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value={1}>1回</option>
-                  <option value={2}>2回</option>
-                  <option value={3}>3回</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-bold">単語の間隔</label>
-                <select
-                  value={listeningGapMs}
-                  onChange={(e) => setListeningGapMs(Number(e.target.value))}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value={900}>短め</option>
-                  <option value={1200}>標準</option>
-                  <option value={1800}>ゆっくり</option>
-                </select>
+            <div className="rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-bold tracking-wide text-slate-500">読み上げ設定</p>
+              <div className="mt-3 grid gap-3">
+                <div className="grid gap-2">
+                  <label className="text-sm font-bold">読み上げパターン</label>
+                  <div className="grid gap-2">
+                    {(["en-ja", "en-only", "ja-en"] as ListeningVoiceMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setListeningVoiceMode(mode)}
+                        className={`rounded-2xl border px-4 py-3 text-left ${
+                          listeningVoiceMode === mode ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <p className="font-bold text-slate-900">{modeLabel(mode)}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {mode === "en-ja" && "英語を読んだあとに日本語を読みます。"}
+                          {mode === "en-only" && "英語だけをテンポよく確認できます。"}
+                          {mode === "ja-en" && "日本語を見てから英語を確認できます。"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-bold">英語の反復回数</label>
+                    <select
+                      value={listeningRepeat}
+                      onChange={(e) => setListeningRepeat(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value={1}>1回</option>
+                      <option value={2}>2回</option>
+                      <option value={3}>3回</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">単語ごとの間隔</label>
+                    <select
+                      value={listeningGapMs}
+                      onChange={(e) => setListeningGapMs(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value={900}>短め</option>
+                      <option value={1200}>標準</option>
+                      <option value={1800}>ゆっくり</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </section>
 
         <section className="rounded-3xl border bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
             <div className="overflow-hidden rounded-2xl border bg-slate-50">
               <img
-                src={
-                  currentWord
-                    ? getListeningPlaceholder(currentWord, activeBook?.title ?? "Listening")
-                    : "https://dummyimage.com/900x540/e2e8f0/334155&text=Listening"
-                }
-                alt={currentWord?.english ?? activeBook?.title ?? "listening"}
+                src={getListeningPlaceholder(currentWord, activeBook?.title ?? "Listening")}
+                alt={currentWord?.english ?? activeBook?.title ?? "Listening"}
                 className="h-64 w-full object-cover"
               />
             </div>
+
             <div className="rounded-2xl border bg-slate-50 p-4">
               <p className="text-xs font-bold text-slate-500">{activeBook?.title ?? "単語帳"}</p>
+              <p className="mt-2 text-sm text-slate-500">{activeBook?.description ?? "選んだ範囲の単語を順番に読み上げます。"}</p>
+
               {currentWord ? (
                 <>
-                  <p className="mt-2 text-2xl font-black text-slate-900">{currentWord.english}</p>
+                  <p className="mt-4 text-2xl font-black text-slate-900">{currentWord.english}</p>
                   <p className="mt-3 text-sm text-slate-600">{currentWord.japanese}</p>
-                  <p className="mt-3 text-xs text-slate-400">
-                    {listeningIndex + 1} / {words.length}（{safeStart} - {safeEnd}）
-                  </p>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningIndex + 1} / {words.length}</span>
+                    <span className="rounded-full bg-white px-3 py-1 font-bold">範囲 {safeStart} - {safeEnd}</span>
+                    <span className="rounded-full bg-white px-3 py-1 font-bold">{modeLabel(listeningVoiceMode)}</span>
+                  </div>
                 </>
               ) : (
-                <p className="mt-4 text-sm text-slate-500">単語データを選ぶとここで聞き流しできます。</p>
+                <p className="mt-4 text-sm text-slate-500">単語帳や範囲を選ぶと、ここに再生中の単語が表示されます。</p>
               )}
             </div>
           </div>
@@ -431,7 +459,7 @@ export default function ListeningPage() {
               disabled={!currentWord}
               className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:bg-slate-100"
             >
-              今の単語だけ再生
+              この単語だけ再生
             </button>
             <button
               onClick={stopListening}
@@ -444,14 +472,14 @@ export default function ListeningPage() {
                 href={`/?book=${encodeURIComponent(activeBook.id)}`}
                 className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-                印刷画面で開く
+                単語テスト作成で開く
               </Link>
             )}
           </div>
 
           {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
 
-          <div className="mt-4 max-h-[360px] overflow-auto rounded-2xl border">
+          <div className="mt-4 max-h-[420px] overflow-auto rounded-2xl border">
             <div className="grid gap-2 p-2">
               {words.map((word, index) => (
                 <button
@@ -462,11 +490,23 @@ export default function ListeningPage() {
                     index === listeningIndex ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
                   }`}
                 >
-                  <p className="text-xs font-bold text-slate-400">{word.no}</p>
-                  <p className="mt-1 font-bold text-slate-900">{word.english}</p>
-                  <p className="mt-1 text-sm text-slate-600 line-clamp-2">{word.japanese}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-slate-400">{word.no}</p>
+                      <p className="mt-1 font-bold text-slate-900">{word.english}</p>
+                      <p className="mt-1 text-sm text-slate-600 line-clamp-2">{word.japanese}</p>
+                    </div>
+                    {word.unit ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">{word.unit}</span>
+                    ) : null}
+                  </div>
                 </button>
               ))}
+              {words.length === 0 && (
+                <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+                  まだ再生できる単語がありません。単語帳を選ぶか、CSV を貼り付けてください。
+                </div>
+              )}
             </div>
           </div>
         </section>
