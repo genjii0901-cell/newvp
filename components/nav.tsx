@@ -28,10 +28,22 @@ export default function Nav() {
     window.location.href = "/";
   }
 
+  function goToAuth() {
+    if (pathname === "/") {
+      const authSection = document.getElementById("auth");
+      if (authSection) {
+        authSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        window.history.replaceState({}, "", "/#auth");
+        setOpen(false);
+        return;
+      }
+    }
+    window.location.href = "/#auth";
+  }
+
   const links = [
     { href: "/", label: "単語テスト作成", always: true },
     { href: "/wordbooks", label: "みんなの単語帳", always: true },
-    { href: "/my-wordbooks", label: "マイ単語帳", always: false },
     { href: "/listening", label: "聞き流し", always: true },
     { href: "/history", label: "履歴", always: false },
     { href: "/pricing", label: "料金", always: true },
@@ -68,12 +80,13 @@ export default function Nav() {
               ログアウト
             </button>
           ) : (
-            <Link
-              href="/#auth"
+            <button
+              type="button"
+              onClick={goToAuth}
               className="ml-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
             >
               ログイン
-            </Link>
+            </button>
           )}
         </div>
 
@@ -110,13 +123,13 @@ export default function Nav() {
               ログアウト
             </button>
           ) : (
-            <Link
-              href="/#auth"
-              onClick={() => setOpen(false)}
+            <button
+              type="button"
+              onClick={goToAuth}
               className="mt-3 block rounded-xl bg-blue-600 py-2 text-center text-sm font-bold text-white"
             >
               ログイン
-            </Link>
+            </button>
           )}
         </div>
       )}
