@@ -14,11 +14,8 @@ function buildStatusUrl(request: NextRequest, message: string, next: string) {
   return url;
 }
 
-function formatAuthError(message: string) {
-  if (message.toLowerCase().includes("pkce code verifier not found")) {
-    return "確認リンクの有効期限が切れたか、別の環境で開かれた可能性があります。トップページからもう一度新規登録し、届いた最新の確認メールを開いてください。";
-  }
-  return message;
+function shouldTreatAsConfirmed(message: string) {
+  return message.toLowerCase().includes("pkce code verifier not found");
 }
 
 export async function GET(request: NextRequest) {
@@ -45,12 +42,14 @@ export async function GET(request: NextRequest) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
+    if (shouldTreatAsConfirmed(error.message || "")) {
+      return response;
+    }
+
     return NextResponse.redirect(
       buildStatusUrl(
         request,
-        formatAuthError(
-          error.message || "メール認証の完了に失敗しました。もう一度メール内のリンクを開いてください。",
-        ),
+        error.message || "メール認証の完了に失敗しました。もう一度メール内のリンクを開いてください。",
         next,
       ),
     );

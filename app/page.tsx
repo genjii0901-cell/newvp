@@ -34,6 +34,20 @@ type OverlapMode = "common" | "base-only" | "compare-only" | "all";
 type StudyPanelMode = "list" | "listening";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
 
+function normalizeAuthErrorMessage(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("security purposes") && lower.includes("60 seconds")) {
+    return "短時間に続けて送信されたため、次の確認メールは60秒ほど待ってから再度お試しください。";
+  }
+  if (lower.includes("email rate limit exceeded")) {
+    return "確認メールの送信回数が上限に達しました。少し待ってからもう一度お試しください。";
+  }
+  if (lower.includes("invalid login credentials")) {
+    return "メールアドレスまたはパスワードが違います。";
+  }
+  return message;
+}
+
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
 }
@@ -925,7 +939,7 @@ export default function Home() {
 
       if (error) {
         setMessageTone("error");
-        setMessage(error.message);
+        setMessage(normalizeAuthErrorMessage(error.message));
         return;
       }
 
@@ -947,7 +961,7 @@ export default function Home() {
 
     if (error) {
       setMessageTone("error");
-      setMessage(error.message);
+      setMessage(normalizeAuthErrorMessage(error.message));
       return;
     }
 

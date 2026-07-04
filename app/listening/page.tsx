@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { formatMeaning } from "@/lib/meaning";
 
 type SourceTab = "official" | "my" | "paste";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
+type MeaningMode = "all" | "main";
 type Word = { no: number; english: string; japanese: string; unit?: string | null };
 type Wordbook = {
   id: string;
@@ -63,6 +65,7 @@ export default function ListeningPage() {
   const [listeningRepeat, setListeningRepeat] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(1200);
   const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
+  const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
@@ -156,6 +159,7 @@ export default function ListeningPage() {
   const safeEnd = totalWords > 0 ? Math.min(Math.max(safeStart, Number(rangeEnd) || totalWords), totalWords) : 1;
   const words = totalWords > 0 ? allWords.slice(safeStart - 1, safeEnd) : [];
   const currentWord = words[listeningIndex] ?? null;
+  const displayCurrentMeaning = currentWord ? formatMeaning(currentWord.japanese, meaningMode) : "";
 
   useEffect(() => {
     const total = Math.max(1, allWords.length);
@@ -202,7 +206,7 @@ export default function ListeningPage() {
     };
 
     const speakJapanese = () => {
-      const utter = new SpeechSynthesisUtterance(word.japanese);
+      const utter = new SpeechSynthesisUtterance(formatMeaning(word.japanese, meaningMode));
       utter.lang = "ja-JP";
       utter.rate = 0.95;
       synth.speak(utter);
@@ -411,6 +415,29 @@ export default function ListeningPage() {
                     </select>
                   </div>
                 </div>
+
+                <div className="grid gap-2">
+                  <label className="text-sm font-bold">意味の表示</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {(["main", "all"] as MeaningMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setMeaningMode(mode)}
+                        className={`rounded-2xl border px-4 py-3 text-left ${
+                          meaningMode === mode ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <p className="font-bold text-slate-900">{mode === "main" ? "メインの意味だけ" : "意味を全部表示"}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {mode === "main"
+                            ? "最初に使いたい意味を優先して短く表示します。"
+                            : "登録されている意味をそのまま全部表示します。"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -433,11 +460,12 @@ export default function ListeningPage() {
               {currentWord ? (
                 <>
                   <p className="mt-4 text-2xl font-black text-slate-900">{currentWord.english}</p>
-                  <p className="mt-3 text-sm text-slate-600">{currentWord.japanese}</p>
+                  <p className="mt-3 text-lg font-bold text-slate-700">{displayCurrentMeaning}</p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningIndex + 1} / {words.length}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">範囲 {safeStart} - {safeEnd}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{modeLabel(listeningVoiceMode)}</span>
+                    <span className="rounded-full bg-white px-3 py-1 font-bold">{meaningMode === "main" ? "意味: メイン" : "意味: 全部"}</span>
                   </div>
                 </>
               ) : (
@@ -494,7 +522,7 @@ export default function ListeningPage() {
                     <div>
                       <p className="text-xs font-bold text-slate-400">{word.no}</p>
                       <p className="mt-1 font-bold text-slate-900">{word.english}</p>
-                      <p className="mt-1 text-sm text-slate-600 line-clamp-2">{word.japanese}</p>
+                      <p className="mt-1 text-sm text-slate-600 line-clamp-2">{formatMeaning(word.japanese, meaningMode)}</p>
                     </div>
                     {word.unit ? (
                       <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">{word.unit}</span>
