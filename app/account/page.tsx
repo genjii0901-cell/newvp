@@ -47,6 +47,8 @@ export default function AccountPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -171,6 +173,36 @@ export default function AccountPage() {
     if (!supabase) return;
     await supabase.auth.signOut();
     window.location.href = "/";
+  }
+
+  async function deleteAccount() {
+    if (!supabase || !user) return;
+    if (deleteConfirmText !== "DELETE") {
+      setMsg("アカウント削除には DELETE と入力してください。");
+      return;
+    }
+
+    setDeleteLoading(true);
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+
+    const response = await fetch("/api/me/delete-account", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setMsg(result.error ?? "アカウント削除に失敗しました。");
+      setDeleteLoading(false);
+      return;
+    }
+
+    await supabase.auth.signOut();
+    window.location.href = "/?auth=deleted";
   }
 
   if (loading) {
@@ -346,6 +378,31 @@ export default function AccountPage() {
           <Link href="/pricing" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
             料金プラン
           </Link>
+        </div>
+      </section>
+
+      <section className="mt-4 rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+        <h2 className="text-lg font-black text-red-700">アカウント削除</h2>
+        <p className="mt-2 text-sm text-red-700">
+          アカウント、プロフィール、作成履歴、自分の単語帳を削除します。削除後は同じメールアドレスで再登録できます。
+        </p>
+        <p className="mt-2 text-xs text-red-600">
+          有料プランまたはトライアル中のアカウントは、先に請求ポータルで解約してから削除してください。
+        </p>
+        <div className="mt-4 flex gap-2">
+          <input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder="確認のため DELETE と入力"
+            className="flex-1 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+          />
+          <button
+            onClick={deleteAccount}
+            disabled={deleteLoading || deleteConfirmText !== "DELETE"}
+            className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:bg-red-300"
+          >
+            {deleteLoading ? "削除中..." : "アカウントを削除"}
+          </button>
         </div>
       </section>
 

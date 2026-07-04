@@ -475,6 +475,9 @@ export default function Home() {
     if (authStatus === "confirmed") {
       setMessageTone("success");
       setMessage("メール認証が完了しました。ログインして利用を始められます。");
+    } else if (authStatus === "deleted") {
+      setMessageTone("success");
+      setMessage("アカウントを削除しました。同じメールアドレスで再登録できます。");
     } else if (authStatus === "error") {
       setMessageTone("error");
       setMessage("認証リンクの確認に失敗しました。もう一度メール内のリンクを開くか、再登録を試してください。");
