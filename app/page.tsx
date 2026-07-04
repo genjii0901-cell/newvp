@@ -32,6 +32,7 @@ type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english
 type Role = "user" | "admin";
 type OverlapMode = "common" | "base-only" | "compare-only" | "all";
 type StudyPanelMode = "list" | "listening";
+type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -385,6 +386,7 @@ export default function Home() {
   const [listeningIndex, setListeningIndex] = useState(0);
   const [listeningRepeat, setListeningRepeat] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(1200);
+  const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
   const [isListening, setIsListening] = useState(false);
   const [loadingBookWordsId, setLoadingBookWordsId] = useState("");
   const [titleOffset, setTitleOffset] = useState({ x: 0, y: 0 });
@@ -758,6 +760,15 @@ export default function Home() {
 
   const currentListeningWord = outputWords[listeningIndex] ?? null;
 
+  useEffect(() => {
+    if (outputWords.length === 0) {
+      setListeningIndex(0);
+      setIsListening(false);
+      return;
+    }
+    setListeningIndex((current) => Math.min(current, outputWords.length - 1));
+  }, [outputWords.length]);
+
   const overlapRows = useMemo(() => {
     return buildOverlapRows(overlapBaseBook, overlapCompareBook, overlapMode);
   }, [overlapBaseBook, overlapCompareBook, overlapMode]);
@@ -776,6 +787,41 @@ export default function Home() {
 
     if (typeof window !== "undefined") {
       document.getElementById("pdf-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function loadPastedWordsIntoPreview() {
+    const rows = parsePastedWords(pasteText);
+    if (rows.length === 0) {
+      alert("番号・英語・日本語の3列データを貼り付けてください。");
+      return;
+    }
+
+    const previewBook: WordBook = {
+      id: "pasted-preview",
+      title: "貼り付け単語帳",
+      level: "貼り付け",
+      premium: false,
+      requiredPlan: "free",
+      description: "Excel / CSV / 貼り付けデータから作成した一時プレビューです。",
+      words: rows,
+      wordCount: rows.length,
+    };
+
+    setBooks((prev) => {
+      const filtered = prev.filter((book) => book.id !== "pasted-preview");
+      return [previewBook, ...filtered];
+    });
+    setBookId(previewBook.id);
+    setStartNo(1);
+    setEndNo(rows.length);
+    setCount(Math.min(rows.length, 50));
+    setListeningIndex(0);
+    setStudyPanelMode("listening");
+    setPdfMessage("貼り付けデータを単語一覧・聞き流しプレビューに反映しました。");
+
+    if (typeof window !== "undefined") {
+      document.getElementById("pdf-preview-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
 
@@ -1092,22 +1138,35 @@ export default function Home() {
     const synth = window.speechSynthesis;
     synth.cancel();
 
-    const englishUtterance = new SpeechSynthesisUtterance(word.english);
-    englishUtterance.lang = "en-US";
-    englishUtterance.rate = 0.9;
-    synth.speak(englishUtterance);
-
-    for (let i = 0; i < Math.max(0, listeningRepeat - 1); i += 1) {
+    const speakEnglish = () => {
       const repeatUtterance = new SpeechSynthesisUtterance(word.english);
       repeatUtterance.lang = "en-US";
       repeatUtterance.rate = 0.9;
       synth.speak(repeatUtterance);
+    };
+
+    const speakJapanese = () => {
+      const japaneseUtterance = new SpeechSynthesisUtterance(word.japanese);
+      japaneseUtterance.lang = "ja-JP";
+      japaneseUtterance.rate = 0.95;
+      synth.speak(japaneseUtterance);
+    };
+
+    if (listeningVoiceMode === "ja-en") {
+      speakJapanese();
+      for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) {
+        speakEnglish();
+      }
+      return;
     }
 
-    const japaneseUtterance = new SpeechSynthesisUtterance(word.japanese);
-    japaneseUtterance.lang = "ja-JP";
-    japaneseUtterance.rate = 0.95;
-    synth.speak(japaneseUtterance);
+    for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) {
+      speakEnglish();
+    }
+
+    if (listeningVoiceMode === "en-ja") {
+      speakJapanese();
+    }
   }
 
   function stopListening() {
@@ -1826,7 +1885,7 @@ export default function Home() {
             <details open className="group">
             <summary className="flex cursor-pointer list-none items-center justify-between">
               <div>
-                <h3 className="text-lg font-black">{studyPanelMode === "list" ? "単語リスト" : "聞き流し"}</h3>
+                <h3 className="text-lg font-black">単語一覧 / 聞き流し</h3>
                 <p className="text-sm text-slate-500">
                   {selectedBook?.title ?? "単語帳"} / {outputWords.length}語
                   {selectedBook && loadingBookWordsId === selectedBook.id ? " ・ 読み込み中..." : ""}
@@ -1856,6 +1915,9 @@ export default function Home() {
                 聞き流し
               </button>
             </div>
+            <p className="mt-3 text-xs text-slate-500">
+              上で選んだ単語帳、または貼り付けデータをそのまま一覧確認したり、聞き流し学習に使えます。
+            </p>
 
             {studyPanelMode === "list" ? (
               <div className="mt-4 max-h-[420px] overflow-auto rounded-2xl border select-none">
@@ -1903,6 +1965,13 @@ export default function Home() {
                         <p className="mt-3 text-xs text-slate-400">
                           {listeningIndex + 1} / {outputWords.length}
                         </p>
+                        <p className="mt-2 text-xs font-bold text-blue-700">
+                          {listeningVoiceMode === "en-only"
+                            ? "英語のみで再生"
+                            : listeningVoiceMode === "ja-en"
+                              ? "日本語 → 英語で再生"
+                              : "英語 → 日本語で再生"}
+                        </p>
                       </>
                     ) : (
                       <p className="text-sm text-slate-400">単語を選ぶと聞き流しできます。</p>
@@ -1910,7 +1979,19 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div>
+                    <label className="block text-sm font-bold">読み上げパターン</label>
+                    <select
+                      value={listeningVoiceMode}
+                      onChange={(event) => setListeningVoiceMode(event.target.value as ListeningVoiceMode)}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value="en-ja">英語 → 日本語</option>
+                      <option value="en-only">英語のみ</option>
+                      <option value="ja-en">日本語 → 英語</option>
+                    </select>
+                  </div>
                   <div>
                     <label className="block text-sm font-bold">英単語の繰り返し回数</label>
                     <select
@@ -2060,6 +2141,13 @@ export default function Home() {
             className="mt-3 h-40 w-full rounded-2xl border p-4 font-mono text-sm"
           />
           <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <button
+                type="button"
+                onClick={loadPastedWordsIntoPreview}
+                className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100"
+              >
+                貼り付けデータを聞き流しで確認
+              </button>
               <button
                 type="button"
                 onClick={printPastedPdf}

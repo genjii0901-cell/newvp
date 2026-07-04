@@ -9,7 +9,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 const siteName = "Vocab Print Pro";
 const titleText = "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成";
 const siteDescription =
-  "単語帳や自作データから、一覧・問題・解答のA4 PDFをすぐに作れる英語学習向けWebサービス。授業準備や受験学習のプリント作成をすばやく進められます。";
+  "単語帳データから、一覧・問題・解答のA4 PDFをすぐに作れる学習Webサービスです。英語学習や受験対策のプリント作成をシンプルに進められます。";
 const ogImage = `${siteUrl}/opengraph-image`;
 const twitterImage = `${siteUrl}/twitter-image`;
 
@@ -110,10 +110,18 @@ export default function RootLayout({
         <div className="flex-1">{children}</div>
         <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-5">
-            <Link href="/pricing" className="hover:text-slate-600">料金</Link>
-            <Link href="/legal/terms" className="hover:text-slate-600">利用規約</Link>
-            <Link href="/legal/privacy" className="hover:text-slate-600">プライバシーポリシー</Link>
-            <Link href="/legal/tokushoho" className="hover:text-slate-600">特定商取引法に基づく表記</Link>
+            <Link href="/pricing" className="hover:text-slate-600">
+              料金
+            </Link>
+            <Link href="/legal/terms" className="hover:text-slate-600">
+              利用規約
+            </Link>
+            <Link href="/legal/privacy" className="hover:text-slate-600">
+              プライバシーポリシー
+            </Link>
+            <Link href="/legal/tokushoho" className="hover:text-slate-600">
+              特定商取引法に基づく表記
+            </Link>
           </div>
           <p className="mt-4">© 2026 Vocab Print Pro</p>
         </footer>

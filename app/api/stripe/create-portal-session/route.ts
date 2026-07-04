@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     if (auth.response) return auth.response;
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 
     if (!stripeSecretKey) {
       return NextResponse.json(
@@ -54,7 +54,8 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             ok: false,
-            error: "このアカウントの請求情報を再接続できませんでした。料金ページからもう一度 Personal を開始してください。",
+            error:
+              "このアカウントの請求情報を開けませんでした。表示が古い可能性があるため、もう一度 Personal を開始し直してください。",
           },
           { status: 409 }
         );
