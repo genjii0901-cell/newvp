@@ -914,8 +914,7 @@ export default function Home() {
 
     if (authMode === "signup") {
       const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-        (typeof window !== "undefined" ? window.location.origin : "https://www.vocabprint.com");
+        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.vocabprint.com";
       const { data, error } = await supabase.auth.signUp({
         email,
         password,

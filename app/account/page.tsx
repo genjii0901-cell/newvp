@@ -38,9 +38,6 @@ function getAppUrl() {
   if (envUrl) {
     return envUrl.replace(/\/$/, "");
   }
-  if (typeof window !== "undefined") {
-    return window.location.origin.replace(/\/$/, "");
-  }
   return "https://www.vocabprint.com";
 }
 
