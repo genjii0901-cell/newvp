@@ -18,6 +18,9 @@ type ProfileRow = {
 };
 
 type SubscriptionRow = {
+  user_id?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
   plan: string | null;
   status: string | null;
   created_at?: string | null;
@@ -160,7 +163,10 @@ export async function GET(request: Request) {
         supabase.from("profiles").select("id,plan,role,created_at").limit(5000)
       ),
       safeSelect<SubscriptionRow>(() =>
-        supabase.from("subscriptions").select("plan,status,created_at,current_period_end").limit(5000)
+        supabase
+          .from("subscriptions")
+          .select("user_id,stripe_customer_id,stripe_subscription_id,plan,status,created_at,current_period_end")
+          .limit(5000)
       ),
       safeSelect<PdfGenerationRow>(() =>
         supabase
@@ -419,6 +425,39 @@ export async function GET(request: Request) {
     const currentBrowserSummary =
       recentVisitors.find((item) => item.stableVisitorHash === currentStableVisitorHash) ?? null;
 
+    const latestSubscriptionByUserId = new Map<string, SubscriptionRow>();
+    for (const subscription of subscriptions) {
+      if (!subscription.user_id) continue;
+      const current = latestSubscriptionByUserId.get(subscription.user_id);
+      const currentTime = current?.created_at ? new Date(current.created_at).getTime() : 0;
+      const nextTime = subscription.created_at ? new Date(subscription.created_at).getTime() : 0;
+      if (!current || nextTime >= currentTime) {
+        latestSubscriptionByUserId.set(subscription.user_id, subscription);
+      }
+    }
+
+    const accountList = usersForCounts
+      .map((authUser) => {
+        const profile = profilesById.get(authUser.id) ?? null;
+        const subscription = latestSubscriptionByUserId.get(authUser.id) ?? null;
+        return {
+          id: authUser.id,
+          email: authUser.email ?? null,
+          created_at: authUser.created_at ?? profile?.created_at ?? null,
+          role: profile?.role ?? "user",
+          plan: profile?.plan ?? "free",
+          hasProfile: Boolean(profile),
+          subscriptionStatus: subscription?.status ?? null,
+          currentPeriodEnd: subscription?.current_period_end ?? null,
+        };
+      })
+      .sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, 100);
+
     return NextResponse.json(
       {
         ok: true,
@@ -480,6 +519,7 @@ export async function GET(request: Request) {
           adminOnlyCount: adminOnlyBooks,
           topWordbooks,
         },
+        accounts: accountList,
       },
       { headers: { "Cache-Control": "no-store, max-age=0" } }
     );

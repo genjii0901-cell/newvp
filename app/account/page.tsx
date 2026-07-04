@@ -112,7 +112,11 @@ export default function AccountPage() {
     if (!supabase || !newEmail) return;
     setSavingEmail(true);
     const { error } = await supabase.auth.updateUser({ email: newEmail });
-    setMsg(error ? `メール変更に失敗しました: ${error.message}` : "確認メールを送信しました。");
+    setMsg(
+      error
+        ? `メールアドレス変更に失敗しました: ${error.message}`
+        : "確認メールを送信しました。新しいメールアドレス側で承認すると変更が完了します。"
+    );
     setNewEmail("");
     setSavingEmail(false);
   }
@@ -191,17 +195,14 @@ export default function AccountPage() {
   }
 
   const info = planInfo[plan];
+  const isError = msg.includes("失敗");
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-8">
       <h1 className="text-2xl font-black text-slate-900">アカウント設定</h1>
 
       {msg && (
-        <div
-          className={`mt-4 rounded-2xl p-4 text-sm font-bold ${
-            msg.includes("失敗") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
-          }`}
-        >
+        <div className={`mt-4 rounded-2xl p-4 text-sm font-bold ${isError ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>
           {msg}
         </div>
       )}
@@ -216,17 +217,27 @@ export default function AccountPage() {
           </div>
         </div>
         {plan !== "free" ? (
-          <button
-            onClick={openPortal}
-            disabled={portalLoading}
-            className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-          >
-            {portalLoading ? "開いています..." : "請求情報を確認"}
-          </button>
+          <>
+            <button
+              onClick={openPortal}
+              disabled={portalLoading}
+              className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {portalLoading ? "開いています..." : "請求情報・解約を開く"}
+            </button>
+            <p className="mt-2 text-xs text-slate-500">
+              有料プランの解約はここから開く Stripe の請求ポータルで行えます。
+            </p>
+          </>
         ) : (
-          <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-            料金ページへ
-          </Link>
+          <>
+            <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
+              料金ページへ
+            </Link>
+            <p className="mt-2 text-xs text-slate-500">
+              Freeプランは料金の発生がないため、解約手続きは不要です。ログアウトだけで利用を止められます。
+            </p>
+          </>
         )}
       </section>
 
@@ -272,6 +283,9 @@ export default function AccountPage() {
 
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
+        <p className="mt-2 text-sm text-slate-500">
+          変更して大丈夫です。新しいメールアドレス宛てに確認メールが届き、その承認が終わると変更されます。
+        </p>
         <div className="mt-4 flex gap-2">
           <input
             value={newEmail}

@@ -336,6 +336,7 @@ export default function Home() {
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
 
@@ -1409,14 +1410,24 @@ export default function Home() {
                 className="rounded-xl border px-3 py-2"
                 disabled={!supabase}
               />
-              <input
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={authMode === "signup" ? "パスワード（6文字以上）" : "パスワード"}
-                type="password"
-                className="rounded-xl border px-3 py-2"
-                disabled={!supabase}
-              />
+              <div className="flex gap-2">
+                <input
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={authMode === "signup" ? "パスワード（6文字以上）" : "パスワード"}
+                  type={showAuthPassword ? "text" : "password"}
+                  className="flex-1 rounded-xl border px-3 py-2"
+                  disabled={!supabase}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAuthPassword((value) => !value)}
+                  className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  disabled={!supabase}
+                >
+                  {showAuthPassword ? "隠す" : "表示"}
+                </button>
+              </div>
             </div>
 
             <button

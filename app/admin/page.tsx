@@ -103,6 +103,16 @@ type AdminMetrics = {
     adminOnlyCount: number;
     topWordbooks: Array<{ wordbookId: string; title: string; uses: number }>;
   };
+  accounts: Array<{
+    id: string;
+    email: string | null;
+    created_at: string | null;
+    role: string;
+    plan: string;
+    hasProfile: boolean;
+    subscriptionStatus: string | null;
+    currentPeriodEnd: string | null;
+  }>;
 };
 
 /* 笏笏笏 Image presets 笏笏笏 */
@@ -1764,6 +1774,66 @@ export default function AdminPage() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </section>
+
+                <section className="rounded-3xl border bg-white p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">アカウント一覧</h3>
+                      <p className="mt-1 text-xs text-slate-500">新しい順に最大100件まで表示します。</p>
+                    </div>
+                    <span className="text-xs text-slate-400">登録者 / 契約状況</span>
+                  </div>
+                  <div className="mt-4 overflow-x-auto">
+                    {metrics.accounts.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500">まだアカウントがありません。</p>
+                    ) : (
+                      <table className="min-w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b text-xs font-bold uppercase tracking-wide text-slate-400">
+                            <th className="px-3 py-2">メール</th>
+                            <th className="px-3 py-2">プラン</th>
+                            <th className="px-3 py-2">購読</th>
+                            <th className="px-3 py-2">role</th>
+                            <th className="px-3 py-2">profiles</th>
+                            <th className="px-3 py-2">登録日</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {metrics.accounts.map((account) => (
+                            <tr key={account.id} className="border-b last:border-b-0">
+                              <td className="px-3 py-3">
+                                <div className="min-w-[220px]">
+                                  <p className="font-bold text-slate-800">{account.email ?? "メール未設定"}</p>
+                                  <p className="mt-1 font-mono text-[11px] text-slate-400">{account.id}</p>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
+                                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+                                  {account.plan || "free"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3">
+                                <div className="min-w-[120px]">
+                                  <p className="font-bold text-slate-700">{account.subscriptionStatus ?? "-"}</p>
+                                  <p className="mt-1 text-xs text-slate-400">
+                                    {account.currentPeriodEnd ? formatAdminDate(account.currentPeriodEnd) : ""}
+                                  </p>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-slate-600">{account.role}</td>
+                              <td className="px-3 py-3">
+                                <span className={`rounded-full px-2 py-1 text-xs font-bold ${account.hasProfile ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                                  {account.hasProfile ? "あり" : "未作成"}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-slate-600">{formatAdminDate(account.created_at)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </section>
 
