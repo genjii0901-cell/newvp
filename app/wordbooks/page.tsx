@@ -13,6 +13,7 @@ type OfficialWordbook = {
   coverImage?: string | null;
   requiredPlan: Plan;
   wordCount?: number;
+  creator?: string;
   words?: Word[];
 };
 type MyWordbook = {
@@ -49,6 +50,7 @@ export default function WordbooksPage() {
   const [loadingMine, setLoadingMine] = useState(true);
   const [error, setError] = useState("");
   const [officialFilter, setOfficialFilter] = useState<Plan | "all">("all");
+  const [officialSearch, setOfficialSearch] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [selectedMyBookId, setSelectedMyBookId] = useState("");
   const [editorTitle, setEditorTitle] = useState("マイ単語帳");
@@ -74,7 +76,8 @@ export default function WordbooksPage() {
         return;
       }
 
-      setOfficialBooks(Array.isArray(result.wordbooks) ? result.wordbooks : []);
+      const books = Array.isArray(result.wordbooks) ? result.wordbooks : [];
+      setOfficialBooks(books.map((book: OfficialWordbook) => ({ ...book, creator: book.creator ?? "Vocab Print Pro" })));
       setLoadingOfficial(false);
     }
 
@@ -150,9 +153,17 @@ export default function WordbooksPage() {
   }, [myBooks, selectedMyBookId]);
 
   const filteredOfficialBooks = useMemo(() => {
-    if (officialFilter === "all") return officialBooks;
-    return officialBooks.filter((book) => book.requiredPlan === officialFilter);
-  }, [officialBooks, officialFilter]);
+    const query = officialSearch.trim().toLowerCase();
+    return officialBooks.filter((book) => {
+      const inPlan = officialFilter === "all" || book.requiredPlan === officialFilter;
+      if (!inPlan) return false;
+      if (!query) return true;
+      return [book.title, book.description, book.creator ?? "", book.requiredPlan]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [officialBooks, officialFilter, officialSearch]);
 
   function updateRow(index: number, field: keyof EditableRow, value: string | number) {
     setEditorRows((prev) =>
@@ -313,6 +324,18 @@ export default function WordbooksPage() {
               </button>
             ))}
           </div>
+          <div className="mt-4">
+            <label className="block text-sm font-bold text-slate-700">単語帳を検索</label>
+            <input
+              value={officialSearch}
+              onChange={(event) => setOfficialSearch(event.target.value)}
+              placeholder="タイトル・説明・作成者で検索"
+              className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+            />
+            {officialSearch && (
+              <p className="mt-1 text-xs font-bold text-slate-400">{filteredOfficialBooks.length}件見つかりました</p>
+            )}
+          </div>
 
           {loadingOfficial ? (
             <div className="mt-16 text-center text-slate-400">読み込み中...</div>
@@ -339,6 +362,9 @@ export default function WordbooksPage() {
                         <span className="text-xs text-slate-400">{wordCount}語</span>
                       </div>
                       <h2 className="mt-3 text-xl font-black text-slate-900">{book.title}</h2>
+                      <p className="mt-1 truncate text-xs font-bold text-slate-400">
+                        作成者: {book.creator ?? "Vocab Print Pro"}
+                      </p>
                       <p className="mt-2 line-clamp-3 text-sm text-slate-500">
                         {book.description || "公式単語帳です。"}
                       </p>

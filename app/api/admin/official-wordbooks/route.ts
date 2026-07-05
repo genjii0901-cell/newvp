@@ -345,7 +345,22 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      wordbook,
+      wordbook: {
+        id: String(wordbook.id),
+        title,
+        description,
+        coverImage,
+        visibility,
+        requiredPlan: visibility === "teacher" ? "teacher" : visibility === "personal" ? "personal" : visibility === "admin" ? "admin" : "free",
+        level: visibility === "teacher" ? "Teacher" : visibility === "personal" ? "Personal" : visibility === "admin" ? "Admin" : "Free",
+        wordCount: clean.length,
+        words: clean.map((word, index) => ({
+          no: Number(word.number) || index + 1,
+          english: word.english,
+          japanese: word.japanese,
+          unit: word.unit,
+        })),
+      },
       wordCount: clean.length,
       removedDuplicateIds,
     });

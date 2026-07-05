@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -382,9 +383,10 @@ export default function AccountPage() {
           <button
             type="button"
             onClick={() => setShowPassword((value) => !value)}
-            className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+            className="rounded-xl border px-3 py-2 text-slate-700 hover:bg-slate-50"
+            aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
           >
-            {showPassword ? "隠す" : "表示"}
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
           </button>
           <button
             onClick={changePassword}

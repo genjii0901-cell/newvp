@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   buildPrintHtml,
   makeQuestion,
@@ -935,6 +936,19 @@ export default function AdminPage() {
     setSaving(false);
     if (!res.ok) { setCreateMsg(result.message ?? "保存失敗"); return; }
     setCreateMsg(`✅ 保存しました（${result.wordCount}語）`);
+    if (result.wordbook?.id) {
+      const createdBook: OfficialBook = {
+        id: String(result.wordbook.id),
+        title,
+        description: desc,
+        coverImage: coverImage || null,
+        requiredPlan: visibility === "teacher" ? "teacher" : visibility === "personal" ? "personal" : visibility === "admin" ? "admin" : "free",
+        visibility,
+        wordCount: words.length,
+        words,
+      };
+      setBooks((current) => [createdBook, ...current.filter((book) => book.id !== createdBook.id)]);
+    }
     await fetchBooks({ includeWords: false });
     setTab("manage");
   }
@@ -1375,14 +1389,15 @@ export default function AdminPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="管理者パスワード"
                 autoFocus
-                className="w-full rounded-xl border px-4 py-3 pr-24 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full rounded-xl border px-4 py-3 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((prev) => !prev)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                aria-label={showPassword ? "パスワードを隠す" : "パスワードを表示"}
               >
-                {showPassword ? "非表示" : "表示"}
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
             </div>
             <input

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatMeaning } from "@/lib/meaning";
+import { primeSpeechVoices, speakText } from "@/lib/speech";
 
 type SourceTab = "official" | "my" | "paste";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
@@ -70,6 +71,7 @@ export default function ListeningPage() {
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
+  const speechRunRef = useRef({ stopped: false, id: 0 });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -84,6 +86,7 @@ export default function ListeningPage() {
   useEffect(() => {
     const saved = window.localStorage.getItem(PASTE_STORAGE_KEY);
     if (saved) setPasteText(saved);
+    primeSpeechVoices();
   }, []);
 
   useEffect(() => {
@@ -177,6 +180,7 @@ export default function ListeningPage() {
   function stopListening() {
     setIsListening(false);
     setShowTestMeaning(true);
+    speechRunRef.current.stopped = true;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -190,22 +194,7 @@ export default function ListeningPage() {
     return () => stopListening();
   }, []);
 
-  function speakText(text: string, lang: "en-US" | "ja-JP", rate = 0.92) {
-    if (!("speechSynthesis" in window)) {
-      setError("このブラウザでは音声読み上げを利用できません。");
-      return false;
-    }
-
-    setError("");
-    const synth = window.speechSynthesis;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = lang;
-    utter.rate = rate;
-    synth.speak(utter);
-    return true;
-  }
-
-  function speakWord(word: Word) {
+  async function speakWord(word: Word, signal = speechRunRef.current) {
     if (!("speechSynthesis" in window)) {
       setError("このブラウザでは音声読み上げを利用できません。");
       return;
@@ -213,60 +202,57 @@ export default function ListeningPage() {
 
     setError("");
     window.speechSynthesis.cancel();
-    const speakEnglish = () => speakText(word.english, "en-US", 0.9);
-    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), "ja-JP", 0.95);
+    const speakEnglish = () => speakText(word.english, { preferred: "english", rate: 0.9, signal });
+    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), { preferred: "japanese", rate: 0.95, signal });
 
     if (listeningVoiceMode === "ja-en") {
-      speakJapanese();
-      for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) speakEnglish();
+      await speakJapanese();
+      for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) await speakEnglish();
       return;
     }
 
-    for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) speakEnglish();
-    if (listeningVoiceMode === "en-ja") speakJapanese();
+    for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) await speakEnglish();
+    if (listeningVoiceMode === "en-ja") await speakJapanese();
   }
 
-  function playSequence(startIndex = listeningIndex) {
+  async function playSequence(startIndex = listeningIndex) {
     if (!words.length) return;
+    const run = { stopped: false, id: speechRunRef.current.id + 1 };
+    speechRunRef.current = run;
     setIsListening(true);
     setListeningIndex(startIndex);
     setShowTestMeaning(studyMode === "listen");
 
-    const nextWord = words[startIndex];
-    if (!nextWord) {
-      stopListening();
-      return;
-    }
-
     if (timerRef.current) window.clearTimeout(timerRef.current);
 
-    const advance = () => {
-      const nextIndex = startIndex + 1;
-      if (nextIndex >= words.length) {
-        stopListening();
-        return;
-      }
-      playSequence(nextIndex);
-    };
+    for (let index = startIndex; index < words.length; index += 1) {
+      if (run.stopped || speechRunRef.current.id !== run.id) return;
+      const nextWord = words[index];
+      setListeningIndex(index);
 
-    if (studyMode === "test") {
-      if (!("speechSynthesis" in window)) {
-        setError("このブラウザでは音声読み上げを利用できません。");
-        return;
-      }
-      window.speechSynthesis.cancel();
-      speakText(nextWord.english, "en-US", 0.9);
-      timerRef.current = window.setTimeout(() => {
+      if (studyMode === "test") {
+        setShowTestMeaning(false);
+        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await new Promise((resolve) => {
+          timerRef.current = window.setTimeout(resolve, Math.max(700, listeningGapMs));
+        });
+        if (run.stopped || speechRunRef.current.id !== run.id) return;
         setShowTestMeaning(true);
-        speakText(nextWord.english, "en-US", 0.9);
-        speakText(formatMeaning(nextWord.japanese, meaningMode), "ja-JP", 0.95);
-        timerRef.current = window.setTimeout(advance, Math.max(900, listeningGapMs + 1400));
-      }, Math.max(900, listeningGapMs));
-      return;
+        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await speakText(formatMeaning(nextWord.japanese, meaningMode), { preferred: "japanese", rate: 0.95, signal: run });
+      } else {
+        setShowTestMeaning(true);
+        await speakWord(nextWord, run);
+      }
+
+      if (index < words.length - 1) {
+        await new Promise((resolve) => {
+          timerRef.current = window.setTimeout(resolve, Math.max(300, listeningGapMs));
+        });
+      }
     }
 
-    speakWord(nextWord);
-    timerRef.current = window.setTimeout(advance, Math.max(800, listeningGapMs + listeningRepeat * 1300));
+    if (!run.stopped && speechRunRef.current.id === run.id) stopListening();
   }
 
   return (

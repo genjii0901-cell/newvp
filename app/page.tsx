@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
 import { getPageCount, planLimits } from "@/lib/plan-limits";
+import { formatMeaning } from "@/lib/meaning";
+import { primeSpeechVoices, speakText } from "@/lib/speech";
 
 type Word = {
   no: number;
@@ -21,6 +24,7 @@ type WordBook = {
   requiredPlan: Plan;
   description?: string;
   coverImage?: string;
+  creator?: string;
   wordCount?: number;
   words: Word[];
 };
@@ -33,6 +37,8 @@ type Role = "user" | "admin";
 type OverlapMode = "common" | "base-only" | "compare-only" | "all";
 type StudyPanelMode = "list" | "listening";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
+type MeaningMode = "all" | "main";
+type ListeningStudyMode = "listen" | "test";
 
 function normalizeAuthErrorMessage(message: string) {
   const lower = message.toLowerCase();
@@ -366,6 +372,7 @@ export default function Home() {
   const [books, setBooks] = useState<WordBook[]>([]);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [bookId, setBookId] = useState("");
+  const [bookSearch, setBookSearch] = useState("");
   const [startNo, setStartNo] = useState(1);
   const [endNo, setEndNo] = useState(50);
   const [count, setCount] = useState(50);
@@ -402,6 +409,9 @@ export default function Home() {
   const [listeningRepeat, setListeningRepeat] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(1200);
   const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
+  const [listeningMeaningMode, setListeningMeaningMode] = useState<MeaningMode>("main");
+  const [listeningStudyMode, setListeningStudyMode] = useState<ListeningStudyMode>("listen");
+  const [showListeningAnswer, setShowListeningAnswer] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [loadingBookWordsId, setLoadingBookWordsId] = useState("");
   const [titleOffset, setTitleOffset] = useState({ x: 0, y: 0 });
@@ -413,11 +423,13 @@ export default function Home() {
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
   const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const listeningTimerRef = useRef<number | null>(null);
+  const listeningRunRef = useRef({ stopped: false, id: 0 });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const savedPaste = window.localStorage.getItem(PASTE_STORAGE_KEY);
     if (savedPaste) setPasteText(savedPaste);
+    primeSpeechVoices();
   }, []);
 
   useEffect(() => {
@@ -577,6 +589,7 @@ export default function Home() {
                   : "Official",
             premium: book.requiredPlan === "personal" || book.requiredPlan === "teacher",
             requiredPlan: normalizePlan(book.requiredPlan),
+            creator: "Vocab Print Pro",
             wordCount: typeof book.wordCount === "number" ? book.wordCount : book.words?.length ?? 0,
             words: (book.words ?? [])
               .filter((word) => word.english && word.japanese)
@@ -634,6 +647,7 @@ export default function Home() {
         level: "自作",
         premium: false,
         requiredPlan: "free" as Plan,
+        creator: user.email ?? "マイ単語帳",
         wordCount: typeof book.wordCount === "number" ? book.wordCount : (book.words ?? []).length,
         words: (book.words ?? []).map((word: any, index: number) => ({
           no: Number(word.no) || index + 1,
@@ -664,6 +678,8 @@ export default function Home() {
   useEffect(() => {
     setListeningIndex(0);
     setIsListening(false);
+    setShowListeningAnswer(true);
+    listeningRunRef.current.stopped = true;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -794,6 +810,16 @@ export default function Home() {
   }, []);
 
   const featuredBooks = useMemo(() => books.slice(0, 6), [books]);
+  const searchableBooks = useMemo(() => {
+    const query = bookSearch.trim().toLowerCase();
+    if (!query) return books;
+    return books.filter((book) =>
+      [book.title, book.description ?? "", book.level, book.creator ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [bookSearch, books]);
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
   const overlapBaseBook = books.find((book) => book.id === overlapBaseBookId) ?? null;
   const overlapCompareBook = books.find((book) => book.id === overlapCompareBookId) ?? null;
@@ -833,6 +859,9 @@ export default function Home() {
   }, [selectedBook, startNo, endNo, count, random]);
 
   const currentListeningWord = outputWords[listeningIndex] ?? null;
+  const currentListeningMeaning = currentListeningWord
+    ? formatMeaning(currentListeningWord.japanese, listeningMeaningMode)
+    : "";
 
   useEffect(() => {
     if (outputWords.length === 0) {
@@ -1264,44 +1293,34 @@ export default function Home() {
     );
   }
 
-  function speakListeningWord(word: Word) {
+  async function speakListeningWord(word: Word, signal = listeningRunRef.current) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const synth = window.speechSynthesis;
-    synth.cancel();
-
-    const speakEnglish = () => {
-      const repeatUtterance = new SpeechSynthesisUtterance(word.english);
-      repeatUtterance.lang = "en-US";
-      repeatUtterance.rate = 0.9;
-      synth.speak(repeatUtterance);
-    };
-
-    const speakJapanese = () => {
-      const japaneseUtterance = new SpeechSynthesisUtterance(word.japanese);
-      japaneseUtterance.lang = "ja-JP";
-      japaneseUtterance.rate = 0.95;
-      synth.speak(japaneseUtterance);
-    };
+    window.speechSynthesis.cancel();
+    const meaning = formatMeaning(word.japanese, listeningMeaningMode);
+    const speakEnglish = () => speakText(word.english, { preferred: "english", rate: 0.9, signal });
+    const speakJapanese = () => speakText(meaning, { preferred: "japanese", rate: 0.95, signal });
 
     if (listeningVoiceMode === "ja-en") {
-      speakJapanese();
+      await speakJapanese();
       for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) {
-        speakEnglish();
+        await speakEnglish();
       }
       return;
     }
 
     for (let i = 0; i < Math.max(1, listeningRepeat); i += 1) {
-      speakEnglish();
+      await speakEnglish();
     }
 
     if (listeningVoiceMode === "en-ja") {
-      speakJapanese();
+      await speakJapanese();
     }
   }
 
   function stopListening() {
     setIsListening(false);
+    setShowListeningAnswer(true);
+    listeningRunRef.current.stopped = true;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -1313,38 +1332,58 @@ export default function Home() {
 
   function playCurrentListeningWord() {
     if (!currentListeningWord) return;
-    speakListeningWord(currentListeningWord);
+    const run = { stopped: false, id: listeningRunRef.current.id + 1 };
+    listeningRunRef.current = run;
+    void speakListeningWord(currentListeningWord, run);
   }
 
-  function playListeningSequence(startIndex = listeningIndex) {
+  async function playListeningSequence(startIndex = listeningIndex) {
     if (!outputWords.length) return;
+    const run = { stopped: false, id: listeningRunRef.current.id + 1 };
+    listeningRunRef.current = run;
     setIsListening(true);
-    setListeningIndex(startIndex);
-
-    const nextWord = outputWords[startIndex];
-    if (!nextWord) {
-      stopListening();
-      return;
-    }
-
-    speakListeningWord(nextWord);
 
     if (listeningTimerRef.current) {
       window.clearTimeout(listeningTimerRef.current);
     }
 
-    listeningTimerRef.current = window.setTimeout(() => {
-      const nextIndex = startIndex + 1;
-      if (nextIndex >= outputWords.length) {
-        stopListening();
-        return;
+    for (let index = startIndex; index < outputWords.length; index += 1) {
+      if (run.stopped || listeningRunRef.current.id !== run.id) return;
+      const nextWord = outputWords[index];
+      setListeningIndex(index);
+
+      if (listeningStudyMode === "test") {
+        setShowListeningAnswer(false);
+        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await new Promise((resolve) => {
+          listeningTimerRef.current = window.setTimeout(resolve, Math.max(700, listeningGapMs));
+        });
+        if (run.stopped || listeningRunRef.current.id !== run.id) return;
+        setShowListeningAnswer(true);
+        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await speakText(formatMeaning(nextWord.japanese, listeningMeaningMode), {
+          preferred: "japanese",
+          rate: 0.95,
+          signal: run,
+        });
+      } else {
+        setShowListeningAnswer(true);
+        await speakListeningWord(nextWord, run);
       }
-      playListeningSequence(nextIndex);
-    }, Math.max(800, listeningGapMs + listeningRepeat * 1300));
+
+      if (index < outputWords.length - 1) {
+        await new Promise((resolve) => {
+          listeningTimerRef.current = window.setTimeout(resolve, Math.max(300, listeningGapMs));
+        });
+      }
+    }
+
+    if (!run.stopped && listeningRunRef.current.id === run.id) stopListening();
   }
 
   useEffect(() => {
     return () => {
+      listeningRunRef.current.stopped = true;
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
       }
@@ -1582,39 +1621,6 @@ export default function Home() {
           </p>
         </div>
 
-        <a
-          href="https://www.vocabprint.com/"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4 block overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-        >
-          <div className="grid gap-0 md:grid-cols-[220px_1fr]">
-            <div className="relative min-h-[160px] bg-slate-100">
-              <img
-                src="https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=900&q=80"
-                alt="Vocab Print Pro link card"
-                className="h-full w-full object-cover"
-              />
-              <div className="absolute left-3 top-3 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-blue-700">
-                公式サイト
-              </div>
-            </div>
-            <div className="flex flex-col justify-center p-5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">Vocab Print Pro</p>
-              <h3 className="mt-2 text-xl font-black text-slate-900">URLをカード型でシェア</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                単語テスト作成ページを、画像つきの見やすいカードとして案内できます。SNSやnoteに貼るときの入口にも使いやすい形です。
-              </p>
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                  https://www.vocabprint.com/
-                </span>
-                <span className="text-sm font-bold text-slate-700">カードを開く</span>
-              </div>
-            </div>
-          </div>
-        </a>
-
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
@@ -1659,6 +1665,9 @@ export default function Home() {
                 <div className="p-4">
                   <h4 className="text-lg font-black text-slate-900">{book.title}</h4>
                   <p className="mt-1 text-sm font-bold text-blue-700">{book.level}</p>
+                  <p className="mt-1 truncate text-xs font-bold text-slate-400">
+                    作成者: {book.creator ?? "Vocab Print Pro"}
+                  </p>
                   <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">
                     {book.description ?? "印刷用の見やすい教材として、すぐ使える単語帳です。"}
                   </p>
@@ -1718,10 +1727,11 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setShowAuthPassword((value) => !value)}
-                  className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  className="rounded-xl border px-3 py-2 text-slate-700 hover:bg-slate-50"
                   disabled={!supabase}
+                  aria-label={showAuthPassword ? "パスワードを隠す" : "パスワードを表示"}
                 >
-                  {showAuthPassword ? "隠す" : "表示"}
+                  {showAuthPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -1803,6 +1813,12 @@ export default function Home() {
             />
 
             <label className="mt-4 block text-sm font-bold">単語帳</label>
+            <input
+              value={bookSearch}
+              onChange={(event) => setBookSearch(event.target.value)}
+              placeholder="単語帳名・説明・作成者で検索"
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            />
             {!booksLoaded ? (
               <div className="mt-1 w-full rounded-xl border px-3 py-3 text-base text-slate-400">読み込み中...</div>
             ) : (
@@ -1811,12 +1827,20 @@ export default function Home() {
                 onChange={(event) => pickBook(event.target.value)}
                 className="mt-1 w-full rounded-xl border px-3 py-3 text-base"
               >
-                {books.map((book) => (
+                {(searchableBooks.some((book) => book.id === bookId)
+                  ? searchableBooks
+                  : selectedBook
+                    ? [selectedBook, ...searchableBooks]
+                    : searchableBooks
+                ).map((book) => (
                   <option key={book.id} value={book.id}>
                     {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
                   </option>
                 ))}
               </select>
+            )}
+            {bookSearch && (
+              <p className="mt-1 text-xs font-bold text-slate-400">{searchableBooks.length}件見つかりました</p>
             )}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -2081,38 +2105,106 @@ export default function Home() {
               <div className="mt-4 space-y-4">
                 <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
                   <div className="overflow-hidden rounded-2xl border bg-slate-50">
-                    <img
-                      src={
-                        currentListeningWord
-                          ? getListeningPlaceholder(currentListeningWord, selectedBook)
-                          : selectedBook
+                    <div className="relative h-56 w-full overflow-hidden">
+                      <img
+                        src={
+                          selectedBook
                             ? getBookCover(selectedBook, 0)
-                            : "https://dummyimage.com/900x540/e2e8f0/334155&text=Listening"
-                      }
-                      alt={currentListeningWord?.english ?? selectedBook?.title ?? "listening"}
-                      className="h-56 w-full object-cover"
-                    />
+                            : "https://dummyimage.com/900x540/e2e8f0/64748b&text=Listening"
+                        }
+                        alt={selectedBook?.title ?? "listening"}
+                        className="h-full w-full object-cover opacity-80"
+                      />
+                      <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-900/50 to-transparent p-5 text-white">
+                        <p className="text-xs font-black tracking-[0.18em] opacity-80">LISTENING</p>
+                        <p className="mt-1 line-clamp-2 text-2xl font-black leading-tight">
+                          {selectedBook?.title ?? "単語帳"}
+                        </p>
+                        <p className="mt-1 truncate text-xs font-bold opacity-80">
+                          作成者: {selectedBook?.creator ?? "Vocab Print Pro"}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                   <div className="rounded-2xl border bg-slate-50 p-4">
                     {currentListeningWord ? (
                       <>
-                        <p className="text-xs font-bold text-slate-500">再生中の単語</p>
-                        <p className="mt-2 text-2xl font-black text-slate-900">{currentListeningWord.english}</p>
-                        <p className="mt-3 text-sm text-slate-600">{currentListeningWord.japanese}</p>
-                        <p className="mt-3 text-xs text-slate-400">
-                          {listeningIndex + 1} / {outputWords.length}
-                        </p>
-                        <p className="mt-2 text-xs font-bold text-blue-700">
-                          {listeningVoiceMode === "en-only"
-                            ? "英語のみで再生"
-                            : listeningVoiceMode === "ja-en"
-                              ? "日本語 → 英語で再生"
-                              : "英語 → 日本語で再生"}
-                        </p>
+                        <div className="flex min-h-[220px] flex-col justify-center rounded-2xl bg-white p-5 shadow-sm">
+                          <p className="text-xs font-black tracking-[0.18em] text-blue-600">
+                            {listeningStudyMode === "test" && !showListeningAnswer ? "QUESTION" : "ANSWER"}
+                          </p>
+                          <p className="mt-3 break-words text-4xl font-black leading-tight text-slate-950">
+                            {currentListeningWord.english}
+                          </p>
+                          <div className="mt-5 min-h-[68px]">
+                            {listeningStudyMode === "test" && !showListeningAnswer ? (
+                              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
+                                意味を思い出してから、少し待つと答えが表示されます。
+                              </p>
+                            ) : (
+                              <p className="line-clamp-3 break-words text-2xl font-black leading-relaxed text-slate-800">
+                                {currentListeningMeaning}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                          <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningIndex + 1} / {outputWords.length}</span>
+                          <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningStudyMode === "test" ? "テスト再生" : "聞き流し"}</span>
+                          <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningMeaningMode === "main" ? "意味: メイン" : "意味: 全部"}</span>
+                        </div>
                       </>
                     ) : (
                       <p className="text-sm text-slate-400">単語を選ぶと聞き流しできます。</p>
                     )}
+                  </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="block text-sm font-bold">学習モード</label>
+                    <div className="mt-1 grid gap-2">
+                      {([
+                        { id: "listen", label: "聞き流し", help: "英語と日本語を順番に確認" },
+                        { id: "test", label: "テスト再生", help: "英語だけ表示してから答えを表示" },
+                      ] as Array<{ id: ListeningStudyMode; label: string; help: string }>).map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => {
+                            setListeningStudyMode(mode.id);
+                            setShowListeningAnswer(mode.id === "listen");
+                          }}
+                          className={`rounded-xl border px-3 py-2 text-left text-sm ${
+                            listeningStudyMode === mode.id ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="block font-black text-slate-900">{mode.label}</span>
+                          <span className="block text-xs text-slate-500">{mode.help}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">意味の表示</label>
+                    <div className="mt-1 grid gap-2">
+                      {([
+                        { id: "main", label: "メインの意味", help: "最初の重要な意味だけ短く表示" },
+                        { id: "all", label: "全部表示", help: "登録された意味をそのまま表示" },
+                      ] as Array<{ id: MeaningMode; label: string; help: string }>).map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => setListeningMeaningMode(mode.id)}
+                          className={`rounded-xl border px-3 py-2 text-left text-sm ${
+                            listeningMeaningMode === mode.id ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <span className="block font-black text-slate-900">{mode.label}</span>
+                          <span className="block text-xs text-slate-500">{mode.help}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -2162,8 +2254,17 @@ export default function Home() {
                     disabled={!currentListeningWord}
                     className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300"
                   >
-                    {isListening ? "ここから再開" : "連続再生"}
+                    {isListening ? "ここから再開" : listeningStudyMode === "test" ? "テスト再生を開始" : "連続再生"}
                   </button>
+                  {listeningStudyMode === "test" && currentListeningWord && (
+                    <button
+                      type="button"
+                      onClick={() => setShowListeningAnswer((current) => !current)}
+                      className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                    >
+                      {showListeningAnswer ? "答えを隠す" : "答えを表示"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={playCurrentListeningWord}
@@ -2223,7 +2324,7 @@ export default function Home() {
                       >
                         <p className="text-xs font-bold text-slate-400">{word.no}</p>
                         <p className="mt-1 font-bold text-slate-900">{word.english}</p>
-                        <p className="mt-1 text-sm text-slate-600 line-clamp-2">{word.japanese}</p>
+                        <p className="mt-1 text-sm text-slate-600 line-clamp-2">{formatMeaning(word.japanese, listeningMeaningMode)}</p>
                       </button>
                     ))}
                   </div>
