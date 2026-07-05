@@ -23,9 +23,8 @@ async function loadWordbooksForUser(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: books, error } = await supabase
     .from("wordbooks")
-    .select("id,title,description,created_at")
-    .eq("owner_id", userId)
-    .order("created_at", { ascending: false });
+    .select("id,title,description")
+    .eq("owner_id", userId);
 
   if (error) throw error;
 
@@ -38,9 +37,9 @@ async function loadWordbooksForUser(userId: string) {
   if (bookIds.length > 0) {
     const { data: words, error: wordsError } = await supabase
       .from("words")
-      .select("wordbook_id,number,english,japanese,unit,created_at")
+      .select("wordbook_id,number,english,japanese,unit")
       .in("wordbook_id", bookIds)
-      .order("created_at", { ascending: true });
+      .order("number", { ascending: true });
 
     if (wordsError) throw wordsError;
 
@@ -68,7 +67,7 @@ async function loadWordbooksForUser(userId: string) {
       requiredPlan: "free" as const,
       level: "自作",
     };
-  });
+  }).sort((a, b) => a.title.localeCompare(b.title, "ja"));
 }
 
 export async function GET(request: Request) {

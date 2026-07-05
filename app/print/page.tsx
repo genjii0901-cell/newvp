@@ -89,6 +89,263 @@ const printJobCss = `
     transform-origin: top left;
   }
 
+  .paper-preview #print-root {
+    display: block;
+  }
+
+  .paper-preview .print-page {
+    width: 192mm;
+    height: 280mm;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+    color: #111;
+    background: white;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 1mm;
+    margin: 9mm 9mm 8mm;
+    border: 1px solid #e2e8f0;
+  }
+
+  .paper-preview .print-page-header {
+    position: relative;
+    text-align: center;
+    margin-bottom: 4mm;
+    flex: 0 0 auto;
+  }
+
+  .paper-preview .print-page-header h1 {
+    margin: 0;
+    font-size: 12pt;
+    font-weight: 900;
+    letter-spacing: .04em;
+  }
+
+  .paper-preview .print-date {
+    position: absolute;
+    right: 0;
+    top: 0;
+    font-size: 7.5pt;
+    color: #333;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .paper-preview .print-note {
+    margin: -1mm 0 3mm;
+    text-align: center;
+    font-size: 8.5pt;
+    color: #7c2d12;
+  }
+
+  .paper-preview .print-watermark {
+    position: absolute;
+    inset: -20% -20%;
+    z-index: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    transform: rotate(-30deg);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .paper-preview .print-watermark .wm-row {
+    white-space: nowrap;
+    font-size: 13pt;
+    font-weight: 800;
+    letter-spacing: .18em;
+    color: rgba(37, 99, 235, .08);
+  }
+
+  .paper-preview .print-page-header,
+  .paper-preview .print-note,
+  .paper-preview .print-grid,
+  .paper-preview .print-info-box,
+  .paper-preview footer {
+    position: relative;
+    z-index: 1;
+  }
+
+  .paper-preview .print-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 6.5mm;
+    align-items: start;
+    flex: 1 1 0;
+    min-height: 0;
+  }
+
+  .paper-preview .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 8.4pt;
+    line-height: 1.2;
+  }
+
+  .paper-preview .print-table th,
+  .paper-preview .print-table td {
+    border: .65pt solid #111;
+    padding: 0;
+    height: 9.5mm;
+    max-height: 9.5mm;
+    overflow: hidden;
+    vertical-align: middle;
+  }
+
+  .paper-preview .print-table th {
+    height: 8.5mm;
+    text-align: center;
+    font-weight: 800;
+    background: #fff;
+  }
+
+  .paper-preview .has-info .print-table {
+    font-size: 7.8pt;
+  }
+
+  .paper-preview .has-info .print-table td {
+    height: 9.0mm;
+    max-height: 9.0mm;
+  }
+
+  .paper-preview .has-info .print-table th {
+    height: 8.0mm;
+    max-height: 8.0mm;
+  }
+
+  .paper-preview .p-no {
+    width: 10%;
+    text-align: center;
+  }
+
+  .paper-preview .p-word {
+    width: 26%;
+  }
+
+  .paper-preview .p-meaning {
+    width: 64%;
+  }
+
+  .paper-preview .p-fit {
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: .8mm 1.05mm;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .paper-preview .p-fit.center {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .paper-preview .p-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .paper-preview .p-text.one {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .paper-preview .p-text.two {
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .paper-preview .p-blank {
+    display: inline-block;
+    width: 100%;
+    min-width: 22mm;
+    border-bottom: 1.2pt solid #111;
+    transform: translateY(-.5mm);
+  }
+
+  .paper-preview .p-red {
+    color: #dc2626;
+    font-weight: 800;
+  }
+
+  .paper-preview .print-info-box {
+    flex: 0 0 auto;
+    margin-top: 8mm;
+    background: white;
+  }
+
+  .paper-preview .print-info-fields {
+    display: flex;
+    gap: 3mm;
+    align-items: flex-end;
+  }
+
+  .paper-preview .pif {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5mm;
+    border-bottom: .75pt solid #111;
+    padding-bottom: 1mm;
+    padding-top: .5mm;
+  }
+
+  .paper-preview .pif-sm {
+    flex: 0 0 26mm;
+  }
+
+  .paper-preview .pif-lg {
+    flex: 1 1 auto;
+  }
+
+  .paper-preview .pif-label {
+    flex: 0 0 auto;
+    font-size: 6.8pt;
+    font-weight: 800;
+    white-space: nowrap;
+    color: #333;
+  }
+
+  .paper-preview .pif-value {
+    flex: 1 1 auto;
+    font-size: 8.2pt;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .paper-preview footer {
+    flex: 0 0 auto;
+    margin-top: 9mm;
+    height: 6mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    align-items: end;
+    font-size: 7.5pt;
+    color: #555;
+    background: white;
+  }
+
+  .paper-preview footer span:nth-child(2) {
+    text-align: center;
+  }
+
+  .paper-preview footer span:nth-child(3) {
+    text-align: right;
+    word-break: break-word;
+  }
+
   @media print {
     body {
       background: white;

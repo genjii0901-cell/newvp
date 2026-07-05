@@ -8,6 +8,7 @@ import { formatMeaning } from "@/lib/meaning";
 type SourceTab = "official" | "my" | "paste";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
 type MeaningMode = "all" | "main";
+type StudyMode = "listen" | "test";
 type Word = { no: number; english: string; japanese: string; unit?: string | null };
 type Wordbook = {
   id: string;
@@ -37,10 +38,8 @@ function parsePastedWords(text: string) {
     .filter((word) => word.english && word.japanese);
 }
 
-function getListeningPlaceholder(word: Word | null, title: string) {
-  return `https://dummyimage.com/900x540/e2e8f0/334155&text=${encodeURIComponent(
-    word?.english || title || "Listening",
-  )}`;
+function getListeningPlaceholder(title: string) {
+  return `https://dummyimage.com/900x540/e2e8f0/64748b&text=${encodeURIComponent(title || "Vocab Print Pro")}`;
 }
 
 function modeLabel(mode: ListeningVoiceMode) {
@@ -66,6 +65,8 @@ export default function ListeningPage() {
   const [listeningGapMs, setListeningGapMs] = useState(1200);
   const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
+  const [studyMode, setStudyMode] = useState<StudyMode>("listen");
+  const [showTestMeaning, setShowTestMeaning] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
@@ -175,6 +176,7 @@ export default function ListeningPage() {
 
   function stopListening() {
     setIsListening(false);
+    setShowTestMeaning(true);
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
@@ -188,6 +190,21 @@ export default function ListeningPage() {
     return () => stopListening();
   }, []);
 
+  function speakText(text: string, lang: "en-US" | "ja-JP", rate = 0.92) {
+    if (!("speechSynthesis" in window)) {
+      setError("このブラウザでは音声読み上げを利用できません。");
+      return false;
+    }
+
+    setError("");
+    const synth = window.speechSynthesis;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = lang;
+    utter.rate = rate;
+    synth.speak(utter);
+    return true;
+  }
+
   function speakWord(word: Word) {
     if (!("speechSynthesis" in window)) {
       setError("このブラウザでは音声読み上げを利用できません。");
@@ -195,22 +212,9 @@ export default function ListeningPage() {
     }
 
     setError("");
-    const synth = window.speechSynthesis;
-    synth.cancel();
-
-    const speakEnglish = () => {
-      const utter = new SpeechSynthesisUtterance(word.english);
-      utter.lang = "en-US";
-      utter.rate = 0.9;
-      synth.speak(utter);
-    };
-
-    const speakJapanese = () => {
-      const utter = new SpeechSynthesisUtterance(formatMeaning(word.japanese, meaningMode));
-      utter.lang = "ja-JP";
-      utter.rate = 0.95;
-      synth.speak(utter);
-    };
+    window.speechSynthesis.cancel();
+    const speakEnglish = () => speakText(word.english, "en-US", 0.9);
+    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), "ja-JP", 0.95);
 
     if (listeningVoiceMode === "ja-en") {
       speakJapanese();
@@ -226,6 +230,7 @@ export default function ListeningPage() {
     if (!words.length) return;
     setIsListening(true);
     setListeningIndex(startIndex);
+    setShowTestMeaning(studyMode === "listen");
 
     const nextWord = words[startIndex];
     if (!nextWord) {
@@ -233,17 +238,35 @@ export default function ListeningPage() {
       return;
     }
 
-    speakWord(nextWord);
-
     if (timerRef.current) window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => {
+
+    const advance = () => {
       const nextIndex = startIndex + 1;
       if (nextIndex >= words.length) {
         stopListening();
         return;
       }
       playSequence(nextIndex);
-    }, Math.max(800, listeningGapMs + listeningRepeat * 1300));
+    };
+
+    if (studyMode === "test") {
+      if (!("speechSynthesis" in window)) {
+        setError("このブラウザでは音声読み上げを利用できません。");
+        return;
+      }
+      window.speechSynthesis.cancel();
+      speakText(nextWord.english, "en-US", 0.9);
+      timerRef.current = window.setTimeout(() => {
+        setShowTestMeaning(true);
+        speakText(nextWord.english, "en-US", 0.9);
+        speakText(formatMeaning(nextWord.japanese, meaningMode), "ja-JP", 0.95);
+        timerRef.current = window.setTimeout(advance, Math.max(900, listeningGapMs + 1400));
+      }, Math.max(900, listeningGapMs));
+      return;
+    }
+
+    speakWord(nextWord);
+    timerRef.current = window.setTimeout(advance, Math.max(800, listeningGapMs + listeningRepeat * 1300));
   }
 
   return (
@@ -367,6 +390,31 @@ export default function ListeningPage() {
               <p className="text-xs font-bold tracking-wide text-slate-500">読み上げ設定</p>
               <div className="mt-3 grid gap-3">
                 <div className="grid gap-2">
+                  <label className="text-sm font-bold">学習モード</label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      { id: "listen", title: "聞き流し", help: "英語と日本語をテンポよく確認します。" },
+                      { id: "test", title: "テスト再生", help: "英語だけ出して考える時間を作り、その後に答えを表示します。" },
+                    ] as Array<{ id: StudyMode; title: string; help: string }>).map((mode) => (
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => {
+                          setStudyMode(mode.id);
+                          setShowTestMeaning(mode.id === "listen");
+                        }}
+                        className={`rounded-2xl border px-4 py-3 text-left ${
+                          studyMode === mode.id ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <p className="font-bold text-slate-900">{mode.title}</p>
+                        <p className="mt-1 text-xs text-slate-500">{mode.help}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid gap-2">
                   <label className="text-sm font-bold">読み上げパターン</label>
                   <div className="grid gap-2">
                     {(["en-ja", "en-only", "ja-en"] as ListeningVoiceMode[]).map((mode) => (
@@ -446,11 +494,20 @@ export default function ListeningPage() {
         <section className="rounded-3xl border bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-[1.15fr_0.85fr]">
             <div className="overflow-hidden rounded-2xl border bg-slate-50">
-              <img
-                src={getListeningPlaceholder(currentWord, activeBook?.title ?? "Listening")}
-                alt={currentWord?.english ?? activeBook?.title ?? "Listening"}
-                className="h-64 w-full object-cover"
-              />
+              <div className="relative h-52 w-full overflow-hidden sm:h-64">
+                <img
+                  src={getListeningPlaceholder(activeBook?.title ?? "Listening")}
+                  alt={activeBook?.title ?? "Listening"}
+                  className="h-full w-full object-cover opacity-70"
+                />
+                <div className="absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-slate-900/35 to-transparent p-5 text-white">
+                  <p className="text-xs font-black tracking-[0.18em] opacity-80">LISTENING</p>
+                  <p className="mt-1 line-clamp-2 text-2xl font-black leading-tight">
+                    {activeBook?.title ?? "単語帳を選択"}
+                  </p>
+                  {currentWord?.unit ? <p className="mt-1 text-xs font-bold opacity-80">{currentWord.unit}</p> : null}
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl border bg-slate-50 p-4">
@@ -459,11 +516,29 @@ export default function ListeningPage() {
 
               {currentWord ? (
                 <>
-                  <p className="mt-4 text-2xl font-black text-slate-900">{currentWord.english}</p>
-                  <p className="mt-3 text-lg font-bold text-slate-700">{displayCurrentMeaning}</p>
+                  <div className="mt-4 flex min-h-[220px] flex-col justify-center rounded-2xl bg-white p-5 shadow-sm">
+                    <p className="text-xs font-black tracking-[0.18em] text-blue-600">
+                      {studyMode === "test" && !showTestMeaning ? "QUESTION" : "ANSWER"}
+                    </p>
+                    <p className="mt-3 break-words text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
+                      {currentWord.english}
+                    </p>
+                    <div className="mt-5 min-h-[72px]">
+                      {studyMode === "test" && !showTestMeaning ? (
+                        <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
+                          意味を思い出してから、少し待つと答えが表示されます。
+                        </p>
+                      ) : (
+                        <p className="line-clamp-3 break-words text-2xl font-black leading-relaxed text-slate-800">
+                          {displayCurrentMeaning}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{listeningIndex + 1} / {words.length}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">範囲 {safeStart} - {safeEnd}</span>
+                    <span className="rounded-full bg-white px-3 py-1 font-bold">{studyMode === "test" ? "テスト再生" : "聞き流し"}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{modeLabel(listeningVoiceMode)}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{meaningMode === "main" ? "意味: メイン" : "意味: 全部"}</span>
                   </div>
@@ -480,8 +555,16 @@ export default function ListeningPage() {
               disabled={!currentWord}
               className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-300"
             >
-              {isListening ? "この位置から再開" : "連続再生"}
+              {isListening ? "この位置から再開" : studyMode === "test" ? "テスト再生を開始" : "連続再生"}
             </button>
+            {studyMode === "test" && currentWord && (
+              <button
+                onClick={() => setShowTestMeaning((current) => !current)}
+                className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700"
+              >
+                {showTestMeaning ? "答えを隠す" : "答えを表示"}
+              </button>
+            )}
             <button
               onClick={() => currentWord && speakWord(currentWord)}
               disabled={!currentWord}

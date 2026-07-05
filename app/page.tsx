@@ -1142,27 +1142,45 @@ export default function Home() {
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+    const printPageHtml = `${copyGuardStyle}${copyGuardScript}<div id="print-root">${html}</div>`;
+    const usePrintPage =
+      typeof window !== "undefined" &&
+      (window.matchMedia("(max-width: 767px)").matches ||
+        /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent));
 
-    // 隠しiframeで印刷ダイアログを直接開く（新しいタブを開かない）
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
-    document.body.appendChild(iframe);
-    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(fullDoc);
-      iframeDoc.close();
-      iframe.contentWindow?.focus();
-      setTimeout(() => {
-        try { iframe.contentWindow?.print(); } catch { /* ignore */ }
-        setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
-      }, 400);
+    if (usePrintPage) {
+      window.sessionStorage.setItem(
+        "vpp-print-job",
+        JSON.stringify({
+          html: printPageHtml,
+          title: fullTitle,
+          sourceLabel,
+          createdAt: now.toISOString(),
+        }),
+      );
+      setPdfMessage("印刷用ページを開きます。表示後に印刷ダイアログを開けます。");
     } else {
-      iframe.remove();
-    }
+      // 隠しiframeで印刷ダイアログを直接開く（新しいタブを開かない）
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("aria-hidden", "true");
+      iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
+      document.body.appendChild(iframe);
+      const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
+      if (iframeDoc) {
+        iframeDoc.open();
+        iframeDoc.write(fullDoc);
+        iframeDoc.close();
+        iframe.contentWindow?.focus();
+        setTimeout(() => {
+          try { iframe.contentWindow?.print(); } catch { /* ignore */ }
+          setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
+        }, 400);
+      } else {
+        iframe.remove();
+      }
 
-    setPdfMessage("印刷ダイアログが開きます。");
+      setPdfMessage("印刷ダイアログが開きます。");
+    }
 
     setHistory([
       `${formatPrintDate(now)}・${sourceLabel} / ${type} / ${printWordsList.length}語`,
@@ -1171,6 +1189,10 @@ export default function Home() {
 
     recordLocalUsage(user.id, plan);
     await savePdfHistory();
+
+    if (usePrintPage) {
+      window.location.href = "/print";
+    }
   }
 
   async function printPdf() {
@@ -2577,12 +2599,12 @@ export default function Home() {
 
         return (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+            className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-2 sm:items-center sm:p-4"
             onMouseLeave={() => { if (dragging) setDragging(null); }}
           >
-            <div className="flex max-h-[95vh] overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:flex-row">
               {/* A4プレビュー */}
-              <div className="flex flex-col">
+              <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b px-5 py-4">
                   <h2 className="text-lg font-black">印刷プレビュー</h2>
                   <p className="mt-0.5 text-xs text-slate-400">
@@ -2652,7 +2674,7 @@ export default function Home() {
               </div>
 
               {/* コントロールパネル */}
-              <div className="flex w-56 flex-col border-l">
+              <div className="flex w-full flex-col border-t md:w-56 md:border-l md:border-t-0">
                 <div className="flex-1 space-y-4 overflow-auto p-5 text-xs">
                   <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
                     <p className="mb-1 font-bold text-blue-700">タイトル</p>
@@ -2685,7 +2707,7 @@ export default function Home() {
                   </button>
                 </div>
 
-                <div className="space-y-3 border-t p-5">
+                <div className="space-y-3 border-t bg-white p-5">
                   <button
                     type="button"
                     onClick={() => { setShowPreview(false); void printPdf(); }}
