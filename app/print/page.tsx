@@ -84,8 +84,13 @@ const printJobCss = `
   }
 
   .paper-preview {
-    min-width: 920px;
+    width: max-content;
+    min-width: 0;
     padding: 12px;
+    transform-origin: top left;
+  }
+
+  .paper-preview-shell {
     transform-origin: top left;
   }
 
@@ -347,12 +352,16 @@ const printJobCss = `
   }
 
   @media print {
+    html,
     body {
+      width: 210mm;
+      min-height: 297mm;
       background: white;
     }
 
     .sheet {
       max-width: none;
+      margin: 0;
       padding: 0;
     }
 
@@ -367,14 +376,40 @@ const printJobCss = `
     }
 
     .paper-preview {
+      width: auto;
       min-width: 0;
       padding: 0;
+      transform: none !important;
+    }
+
+    .paper-preview-shell {
+      width: auto !important;
+      height: auto !important;
+      transform: none !important;
+    }
+
+    .paper-preview .print-page {
+      width: 100% !important;
+      height: 280mm !important;
+      margin: 0 !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      page-break-after: always !important;
     }
   }
 `;
 
 export default function PrintPage() {
   const [job, setJob] = useState<PrintJob | null>(null);
+  const [viewportWidth, setViewportWidth] = useState(1100);
+
+  function openPrintDialog() {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        window.print();
+      });
+    });
+  }
 
   useEffect(() => {
     const raw = sessionStorage.getItem("vpp-print-job");
@@ -384,12 +419,24 @@ export default function PrintPage() {
       const parsed = JSON.parse(raw) as PrintJob;
       if (typeof parsed?.html === "string") {
         setJob(parsed);
-        window.setTimeout(() => window.print(), 400);
+        window.setTimeout(openPrintDialog, 900);
       }
     } catch {
       // ignore parse errors
     }
   }, []);
+
+  useEffect(() => {
+    const update = () => setViewportWidth(window.innerWidth);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  const previewNaturalWidth = 820;
+  const previewNaturalHeight = 1160;
+  const previewScale = Math.min(1, Math.max(0.42, (viewportWidth - 32) / previewNaturalWidth));
+  const previewPageCount = Math.max(1, job?.html.match(/class=["']print-page/g)?.length ?? 1);
 
   return (
     <main className="sheet">
@@ -403,7 +450,7 @@ export default function PrintPage() {
           </p>
         </div>
         <div className="actions">
-          <button type="button" onClick={() => window.print()} className="btn primary">
+          <button type="button" onClick={openPrintDialog} className="btn primary">
             印刷ダイアログを開く
           </button>
           <Link href="/" className="btn">
@@ -422,13 +469,25 @@ export default function PrintPage() {
       ) : (
         <div className="paper-wrap">
           <div
-            className="paper-preview"
-            onCopy={(e) => e.preventDefault()}
-            onCut={(e) => e.preventDefault()}
-            onContextMenu={(e) => e.preventDefault()}
-            style={{ WebkitUserSelect: "none", userSelect: "none" }}
-            dangerouslySetInnerHTML={{ __html: job.html }}
-          />
+            className="paper-preview-shell"
+            style={{
+              width: previewNaturalWidth * previewScale,
+              minHeight: previewNaturalHeight * previewScale * previewPageCount,
+            }}
+          >
+            <div
+              className="paper-preview"
+              onCopy={(e) => e.preventDefault()}
+              onCut={(e) => e.preventDefault()}
+              onContextMenu={(e) => e.preventDefault()}
+              style={{
+                WebkitUserSelect: "none",
+                userSelect: "none",
+                transform: `scale(${previewScale})`,
+              }}
+              dangerouslySetInnerHTML={{ __html: job.html }}
+            />
+          </div>
         </div>
       )}
     </main>
