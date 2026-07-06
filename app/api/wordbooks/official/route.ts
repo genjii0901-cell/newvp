@@ -5,10 +5,16 @@ import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
 
 export const revalidate = 300;
 
-function fallbackResponse(message?: string, filterIds?: string[]) {
-  const filteredWordbooks = fallbackOfficialWordbooksForApi().filter(
-    (book) => !filterIds || filterIds.length === 0 || filterIds.includes(String(book.id))
-  );
+function fallbackResponse(message?: string, filterIds?: string[], includeWords = false) {
+  const filteredWordbooks = fallbackOfficialWordbooksForApi()
+    .filter((book) => !filterIds || filterIds.length === 0 || filterIds.includes(String(book.id)))
+    .map((book) => ({
+      ...book,
+      wordCount: book.words.length,
+      unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
+      firstWord: book.words[0]?.english ?? null,
+      words: includeWords ? book.words : [],
+    }));
   return NextResponse.json({
     ok: true,
     wordbooks: filteredWordbooks,
@@ -23,7 +29,7 @@ export async function GET(request: Request) {
   const filterIds = id ? [id] : undefined;
 
   if (!isSupabaseServerConfigured()) {
-    return fallbackResponse(undefined, filterIds);
+    return fallbackResponse(undefined, filterIds, includeWords);
   }
 
   try {
@@ -32,7 +38,7 @@ export async function GET(request: Request) {
       filterIds,
     });
     if (!result.ok || result.wordbooks.length === 0) {
-      return fallbackResponse(result.error ?? undefined, filterIds);
+      return fallbackResponse(result.error ?? undefined, filterIds, includeWords);
     }
 
     return NextResponse.json({
@@ -40,6 +46,6 @@ export async function GET(request: Request) {
       wordbooks: result.wordbooks,
     }, { headers: { "Cache-Control": includeWords ? "public, s-maxage=120, stale-while-revalidate=3600" : "public, s-maxage=300, stale-while-revalidate=86400" } });
   } catch (error) {
-    return fallbackResponse(error instanceof Error ? error.message : "Unknown error", filterIds);
+    return fallbackResponse(error instanceof Error ? error.message : "Unknown error", filterIds, includeWords);
   }
 }

@@ -13,6 +13,8 @@ type OfficialWordbook = {
   coverImage?: string | null;
   requiredPlan: Plan;
   wordCount?: number;
+  unitCount?: number;
+  firstWord?: string | null;
   creator?: string;
   words?: Word[];
 };
@@ -347,8 +349,12 @@ export default function WordbooksPage() {
             <div className="mt-5 grid gap-2.5 sm:mt-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredOfficialBooks.map((book) => {
                 const words = Array.isArray(book.words) ? book.words : [];
-                const units = new Set(words.map((word) => word.unit).filter(Boolean)).size;
+                const units =
+                  typeof book.unitCount === "number"
+                    ? book.unitCount
+                    : new Set(words.map((word) => word.unit).filter(Boolean)).size;
                 const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
+                const firstWord = book.firstWord ?? words[0]?.english ?? "-";
                 return (
                   <article key={book.id} className="flex min-h-[118px] overflow-hidden rounded-2xl border bg-white shadow-sm sm:block sm:min-h-0 sm:rounded-3xl">
                     {book.coverImage ? (
@@ -370,7 +376,7 @@ export default function WordbooksPage() {
                       </p>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         <span>{units}ユニット</span>
-                        <span>最初: {words[0]?.english ?? "-"}</span>
+                        <span>最初: {firstWord}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2 sm:mt-5">
                         <Link

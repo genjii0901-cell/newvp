@@ -34,6 +34,8 @@ export type LiveWordbook = {
   visibility: Visibility;
   level: string;
   wordCount: number;
+  unitCount: number;
+  firstWord: string | null;
   words: Array<{ no: number; english: string; japanese: string; unit: string | null }>;
 };
 
@@ -130,6 +132,9 @@ export async function loadOfficialWordbooks(options?: {
       .map((book) => ({
         ...book,
         wordCount: book.words.length,
+        unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
+        firstWord: book.words[0]?.english ?? null,
+        words: includeWords ? book.words : [],
         visibility: book.visibility,
       }));
     return {
@@ -166,11 +171,13 @@ export async function loadOfficialWordbooks(options?: {
     // 打ち切られ、各単語帳の語数が誤って配分される（合計が常に1000になる）。
     // range でページングして全行を取得する。
     const PAGE = 1000;
-    const selectVariants = [
-      "wordbook_id,number,english,japanese,unit",
-      "wordbook_id,number,english,japanese",
-      "wordbook_id,english,japanese",
-    ];
+    const selectVariants = includeWords
+      ? [
+          "wordbook_id,number,english,japanese,unit",
+          "wordbook_id,number,english,japanese",
+          "wordbook_id,english,japanese",
+        ]
+      : ["wordbook_id,number,english,unit", "wordbook_id,number,english", "wordbook_id"];
 
     for (const select of selectVariants) {
       const acc: WordRow[] = [];
@@ -216,6 +223,7 @@ export async function loadOfficialWordbooks(options?: {
   const liveBooks: LiveWordbook[] = visibleRows.map((row) => {
     const embeddedMeta = parseEmbeddedWordbookMeta(row.description);
     const visibility = normalizeVisibility(embeddedMeta.visibility ?? row.visibility);
+    const bookWords = wordsByBookId.get(String(row.id)) ?? [];
     return {
       id: String(row.id),
       title: row.title,
@@ -224,8 +232,10 @@ export async function loadOfficialWordbooks(options?: {
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
-      wordCount: (wordsByBookId.get(String(row.id)) ?? []).length,
-      words: includeWords ? wordsByBookId.get(String(row.id)) ?? [] : [],
+      wordCount: bookWords.length,
+      unitCount: new Set(bookWords.map((word) => word.unit).filter(Boolean)).size,
+      firstWord: bookWords.find((word) => word.english)?.english ?? null,
+      words: includeWords ? bookWords : [],
     };
   });
 
@@ -246,6 +256,9 @@ export async function loadOfficialWordbooks(options?: {
             .map((book) => ({
               ...book,
               wordCount: book.words.length,
+              unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
+              firstWord: book.words[0]?.english ?? null,
+              words: includeWords ? book.words : [],
               visibility: book.visibility,
             }))
         )
