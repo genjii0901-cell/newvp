@@ -29,7 +29,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/legal/privacy",
     "/legal/tokushoho",
   ];
-  return paths.map((path) => ({
+  const basePages = paths.map((path) => ({
     url: `${siteUrl}${path}`,
     lastModified: now,
     changeFrequency: "weekly",
