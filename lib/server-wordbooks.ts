@@ -25,6 +25,11 @@ type WordRow = {
   unit?: string | null;
 };
 
+type WordStats = {
+  count: number;
+  firstWord: string | null;
+};
+
 export type LiveWordbook = {
   id: string;
   title: string;
@@ -166,7 +171,27 @@ export async function loadOfficialWordbooks(options?: {
   const ids = visibleRows.map((row) => row.id);
 
   let words: WordRow[] = [];
-  if (ids.length > 0) {
+  const wordStatsByBookId = new Map<string, WordStats>();
+  if (ids.length > 0 && !includeWords) {
+    const stats = await Promise.all(
+      ids.map(async (id) => {
+        const [{ count }, firstResult] = await Promise.all([
+          supabase
+            .from("words")
+            .select("wordbook_id", { count: "exact", head: true })
+            .eq("wordbook_id", id),
+          supabase.from("words").select("english").eq("wordbook_id", id).limit(1),
+        ]);
+        const firstRows = (firstResult.data as unknown as Array<{ english?: string | null }> | null) ?? [];
+        return [String(id), { count: count ?? 0, firstWord: firstRows[0]?.english ?? null }] as const;
+      })
+    );
+    for (const [id, statsForBook] of stats) {
+      wordStatsByBookId.set(id, statsForBook);
+    }
+  }
+
+  if (ids.length > 0 && includeWords) {
     // Supabase/PostgREST は1リクエスト最大1000行。全単語帳の合計語数が1000を超えると
     // 打ち切られ、各単語帳の語数が誤って配分される（合計が常に1000になる）。
     // range でページングして全行を取得する。
@@ -224,6 +249,7 @@ export async function loadOfficialWordbooks(options?: {
     const embeddedMeta = parseEmbeddedWordbookMeta(row.description);
     const visibility = normalizeVisibility(embeddedMeta.visibility ?? row.visibility);
     const bookWords = wordsByBookId.get(String(row.id)) ?? [];
+    const wordStats = wordStatsByBookId.get(String(row.id));
     return {
       id: String(row.id),
       title: row.title,
@@ -232,9 +258,9 @@ export async function loadOfficialWordbooks(options?: {
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
-      wordCount: bookWords.length,
+      wordCount: wordStats?.count ?? bookWords.length,
       unitCount: new Set(bookWords.map((word) => word.unit).filter(Boolean)).size,
-      firstWord: bookWords.find((word) => word.english)?.english ?? null,
+      firstWord: wordStats?.firstWord ?? bookWords.find((word) => word.english)?.english ?? null,
       words: includeWords ? bookWords : [],
     };
   });

@@ -375,7 +375,7 @@ export default function WordbooksPage() {
                         {book.description || "公式単語帳です。"}
                       </p>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
-                        <span>{units}ユニット</span>
+                        {units > 0 ? <span>{units}ユニット</span> : null}
                         <span>最初: {firstWord}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2 sm:mt-5">
