@@ -215,14 +215,15 @@ function buildPrintHtml({
 
 const detailPreviewCss = `
   body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; }
-  .preview-stage { width: 820px; min-height: 1120px; padding: 14px; box-sizing:border-box; transform-origin: top left; transform:scale(.72); }
-  @media (max-width: 699px) { .preview-stage { transform:scale(.43); min-height: 1160px; } }
+  .preview-stage { width: 794px; min-height: 1123px; box-sizing:border-box; transform-origin: top left; transform:scale(.72); }
+  @media (max-width: 699px) { .preview-stage { transform:scale(.43); } }
   #print-root { display:block; }
   .print-page {
     width:192mm; height:280mm; box-sizing:border-box; position:relative; overflow:hidden;
     font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white; display:flex; flex-direction:column;
-    padding-bottom:1mm; margin:0 0 12mm; border:1px solid #e2e8f0;
+    padding-bottom:1mm; margin:9mm 9mm 8mm; border:1px solid #e2e8f0;
   }
+  .print-page:last-child { page-break-after:auto; break-after:auto; }
   .print-page-header { position:relative; text-align:center; margin-bottom:4mm; flex:0 0 auto; }
   .print-page-header h1 { margin:0; font-size:12pt; font-weight:900; letter-spacing:.04em; }
   .print-date { position:absolute; right:0; top:0; font-size:7.5pt; color:#333; font-weight:600; line-height:1.2; }
