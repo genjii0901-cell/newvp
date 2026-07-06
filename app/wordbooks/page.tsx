@@ -356,38 +356,38 @@ export default function WordbooksPage() {
                 const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
                 const firstWord = book.firstWord ?? words[0]?.english ?? "-";
                 return (
-                  <article key={book.id} className="flex min-h-[118px] overflow-hidden rounded-2xl border bg-white shadow-sm sm:block sm:min-h-0 sm:rounded-3xl">
+                  <article key={book.id} className="flex min-h-[104px] overflow-hidden rounded-2xl border bg-white shadow-sm sm:block sm:min-h-0 sm:rounded-3xl">
                     {book.coverImage ? (
-                      <img src={book.coverImage} alt={book.title} className="h-auto w-24 flex-shrink-0 object-cover sm:h-40 sm:w-full" />
+                      <img src={book.coverImage} alt={book.title} loading="lazy" className="h-auto w-20 flex-shrink-0 object-cover sm:h-40 sm:w-full" />
                     ) : null}
-                    <div className="min-w-0 flex-1 p-3 sm:p-5">
+                    <div className="min-w-0 flex-1 p-2.5 sm:p-5">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 sm:px-3 sm:text-xs">
                           {planLabel(book.requiredPlan)}
                         </span>
                         <span className="text-xs text-slate-400">{wordCount}語</span>
                       </div>
-                      <h2 className="mt-2 line-clamp-2 text-base font-black leading-snug text-slate-900 sm:mt-3 sm:text-xl">{book.title}</h2>
+                      <h2 className="mt-1.5 line-clamp-2 text-sm font-black leading-snug text-slate-900 sm:mt-3 sm:text-xl">{book.title}</h2>
                       <p className="mt-1 truncate text-xs font-bold text-slate-400">
                         作成者: {book.creator ?? "Vocab Print Pro"}
                       </p>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:line-clamp-3 sm:text-sm">
+                      <p className="mt-1 hidden line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:line-clamp-3 sm:text-sm">
                         {book.description || "公式単語帳です。"}
                       </p>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         {units > 0 ? <span>{units}ユニット</span> : null}
                         <span>最初: {firstWord}</span>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2 sm:mt-5">
+                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
                         <Link
                           href={`/wordbooks/${book.id}`}
-                          className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 sm:px-4 sm:text-sm"
+                          className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
                           単語帳を見る
                         </Link>
                         <Link
                           href={`/listening?source=official&id=${encodeURIComponent(book.id)}`}
-                          className="rounded-xl border px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:px-4 sm:text-sm"
+                          className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
                           聞き流し
                         </Link>

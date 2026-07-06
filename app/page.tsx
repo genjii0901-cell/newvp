@@ -1649,6 +1649,7 @@ export default function Home() {
                   <img
                     src={getBookCover(book, index)}
                     alt={book.title}
+                    loading="lazy"
                     className="h-full w-full object-cover"
                   />
                   <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-slate-950/80 to-transparent p-4 sm:block">
