@@ -43,6 +43,14 @@ function getListeningPlaceholder(title: string) {
   return `https://dummyimage.com/900x540/e2e8f0/64748b&text=${encodeURIComponent(title || "Vocab Print Pro")}`;
 }
 
+function isJapaneseOnlyText(value: string) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(value) && !/[A-Za-z]/.test(value);
+}
+
+function rateValue(speed: number, base: number) {
+  return Math.max(0.5, Math.min(1.4, Math.round(base * speed * 100) / 100));
+}
+
 function modeLabel(mode: ListeningVoiceMode) {
   if (mode === "en-only") return "英語のみ";
   if (mode === "ja-en") return "日本語 → 英語";
@@ -64,6 +72,7 @@ export default function ListeningPage() {
   const [listeningIndex, setListeningIndex] = useState(0);
   const [listeningRepeat, setListeningRepeat] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(1200);
+  const [listeningSpeed, setListeningSpeed] = useState(1);
   const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
   const [studyMode, setStudyMode] = useState<StudyMode>("listen");
@@ -226,8 +235,21 @@ export default function ListeningPage() {
 
     setError("");
     window.speechSynthesis.cancel();
-    const speakEnglish = () => speakText(word.english, { preferred: "english", rate: 0.9, signal });
-    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), { preferred: "japanese", rate: 0.95, signal });
+    const japanesePair = isJapaneseOnlyText(word.english);
+    const speakEnglish = () =>
+      speakText(word.english, {
+        preferred: japanesePair ? "japanese" : "english",
+        rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+        voiceHint: japanesePair ? "male" : undefined,
+        signal,
+      });
+    const speakJapanese = () =>
+      speakText(formatMeaning(word.japanese, meaningMode), {
+        preferred: "japanese",
+        rate: rateValue(listeningSpeed, 0.95),
+        voiceHint: japanesePair ? "female" : undefined,
+        signal,
+      });
 
     if (listeningVoiceMode === "ja-en") {
       await speakJapanese();
@@ -255,15 +277,31 @@ export default function ListeningPage() {
       setListeningIndex(index);
 
       if (studyMode === "test") {
+        const japanesePair = isJapaneseOnlyText(nextWord.english);
         setShowTestMeaning(false);
-        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await speakText(nextWord.english, {
+          preferred: japanesePair ? "japanese" : "english",
+          rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+          voiceHint: japanesePair ? "male" : undefined,
+          signal: run,
+        });
         await new Promise((resolve) => {
           timerRef.current = window.setTimeout(resolve, Math.max(700, listeningGapMs));
         });
         if (run.stopped || speechRunRef.current.id !== run.id) return;
         setShowTestMeaning(true);
-        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
-        await speakText(formatMeaning(nextWord.japanese, meaningMode), { preferred: "japanese", rate: 0.95, signal: run });
+        await speakText(nextWord.english, {
+          preferred: japanesePair ? "japanese" : "english",
+          rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+          voiceHint: japanesePair ? "male" : undefined,
+          signal: run,
+        });
+        await speakText(formatMeaning(nextWord.japanese, meaningMode), {
+          preferred: "japanese",
+          rate: rateValue(listeningSpeed, 0.95),
+          voiceHint: japanesePair ? "female" : undefined,
+          signal: run,
+        });
       } else {
         setShowTestMeaning(true);
         await speakWord(nextWord, run);
@@ -447,7 +485,7 @@ export default function ListeningPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
                     <label className="block text-sm font-bold">英語の反復回数</label>
                     <select
@@ -470,6 +508,19 @@ export default function ListeningPage() {
                       <option value={900}>短め</option>
                       <option value={1200}>標準</option>
                       <option value={1800}>ゆっくり</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">読み上げ速度</label>
+                    <select
+                      value={listeningSpeed}
+                      onChange={(e) => setListeningSpeed(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value={0.82}>ゆっくり</option>
+                      <option value={1}>ふつう</option>
+                      <option value={1.14}>少し速い</option>
+                      <option value={1.28}>速い</option>
                     </select>
                   </div>
                 </div>

@@ -104,6 +104,14 @@ function normalizeWordKey(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function isJapaneseOnlyText(value: string) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(value) && !/[A-Za-z]/.test(value);
+}
+
+function rateValue(speed: number, base: number) {
+  return Math.max(0.5, Math.min(1.4, Math.round(base * speed * 100) / 100));
+}
+
 function localUsageKey(userId: string, plan: Plan) {
   const now = new Date();
   const period =
@@ -409,6 +417,7 @@ export default function Home() {
   const [listeningIndex, setListeningIndex] = useState(0);
   const [listeningRepeat, setListeningRepeat] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(1200);
+  const [listeningSpeed, setListeningSpeed] = useState(1);
   const [listeningVoiceMode, setListeningVoiceMode] = useState<ListeningVoiceMode>("en-ja");
   const [listeningMeaningMode, setListeningMeaningMode] = useState<MeaningMode>("main");
   const [listeningStudyMode, setListeningStudyMode] = useState<ListeningStudyMode>("listen");
@@ -1290,8 +1299,21 @@ export default function Home() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     const meaning = formatMeaning(word.japanese, listeningMeaningMode);
-    const speakEnglish = () => speakText(word.english, { preferred: "english", rate: 0.9, signal });
-    const speakJapanese = () => speakText(meaning, { preferred: "japanese", rate: 0.95, signal });
+    const japanesePair = isJapaneseOnlyText(word.english);
+    const speakEnglish = () =>
+      speakText(word.english, {
+        preferred: japanesePair ? "japanese" : "english",
+        rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+        voiceHint: japanesePair ? "male" : undefined,
+        signal,
+      });
+    const speakJapanese = () =>
+      speakText(meaning, {
+        preferred: "japanese",
+        rate: rateValue(listeningSpeed, 0.95),
+        voiceHint: japanesePair ? "female" : undefined,
+        signal,
+      });
 
     if (listeningVoiceMode === "ja-en") {
       await speakJapanese();
@@ -1347,16 +1369,28 @@ export default function Home() {
 
       if (listeningStudyMode === "test") {
         setShowListeningAnswer(false);
-        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        const japanesePair = isJapaneseOnlyText(nextWord.english);
+        await speakText(nextWord.english, {
+          preferred: japanesePair ? "japanese" : "english",
+          rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+          voiceHint: japanesePair ? "male" : undefined,
+          signal: run,
+        });
         await new Promise((resolve) => {
           listeningTimerRef.current = window.setTimeout(resolve, Math.max(700, listeningGapMs));
         });
         if (run.stopped || listeningRunRef.current.id !== run.id) return;
         setShowListeningAnswer(true);
-        await speakText(nextWord.english, { preferred: "english", rate: 0.9, signal: run });
+        await speakText(nextWord.english, {
+          preferred: japanesePair ? "japanese" : "english",
+          rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+          voiceHint: japanesePair ? "male" : undefined,
+          signal: run,
+        });
         await speakText(formatMeaning(nextWord.japanese, listeningMeaningMode), {
           preferred: "japanese",
-          rate: 0.95,
+          rate: rateValue(listeningSpeed, 0.95),
+          voiceHint: japanesePair ? "female" : undefined,
           signal: run,
         });
       } else {
@@ -1825,7 +1859,7 @@ export default function Home() {
           <section id="pdf-builder" className="rounded-3xl border bg-white p-5 shadow-sm">
             <h3 className="text-lg font-black">単語テストを作成</h3>
 
-            <label className="mt-4 block text-sm font-bold">PDFタイトル（任意）</label>
+            <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>
             <input
               value={pdfTitle}
               onChange={(e) => setPdfTitle(e.target.value)}
@@ -2229,7 +2263,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div>
                     <label className="block text-sm font-bold">読み上げパターン</label>
                     <select
@@ -2264,6 +2298,19 @@ export default function Home() {
                       <option value={900}>短め</option>
                       <option value={1200}>標準</option>
                       <option value={1800}>ゆっくり</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">読み上げ速度</label>
+                    <select
+                      value={listeningSpeed}
+                      onChange={(event) => setListeningSpeed(Number(event.target.value))}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                    >
+                      <option value={0.82}>ゆっくり</option>
+                      <option value={1}>ふつう</option>
+                      <option value={1.14}>少し速い</option>
+                      <option value={1.28}>速い</option>
                     </select>
                   </div>
                 </div>
@@ -2416,7 +2463,7 @@ export default function Home() {
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
-            英語 / 日本語 / スペルテスト、空欄や赤字の設定は上のPDF設定がそのまま使えます。名前欄とクラス欄は、印刷する紙の上部に出る入力欄です。
+            英語 / 日本語 / スペルテスト、空欄や赤字の設定は上の印刷設定がそのまま使えます。名前欄とクラス欄は、印刷する紙の上部に出る入力欄です。
           </p>
         </section>
 
@@ -3000,7 +3047,7 @@ function buildPrintHtml({
   };
 
   const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
-  const showDateHeader = showRecordFields && includeDate;
+  const showDateHeader = includeDate;
   const dateStr = showDateHeader ? formatPrintDate(generatedAt) : "";
 
   // 透かし: 有料は購入者メール入り（流出・編集の抑止＝誰のものか残す）、無料はFREE表記

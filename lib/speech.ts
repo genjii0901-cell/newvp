@@ -1,15 +1,23 @@
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff]/;
 const ALPHABET_RE = /[A-Za-z]/;
 
-function pickVoice(lang: "en-US" | "ja-JP") {
+function pickVoice(lang: "en-US" | "ja-JP", voiceHint?: "male" | "female") {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return undefined;
   const voices = window.speechSynthesis.getVoices();
   const prefix = lang.slice(0, 2).toLowerCase();
-  return (
-    voices.find((voice) => voice.lang.toLowerCase() === lang.toLowerCase()) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith(prefix)) ??
-    undefined
-  );
+  const candidates = voices.filter((voice) => voice.lang.toLowerCase() === lang.toLowerCase());
+  const prefixCandidates = voices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
+  const pool = candidates.length ? candidates : prefixCandidates;
+  if (voiceHint && pool.length > 1) {
+    const hinted = pool.find((voice) => {
+      const name = voice.name.toLowerCase();
+      if (voiceHint === "female") return /female|woman|girl|haruka|kyoko|nanami|sayaka/.test(name);
+      return /male|man|boy|otoya|ichiro|takumi|keita/.test(name);
+    });
+    if (hinted) return hinted;
+    return voiceHint === "female" ? pool[0] : pool[1] ?? pool[0];
+  }
+  return pool[0] ?? undefined;
 }
 
 export function guessSpeechLang(text: string, preferred: "english" | "japanese") {
@@ -29,6 +37,7 @@ export function speakText(
   options: {
     preferred?: "english" | "japanese";
     rate?: number;
+    voiceHint?: "male" | "female";
     signal?: { stopped: boolean };
   } = {}
 ) {
@@ -43,7 +52,7 @@ export function speakText(
   const utterance = new SpeechSynthesisUtterance(value);
   utterance.lang = lang;
   utterance.rate = options.rate ?? (lang === "en-US" ? 0.9 : 0.95);
-  const voice = pickVoice(lang);
+  const voice = pickVoice(lang, options.voiceHint);
   if (voice) utterance.voice = voice;
 
   return new Promise<boolean>((resolve) => {

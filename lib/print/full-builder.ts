@@ -130,7 +130,7 @@ export function buildPrintHtml({
   };
 
   const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
-  const showDateHeader = showRecordFields && includeDate;
+  const showDateHeader = includeDate;
   const dateStr = showDateHeader ? formatPrintDate(generatedAt) : "";
 
   // 透かし: 有料は購入者メール入り（流出・編集の抑止）、無料はFREE表記

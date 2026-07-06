@@ -2198,10 +2198,10 @@ export default function AdminPage() {
               </section>
 
               <section className="rounded-3xl border bg-white p-5 shadow-sm space-y-3">
-                <h2 className="text-lg font-black">⚙️ PDF設定</h2>
+                <h2 className="text-lg font-black">⚙️ 印刷設定</h2>
 
                 <div>
-                  <label className="text-sm font-bold">PDFタイトル（空欄で自動）</label>
+                  <label className="text-sm font-bold">印刷タイトル（空欄で自動）</label>
                   <input value={pdfTitle} onChange={(e) => setPdfTitle(e.target.value)} placeholder="例: 英単語テスト Unit1 問題" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm" />
                 </div>
 

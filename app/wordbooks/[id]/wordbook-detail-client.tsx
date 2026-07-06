@@ -45,6 +45,14 @@ function planCopy(plan: Plan) {
   return "無料でも1ページまで作成できます";
 }
 
+function isJapaneseOnlyText(value: string) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(value) && !/[A-Za-z]/.test(value);
+}
+
+function rateValue(speed: number, base: number) {
+  return Math.max(0.5, Math.min(1.4, Math.round(base * speed * 100) / 100));
+}
+
 function escapeHtml(value: string | number | null | undefined) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -302,6 +310,8 @@ export default function WordbookDetailPage() {
   const [showMeaning, setShowMeaning] = useState(false);
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
   const [listeningMode, setListeningMode] = useState<ListeningMode>("listen");
+  const [listeningSpeed, setListeningSpeed] = useState(1);
+  const [listeningGapMs, setListeningGapMs] = useState(650);
   const [isPlaying, setIsPlaying] = useState(false);
   const speechRunRef = useRef({ stopped: false, id: 0 });
 
@@ -493,10 +503,21 @@ export default function WordbookDetailPage() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     setShowMeaning(listeningMode === "listen");
-    await speakText(word.english, { preferred: "english", rate: 0.9, signal });
+    const japanesePair = isJapaneseOnlyText(word.english);
+    await speakText(word.english, {
+      preferred: japanesePair ? "japanese" : "english",
+      rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
+      voiceHint: japanesePair ? "male" : undefined,
+      signal,
+    });
     if (signal.stopped) return;
     setShowMeaning(true);
-    await speakText(formatMeaning(word.japanese, meaningMode), { preferred: "japanese", rate: 0.95, signal });
+    await speakText(formatMeaning(word.japanese, meaningMode), {
+      preferred: "japanese",
+      rate: rateValue(listeningSpeed, 0.95),
+      voiceHint: japanesePair ? "female" : undefined,
+      signal,
+    });
   }
 
   async function startAutoListening() {
@@ -510,7 +531,7 @@ export default function WordbookDetailPage() {
       setListenIndex(index);
       setShowMeaning(listeningMode === "listen");
       await speakWord(visibleWords[index], run);
-      await new Promise((resolve) => window.setTimeout(resolve, 450));
+      await new Promise((resolve) => window.setTimeout(resolve, Math.max(200, listeningGapMs)));
     }
 
     if (!run.stopped && speechRunRef.current.id === run.id) stopListening();
@@ -576,7 +597,7 @@ export default function WordbookDetailPage() {
 
   const tabs: Array<{ key: DetailTab; label: string; hint: string }> = [
     { key: "overview", label: "概要", hint: "単語一覧" },
-    { key: "test", label: "単語テスト", hint: "PDF作成" },
+    { key: "test", label: "単語テスト", hint: "印刷作成" },
     { key: "listen", label: "聞き流し", hint: "音声学習" },
   ];
 
@@ -730,10 +751,10 @@ export default function WordbookDetailPage() {
         <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="rounded-3xl border bg-white p-5 shadow-sm">
             <p className="text-sm font-black text-blue-700">単語テスト</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">PDF設定</h2>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">印刷設定</h2>
             <div className="mt-5 space-y-3">
               <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">PDFタイトル</span>
+                <span className="text-xs font-black text-slate-500">印刷タイトル</span>
                 <input
                   value={customTitle}
                   onChange={(event) => setCustomTitle(event.target.value)}
@@ -937,6 +958,23 @@ export default function WordbookDetailPage() {
                 <select value={meaningMode} onChange={(event) => setMeaningMode(event.target.value as MeaningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
                   <option value="main">メインの意味だけ</option>
                   <option value="all">意味を全部表示</option>
+                </select>
+              </label>
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">読み上げ速度</span>
+                <select value={listeningSpeed} onChange={(event) => setListeningSpeed(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
+                  <option value={0.82}>ゆっくり</option>
+                  <option value={1}>ふつう</option>
+                  <option value={1.14}>少し速い</option>
+                  <option value={1.28}>速い</option>
+                </select>
+              </label>
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">単語の間隔</span>
+                <select value={listeningGapMs} onChange={(event) => setListeningGapMs(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
+                  <option value={350}>短め</option>
+                  <option value={650}>標準</option>
+                  <option value={1100}>ゆっくり</option>
                 </select>
               </label>
               <button
