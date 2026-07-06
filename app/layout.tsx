@@ -7,11 +7,18 @@ import VisitTracker from "@/app/visit-tracker";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 const siteName = "Vocab Print Pro";
-const titleText = "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成";
+const titleText = `Vocab Print Pro | ${"\u5358\u8a9e\u5e33\u304b\u3089\u82f1\u5358\u8a9e\u30c6\u30b9\u30c8PDF\u3092\u4f5c\u6210"}`;
 const siteDescription =
-  "単語帳データから、一覧・問題・解答のA4プリントをすぐに作れる学習Webサービスです。英検、大学受験、資格試験の小テスト作成をシンプルに進められます。";
+  "\u5358\u8a9e\u5e33\u30c7\u30fc\u30bf\u304b\u3089\u3001\u4e00\u89a7\u30fb\u554f\u984c\u30fb\u89e3\u7b54\u306eA4\u30d7\u30ea\u30f3\u30c8\u3092\u3059\u3050\u306b\u4f5c\u308c\u308b\u5b66\u7fd2Web\u30b5\u30fc\u30d3\u30b9\u3067\u3059\u3002\u82f1\u691c\u3001\u5927\u5b66\u53d7\u9a13\u3001\u8cc7\u683c\u8a66\u9a13\u306e\u5c0f\u30c6\u30b9\u30c8\u4f5c\u6210\u3092\u30b7\u30f3\u30d7\u30eb\u306b\u9032\u3081\u3089\u308c\u307e\u3059\u3002";
 const ogImage = `${siteUrl}/opengraph-image`;
 const twitterImage = `${siteUrl}/twitter-image`;
+
+const footerLabels = {
+  pricing: "\u6599\u91d1",
+  terms: "\u5229\u7528\u898f\u7d04",
+  privacy: "\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc",
+  tokushoho: "\u7279\u5b9a\u5546\u53d6\u5f15\u6cd5\u306b\u57fa\u3065\u304f\u8868\u8a18",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -23,13 +30,13 @@ export const metadata: Metadata = {
   applicationName: siteName,
   keywords: [
     "Vocab Print Pro",
-    "英単語テスト",
-    "単語帳",
-    "PDF作成",
-    "学習プリント",
-    "A4印刷",
-    "英語教材",
-    "小テスト作成",
+    "\u82f1\u5358\u8a9e\u30c6\u30b9\u30c8",
+    "\u5358\u8a9e\u5e33",
+    "PDF\u4f5c\u6210",
+    "\u5b66\u7fd2\u30d7\u30ea\u30f3\u30c8",
+    "A4\u5370\u5237",
+    "\u82f1\u8a9e\u6559\u6750",
+    "\u5c0f\u30c6\u30b9\u30c8\u4f5c\u6210",
   ],
   openGraph: {
     type: "website",
@@ -43,7 +50,7 @@ export const metadata: Metadata = {
         url: ogImage,
         width: 1200,
         height: 630,
-        alt: "Vocab Print Pro の共有カード画像",
+        alt: "Vocab Print Pro\u306e\u5171\u6709\u30ab\u30fc\u30c9\u753b\u50cf",
       },
     ],
   },
@@ -81,12 +88,12 @@ const jsonLd = {
       operatingSystem: "Web",
       url: siteUrl,
       inLanguage: "ja",
-      description: "単語帳から一覧・問題・解答のPDFを作成できるWebサービスです。",
+      description: "\u5358\u8a9e\u5e33\u304b\u3089\u4e00\u89a7\u30fb\u554f\u984c\u30fb\u89e3\u7b54\u306ePDF\u3092\u4f5c\u6210\u3067\u304d\u308bWeb\u30b5\u30fc\u30d3\u30b9\u3067\u3059\u3002",
       offers: {
         "@type": "Offer",
         price: "0",
         priceCurrency: "JPY",
-        description: "無料プランあり",
+        description: "\u7121\u6599\u30d7\u30e9\u30f3\u3042\u308a",
       },
     },
   ],
@@ -112,16 +119,16 @@ export default function RootLayout({
         <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-5">
             <Link href="/pricing" className="hover:text-slate-600">
-              料金
+              {footerLabels.pricing}
             </Link>
             <Link href="/legal/terms" className="hover:text-slate-600">
-              利用規約
+              {footerLabels.terms}
             </Link>
             <Link href="/legal/privacy" className="hover:text-slate-600">
-              プライバシーポリシー
+              {footerLabels.privacy}
             </Link>
             <Link href="/legal/tokushoho" className="hover:text-slate-600">
-              特定商取引法に基づく表記
+              {footerLabels.tokushoho}
             </Link>
           </div>
           <p className="mt-4">© 2026 Vocab Print Pro</p>

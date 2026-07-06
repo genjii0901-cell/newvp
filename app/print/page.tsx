@@ -81,17 +81,19 @@ const printJobCss = `
     border-radius: 16px;
     background: #fff;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    padding: 16px;
   }
 
   .paper-preview {
     width: max-content;
     min-width: 0;
-    padding: 12px;
+    padding: 0;
     transform-origin: top left;
   }
 
   .paper-preview-shell {
     transform-origin: top left;
+    margin: 0 auto;
   }
 
   .paper-preview #print-root {
@@ -352,10 +354,16 @@ const printJobCss = `
   }
 
   @media print {
+    @page {
+      size: A4 portrait;
+      margin: 9mm 9mm 8mm 9mm;
+    }
+
     html,
     body {
       width: 210mm;
-      min-height: 297mm;
+      min-height: 0;
+      height: auto;
       background: white;
     }
 
@@ -378,6 +386,7 @@ const printJobCss = `
       border: none;
       box-shadow: none;
       overflow: visible;
+      padding: 0;
     }
 
     .paper-preview {
@@ -394,12 +403,15 @@ const printJobCss = `
     }
 
     .paper-preview .print-page {
-      width: 100% !important;
+      width: 192mm !important;
       height: 280mm !important;
       margin: 0 !important;
       border: 0 !important;
       box-shadow: none !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
       page-break-after: always !important;
+      break-after: page !important;
     }
 
     .paper-preview .print-page:last-child {
@@ -443,9 +455,9 @@ export default function PrintPage() {
     return () => window.removeEventListener("resize", update);
   }, []);
 
-  const previewNaturalWidth = 820;
-  const previewNaturalHeight = 1160;
-  const previewScale = Math.min(1, Math.max(0.42, (viewportWidth - 32) / previewNaturalWidth));
+  const previewNaturalWidth = 794;
+  const previewNaturalHeight = 1123;
+  const previewScale = Math.min(1, Math.max(0.42, (viewportWidth - 64) / previewNaturalWidth));
   const previewPageCount = Math.max(1, job?.html.match(/class=["']print-page/g)?.length ?? 1);
 
   return (
