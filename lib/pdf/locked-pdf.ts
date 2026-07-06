@@ -1,14 +1,5 @@
-// クライアント専用: 印刷HTMLを画像化し、Adobeと同じ「ロック（暗号化・権限制限）」を
-// かけたPDFを生成してダウンロードする。
-// - 文字を画像化するので Adobe Acrobat で文字編集・コピーができない
-// - さらに owner password + 権限制限（印刷のみ許可・編集/コピー不可）をかける
-//
-// 100%の防御ではない（スクショ/OCR/専用ツールで突破は可能）が、
-// 一般的な編集・コピーを強力に抑止する。
-
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
-// previewCss の .print-page は 192mm×280mm、余白 9mm/9mm/8mm。
 const PAGE_W_MM = 192;
 const PAGE_H_MM = 280;
 const PAGE_X_MM = 9;
@@ -24,22 +15,17 @@ function randomOwnerPassword() {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/**
- * @param fullDocHtml previewCss を適用済みの完全なHTML文字列（#print-root と .print-page を含む）
- * @param fileName ダウンロードファイル名（.pdf 付き）
- * @param allowPrint 印刷を許可するか（true=印刷のみ可・編集/コピー不可）
- */
 export async function downloadLockedPdf(
   fullDocHtml: string,
   fileName: string,
-  allowPrint = true
+  allowPrint = true,
+  options: { ownerPassword?: string; lockEditing?: boolean } = {}
 ): Promise<void> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
     import("html2canvas"),
   ]);
 
-  // オフスクリーンのiframeに原寸でレンダリング
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText =
@@ -48,33 +34,44 @@ export async function downloadLockedPdf(
 
   try {
     const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (!doc) throw new Error("iframe document を作成できませんでした。");
+    if (!doc) throw new Error("PDF出力用の画面を準備できませんでした。");
 
     doc.open();
     doc.write(fullDocHtml);
     doc.close();
 
-    // フォント・レイアウト確定を待つ
-    await new Promise((resolve) => setTimeout(resolve, 350));
+    const pdfFixStyle = doc.createElement("style");
+    pdfFixStyle.textContent = `
+      .p-fit { padding-top:.45mm!important; padding-bottom:.45mm!important; }
+      .p-text { line-height:1.12!important; padding-bottom:.25mm!important; }
+      .print-table th, .print-table td { vertical-align:middle!important; }
+    `;
+    doc.head?.appendChild(pdfFixStyle);
+
+    await new Promise((resolve) => setTimeout(resolve, 450));
     if (doc.fonts && doc.fonts.ready) {
       try { await doc.fonts.ready; } catch { /* ignore */ }
     }
 
     const pages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
-    if (pages.length === 0) throw new Error("印刷ページが見つかりませんでした。");
+    if (pages.length === 0) throw new Error("PDFにするページが見つかりませんでした。");
 
-    const ownerPassword = randomOwnerPassword();
+    const lockEditing = options.lockEditing ?? true;
+    const ownerPassword = options.ownerPassword?.trim() || randomOwnerPassword();
     const pdf = new jsPDF({
       orientation: "portrait",
       unit: "mm",
       format: "a4",
       compress: true,
-      encryption: {
-        userPassword: "", // 誰でも開ける（パスワード不要）
-        ownerPassword, // 権限変更には不明なパスワードが必要
-        // 列挙したものだけ許可。print のみ → 編集・コピー・注釈は不可。
-        userPermissions: allowPrint ? ["print"] : [],
-      },
+      ...(lockEditing
+        ? {
+            encryption: {
+              userPassword: "",
+              ownerPassword,
+              userPermissions: allowPrint ? ["print"] : [],
+            },
+          }
+        : {}),
     });
 
     for (let i = 0; i < pages.length; i += 1) {
@@ -87,7 +84,6 @@ export async function downloadLockedPdf(
       });
       const imgData = canvas.toDataURL("image/jpeg", 0.92);
       if (i > 0) pdf.addPage("a4", "portrait");
-      // 余白位置に原寸で配置（A4内の正しい位置を再現）
       pdf.addImage(imgData, "JPEG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
       void A4_WIDTH_MM;
       void A4_HEIGHT_MM;

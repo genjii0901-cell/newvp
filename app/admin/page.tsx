@@ -15,6 +15,7 @@ import {
   type PrintStyle,
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
+import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 
 /* 笏笏笏 Types 笏笏笏 */
@@ -671,6 +672,8 @@ export default function AdminPage() {
   const [pdfDate, setPdfDate] = useState(true);
   const [pdfFooterText, setPdfFooterText] = useState("Created by Vocab Print Pro");
   const [pdfFontScale, setPdfFontScale] = useState(1);
+  const [pdfLockEditing, setPdfLockEditing] = useState(true);
+  const [pdfOwnerPassword, setPdfOwnerPassword] = useState("");
   const [pdfStudentClass, setPdfStudentClass] = useState("");
   const [pdfStudentNumber, setPdfStudentNumber] = useState("");
   const [pdfStudentName, setPdfStudentName] = useState("");
@@ -1253,37 +1256,16 @@ export default function AdminPage() {
     setPdfMsg("");
     setExportingAction(mode === "first" ? "pdf-first" : "pdf-all");
     try {
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import("jspdf"),
-        import("html2canvas"),
-      ]);
-      const rendered = await prepareRenderedPages(built.fullDoc);
-
-      try {
-        const pdf = new jsPDF({
-          orientation: "portrait",
-          unit: "mm",
-          format: "a4",
-          compress: true,
-        });
-
-        for (let i = 0; i < rendered.pages.length; i += 1) {
-          const canvas = await html2canvas(rendered.pages[i], {
-            scale: 2,
-            backgroundColor: "#ffffff",
-            useCORS: true,
-            logging: false,
-            windowWidth: 820,
-          });
-          const imgData = canvas.toDataURL("image/jpeg", 0.92);
-          if (i > 0) pdf.addPage("a4", "portrait");
-          pdf.addImage(imgData, "JPEG", 9, 9, 192, 280, undefined, "FAST");
+      await downloadLockedPdf(
+        built.fullDoc,
+        mode === "first" ? `${built.titleBase}-page1.pdf` : `${built.titleBase}.pdf`,
+        true,
+        {
+          lockEditing: pdfLockEditing,
+          ownerPassword: pdfOwnerPassword,
         }
-
-        pdf.save(mode === "first" ? `${built.titleBase}-page1.pdf` : `${built.titleBase}.pdf`);
-      } finally {
-        rendered.cleanup();
-      }
+      );
+      setPdfMsg(pdfLockEditing ? "PDFを保存しました。編集制限も設定されています。" : "PDFを保存しました。");
     } catch (error) {
       setPdfMsg(error instanceof Error ? `PDF出力に失敗しました: ${error.message}` : "PDF出力に失敗しました。");
     } finally {
@@ -2271,6 +2253,28 @@ export default function AdminPage() {
                       {label}
                     </label>
                   ))}
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <label className="flex items-center gap-2 text-sm font-bold cursor-pointer">
+                    <input type="checkbox" checked={pdfLockEditing} onChange={(e) => setPdfLockEditing(e.target.checked)} className="rounded" />
+                    PDFの編集を制限する
+                  </label>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Acrobatなどで編集・コピーを制限します。閲覧と印刷はできます。
+                  </p>
+                  {pdfLockEditing && (
+                    <div className="mt-3">
+                      <label className="text-xs font-bold text-slate-500">変更用パスワード（任意）</label>
+                      <input
+                        type="text"
+                        value={pdfOwnerPassword}
+                        onChange={(e) => setPdfOwnerPassword(e.target.value)}
+                        placeholder="空欄なら自動で設定"
+                        className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
               </section>
 
