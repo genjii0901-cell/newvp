@@ -214,9 +214,9 @@ function buildPrintHtml({
 }
 
 const detailPreviewCss = `
-  body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; }
+  body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; overflow:hidden; }
   .preview-stage { width: 794px; min-height: 1123px; box-sizing:border-box; transform-origin: top left; transform:scale(.72); }
-  @media (max-width: 699px) { .preview-stage { transform:scale(.43); } }
+  @media (max-width: 699px) { .preview-stage { transform:scale(.72); } }
   #print-root { display:block; }
   .print-page {
     width:192mm; height:280mm; box-sizing:border-box; position:relative; overflow:hidden;
@@ -777,9 +777,6 @@ export default function WordbookDetailPage() {
                 {[
                   ["ランダム順", randomOrder, setRandomOrder],
                   ["ページ番号", showPageNo, setShowPageNo],
-                  ["日付", includeDate, setIncludeDate],
-                  ["組・番・氏名欄", showRecordFields, setShowRecordFields],
-                  ["Created by / 透かし", includeWatermark, setIncludeWatermark],
                 ].map(([label, value, setter]) => (
                   <label key={String(label)} className="flex items-center justify-between rounded-2xl border px-3 py-2">
                     {label as string}
@@ -792,6 +789,25 @@ export default function WordbookDetailPage() {
                   </label>
                 ))}
               </div>
+
+              <details className="rounded-2xl border bg-slate-50 p-3">
+                <summary className="cursor-pointer list-none text-sm font-black text-slate-800">
+                  詳細設定
+                </summary>
+                <div className="mt-3 grid gap-2 text-sm font-bold">
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    日付
+                    <input type="checkbox" checked={includeDate} onChange={(event) => setIncludeDate(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    組・番・氏名欄
+                    <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    Created by / 透かし
+                    <input type="checkbox" checked={includeWatermark} onChange={(event) => setIncludeWatermark(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                </div>
 
               {showRecordFields ? (
                 <div className="rounded-2xl border bg-slate-50 p-3">
@@ -861,6 +877,7 @@ export default function WordbookDetailPage() {
                   </div>
                 ) : null}
               </div>
+              </details>
             </div>
 
             <div className="mt-5 grid gap-2">
@@ -891,11 +908,11 @@ export default function WordbookDetailPage() {
                 {Math.min(testWords.length, pageLimit * 50)}語 / 最大{pageLimit}ページ
               </p>
             </div>
-            <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-3">
+            <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-4">
               <iframe
                 title="単語テスト印刷プレビュー"
                 srcDoc={previewDoc}
-                className="h-[840px] w-full rounded-xl bg-white shadow-sm"
+                className="mx-auto block h-[840px] w-[572px] rounded-xl bg-white shadow-sm"
               />
             </div>
           </div>
