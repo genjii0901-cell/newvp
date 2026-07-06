@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 type Plan = "free" | "personal" | "teacher";
 type Word = { no: number; english: string; japanese: string; unit: string | null };
@@ -73,7 +74,7 @@ export default function WordbooksPage() {
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        setError(result.message ?? "みんなの単語帳の読み込みに失敗しました。");
+        setError(result.message ?? "みんなの単語帳を読み込めませんでした。");
         setLoadingOfficial(false);
         return;
       }
@@ -84,7 +85,7 @@ export default function WordbooksPage() {
     }
 
     loadOfficialBooks().catch(() => {
-      setError("みんなの単語帳の読み込みに失敗しました。");
+      setError("みんなの単語帳を読み込めませんでした。");
       setLoadingOfficial(false);
     });
   }, []);
@@ -117,7 +118,7 @@ export default function WordbooksPage() {
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setError(result.error ?? "マイ単語帳の読み込みに失敗しました。");
+      setError(result.error ?? "マイ単語帳を読み込めませんでした。");
       setLoadingMine(false);
       return;
     }
@@ -150,7 +151,7 @@ export default function WordbooksPage() {
             japanese: word.japanese,
             unit: word.unit ?? "",
           }))
-        : emptyRows()
+        : emptyRows(),
     );
   }, [myBooks, selectedMyBookId]);
 
@@ -169,7 +170,7 @@ export default function WordbooksPage() {
 
   function updateRow(index: number, field: keyof EditableRow, value: string | number) {
     setEditorRows((prev) =>
-      prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row))
+      prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
     );
   }
 
@@ -277,7 +278,7 @@ export default function WordbooksPage() {
           <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
           <h1 className="text-2xl font-black text-slate-900">単語帳</h1>
           <p className="mt-1 text-sm text-slate-500">
-            みんなの単語帳とマイ単語帳を切り替えて使えます。
+            教材を探す「みんなの単語帳」と、自分で保存する「マイ単語帳」をここで管理できます。
           </p>
         </div>
         <div className="flex gap-2">
@@ -285,7 +286,7 @@ export default function WordbooksPage() {
             聞き流し
           </Link>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-            印刷
+            自由作成
           </Link>
         </div>
       </div>
@@ -331,7 +332,7 @@ export default function WordbooksPage() {
             <input
               value={officialSearch}
               onChange={(event) => setOfficialSearch(event.target.value)}
-              placeholder="タイトル・説明・作成者で検索"
+              placeholder="単語帳名・説明・作成者で検索"
               className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
             />
             {officialSearch && (
@@ -355,8 +356,15 @@ export default function WordbooksPage() {
                     : new Set(words.map((word) => word.unit).filter(Boolean)).size;
                 const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
                 const firstWord = book.firstWord ?? words[0]?.english ?? "-";
+                const detailPath = buildWordbookPath(book.id, book.title);
                 return (
-                  <article key={book.id} className="flex min-h-[92px] overflow-hidden rounded-2xl border bg-white shadow-sm sm:block sm:min-h-0 sm:rounded-3xl">
+                  <article
+                    key={book.id}
+                    onClick={() => {
+                      window.location.href = detailPath;
+                    }}
+                    className="flex min-h-[92px] cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
+                  >
                     {book.coverImage ? (
                       <img src={book.coverImage} alt={book.title} loading="lazy" className="h-auto w-16 flex-shrink-0 object-cover sm:h-40 sm:w-full" />
                     ) : null}
@@ -380,13 +388,15 @@ export default function WordbooksPage() {
                       </div>
                       <div className="mt-1.5 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
                         <Link
-                          href={`/wordbooks/${book.id}`}
+                          href={detailPath}
+                          onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
-                          単語帳を見る
+                          開く
                         </Link>
                         <Link
                           href={`/listening?source=official&id=${encodeURIComponent(book.id)}`}
+                          onClick={(event) => event.stopPropagation()}
                           className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
                           聞き流し
@@ -404,7 +414,8 @@ export default function WordbooksPage() {
           <section className="rounded-3xl border bg-white p-5 shadow-sm">
             {!loggedIn ? (
               <div className="text-sm text-slate-500">
-                <p className="font-bold text-slate-700">ログインするとマイ単語帳を使えます。</p>
+                <p className="font-bold text-slate-700">ログインするとマイ単語帳を保存できます。</p>
+                <p className="mt-2">無料でも1ページ分の印刷は試せます。保存したい場合はログインしてください。</p>
                 <Link href="/#auth" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 font-bold text-white">
                   ログインする
                 </Link>
@@ -459,7 +470,7 @@ export default function WordbooksPage() {
                       href={`/?book=${encodeURIComponent(selectedMyBookId)}`}
                       className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
                     >
-                      印刷で開く
+                      自由作成で開く
                     </Link>
                   </>
                 )}

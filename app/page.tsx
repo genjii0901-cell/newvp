@@ -9,6 +9,7 @@ import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
 import { getPageCount, planLimits } from "@/lib/plan-limits";
 import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
+import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 type Word = {
   no: number;
@@ -1631,7 +1632,10 @@ export default function Home() {
             {featuredBooks.map((book, index) => (
               <div
                 key={book.id}
-                className={`flex min-h-[92px] overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
+                onClick={() => {
+                  window.location.href = buildWordbookPath(book.id, book.title);
+                }}
+                className={`flex min-h-[92px] cursor-pointer overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
                   book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                 }`}
               >
@@ -1673,13 +1677,17 @@ export default function Home() {
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <button
                       type="button"
-                      onClick={() => pickBook(book.id)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        pickBook(book.id);
+                      }}
                       className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 sm:px-3 sm:py-2"
                     >
                       選択
                     </button>
                     <Link
-                      href={`/wordbooks/${book.id}`}
+                      href={buildWordbookPath(book.id, book.title)}
+                      onClick={(event) => event.stopPropagation()}
                       className="rounded-lg border px-2.5 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 sm:px-3 sm:py-2"
                     >
                       詳細
