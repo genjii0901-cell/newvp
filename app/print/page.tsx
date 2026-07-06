@@ -359,6 +359,11 @@ const printJobCss = `
       background: white;
     }
 
+    body > nav,
+    body > footer {
+      display: none !important;
+    }
+
     .sheet {
       max-width: none;
       margin: 0;
@@ -395,6 +400,11 @@ const printJobCss = `
       border: 0 !important;
       box-shadow: none !important;
       page-break-after: always !important;
+    }
+
+    .paper-preview .print-page:last-child {
+      page-break-after: auto !important;
+      break-after: auto !important;
     }
   }
 `;

@@ -93,6 +93,16 @@ function buildPrintHtml({
   studentNumber,
   studentName,
   includeWatermark,
+  titleOffsetX,
+  titleOffsetY,
+  dateOffsetX,
+  dateOffsetY,
+  infoOffsetX,
+  infoOffsetY,
+  gridOffsetX,
+  gridOffsetY,
+  pageNoOffsetX,
+  pageNoOffsetY,
 }: {
   title: string;
   words: Word[];
@@ -110,6 +120,16 @@ function buildPrintHtml({
   studentNumber: string;
   studentName: string;
   includeWatermark: boolean;
+  titleOffsetX: number;
+  titleOffsetY: number;
+  dateOffsetX: number;
+  dateOffsetY: number;
+  infoOffsetX: number;
+  infoOffsetY: number;
+  gridOffsetX: number;
+  gridOffsetY: number;
+  pageNoOffsetX: number;
+  pageNoOffsetY: number;
 }) {
   const perPage = 50;
   const visibleWords = words.slice(0, perPage * pageLimit);
@@ -171,21 +191,21 @@ function buildPrintHtml({
       return `
         <section class="print-page${hasInfoBox ? " has-info" : ""}">
           ${watermarkHtml}
-          <div class="print-page-header">
-            <h1>${escapeHtml(heading)}</h1>
-            ${dateLabel ? `<div class="print-date">${escapeHtml(dateLabel)}</div>` : ""}
+          <div class="print-page-header"${titleOffsetY ? ` style="margin-top:${titleOffsetY}mm"` : ""}>
+            <h1${titleOffsetX ? ` style="transform:translateX(${titleOffsetX}mm)"` : ""}>${escapeHtml(heading)}</h1>
+            ${dateLabel ? `<div class="print-date"${dateOffsetX || dateOffsetY ? ` style="transform:translate(${dateOffsetX}mm,${dateOffsetY}mm)"` : ""}>${escapeHtml(dateLabel)}</div>` : ""}
           </div>
-          <div class="print-grid">${tables}</div>
+          <div class="print-grid"${gridOffsetX || gridOffsetY ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${tables}</div>
           ${
             hasInfoBox
-              ? `<div class="print-info-box"><div class="print-info-fields">
+              ? `<div class="print-info-box"${infoOffsetX || infoOffsetY ? ` style="transform:translate(${infoOffsetX}mm,${infoOffsetY}mm)"` : ""}><div class="print-info-fields">
                 ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
                 ${showNumberField ? `<div class="pif pif-sm"><span class="pif-label">番号</span><span class="pif-value">${escapeHtml(studentNumber)}</span></div>` : ""}
                 ${showNameField ? `<div class="pif pif-lg"><span class="pif-label">氏名</span><span class="pif-value">${escapeHtml(studentName)}</span></div>` : ""}
               </div></div>`
               : ""
           }
-          <footer><span></span><span>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span><span>Created by Vocab Print Pro</span></footer>
+          <footer><span></span><span${pageNoOffsetX || pageNoOffsetY ? ` style="transform:translate(${pageNoOffsetX}mm,${pageNoOffsetY}mm);display:inline-block"` : ""}>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span><span>Created by Vocab Print Pro</span></footer>
         </section>`;
     })
     .join("");
@@ -195,7 +215,8 @@ function buildPrintHtml({
 
 const detailPreviewCss = `
   body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; }
-  .preview-stage { width: 820px; padding: 14px; box-sizing:border-box; transform-origin: top left; }
+  .preview-stage { width: 820px; min-height: 1120px; padding: 14px; box-sizing:border-box; transform-origin: top left; transform:scale(.72); }
+  @media (max-width: 699px) { .preview-stage { transform:scale(.43); min-height: 1160px; } }
   #print-root { display:block; }
   .print-page {
     width:192mm; height:280mm; box-sizing:border-box; position:relative; overflow:hidden;
@@ -265,6 +286,17 @@ export default function WordbookDetailPage() {
   const [studentName, setStudentName] = useState("");
   const [includeWatermark, setIncludeWatermark] = useState(true);
   const [customTitle, setCustomTitle] = useState("");
+  const [showLayoutTools, setShowLayoutTools] = useState(false);
+  const [titleOffsetX, setTitleOffsetX] = useState(0);
+  const [titleOffsetY, setTitleOffsetY] = useState(0);
+  const [dateOffsetX, setDateOffsetX] = useState(0);
+  const [dateOffsetY, setDateOffsetY] = useState(0);
+  const [infoOffsetX, setInfoOffsetX] = useState(0);
+  const [infoOffsetY, setInfoOffsetY] = useState(0);
+  const [gridOffsetX, setGridOffsetX] = useState(0);
+  const [gridOffsetY, setGridOffsetY] = useState(0);
+  const [pageNoOffsetX, setPageNoOffsetX] = useState(0);
+  const [pageNoOffsetY, setPageNoOffsetY] = useState(0);
   const [listenIndex, setListenIndex] = useState(0);
   const [showMeaning, setShowMeaning] = useState(false);
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
@@ -361,12 +393,30 @@ export default function WordbookDetailPage() {
       studentNumber,
       studentName,
       includeWatermark,
+      titleOffsetX,
+      titleOffsetY,
+      dateOffsetX,
+      dateOffsetY,
+      infoOffsetX,
+      infoOffsetY,
+      gridOffsetX,
+      gridOffsetY,
+      pageNoOffsetX,
+      pageNoOffsetY,
     });
   }, [
     book,
+    dateOffsetX,
+    dateOffsetY,
+    gridOffsetX,
+    gridOffsetY,
     includeDate,
     includeWatermark,
+    infoOffsetX,
+    infoOffsetY,
     pageLimit,
+    pageNoOffsetX,
+    pageNoOffsetY,
     printStyle,
     printTitle,
     showClassField,
@@ -380,6 +430,8 @@ export default function WordbookDetailPage() {
     testDirection,
     testType,
     testWords,
+    titleOffsetX,
+    titleOffsetY,
     visibleWords.length,
   ]);
   const previewDoc = useMemo(() => {
@@ -467,6 +519,38 @@ export default function WordbookDetailPage() {
     stopListening();
     setShowMeaning(false);
     setListenIndex((current) => Math.min(Math.max(current + delta, 0), Math.max(visibleWords.length - 1, 0)));
+  }
+
+  function LayoutSlider({
+    label,
+    value,
+    onChange,
+    min = -12,
+    max = 12,
+  }: {
+    label: string;
+    value: number;
+    onChange: (next: number) => void;
+    min?: number;
+    max?: number;
+  }) {
+    return (
+      <label className="block rounded-xl bg-white px-3 py-2">
+        <span className="flex items-center justify-between text-xs font-black text-slate-500">
+          {label}
+          <span>{value}mm</span>
+        </span>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={1}
+          value={value}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className="mt-2 w-full"
+        />
+      </label>
+    );
   }
 
   if (loading) {
@@ -736,6 +820,46 @@ export default function WordbookDetailPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div className="rounded-2xl border bg-slate-50 p-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLayoutTools((value) => !value)}
+                  className="flex w-full items-center justify-between text-left text-sm font-black text-slate-800"
+                >
+                  詳細レイアウト調整
+                  <span className="text-xs text-blue-600">{showLayoutTools ? "閉じる" : "開く"}</span>
+                </button>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  メイン画面の印刷調整と同じように、印刷される位置を少しだけ動かせます。
+                </p>
+                {showLayoutTools ? (
+                  <div className="mt-3 grid gap-2">
+                    <LayoutSlider label="タイトル 左右" value={titleOffsetX} onChange={setTitleOffsetX} />
+                    <LayoutSlider label="タイトル 上下" value={titleOffsetY} onChange={setTitleOffsetY} min={-6} max={10} />
+                    <LayoutSlider label="表 左右" value={gridOffsetX} onChange={setGridOffsetX} />
+                    <LayoutSlider label="表 上下" value={gridOffsetY} onChange={setGridOffsetY} min={-10} max={10} />
+                    {includeDate ? (
+                      <>
+                        <LayoutSlider label="日付 左右" value={dateOffsetX} onChange={setDateOffsetX} />
+                        <LayoutSlider label="日付 上下" value={dateOffsetY} onChange={setDateOffsetY} />
+                      </>
+                    ) : null}
+                    {showRecordFields ? (
+                      <>
+                        <LayoutSlider label="記入欄 左右" value={infoOffsetX} onChange={setInfoOffsetX} />
+                        <LayoutSlider label="記入欄 上下" value={infoOffsetY} onChange={setInfoOffsetY} />
+                      </>
+                    ) : null}
+                    {showPageNo ? (
+                      <>
+                        <LayoutSlider label="ページ番号 左右" value={pageNoOffsetX} onChange={setPageNoOffsetX} />
+                        <LayoutSlider label="ページ番号 上下" value={pageNoOffsetY} onChange={setPageNoOffsetY} />
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-5 grid gap-2">
@@ -770,8 +894,7 @@ export default function WordbookDetailPage() {
               <iframe
                 title="単語テスト印刷プレビュー"
                 srcDoc={previewDoc}
-                className="h-[620px] w-[820px] origin-top-left rounded-xl bg-white shadow-sm"
-                style={{ transform: "scale(0.82)", transformOrigin: "top left", marginBottom: "-110px" }}
+                className="h-[840px] w-full rounded-xl bg-white shadow-sm"
               />
             </div>
           </div>
