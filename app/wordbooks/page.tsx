@@ -395,7 +395,7 @@ export default function WordbooksPage() {
                           開く
                         </Link>
                         <Link
-                          href={`/listening?source=official&id=${encodeURIComponent(book.id)}`}
+                          href={`${detailPath}?tab=listen`}
                           onClick={(event) => event.stopPropagation()}
                           className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
