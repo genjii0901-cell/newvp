@@ -1609,7 +1609,7 @@ export default function Home() {
       <style>{printCss}</style>
       <div id="print-root" className="hidden print:block" />
 
-      <section className="mx-auto max-w-6xl px-5 py-8">
+      <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
         <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-slate-900 p-5 sm:p-8 text-white">
           <h2 className="text-2xl sm:text-4xl font-black leading-tight">
             単語帳を選ぶだけで、
@@ -1621,7 +1621,7 @@ export default function Home() {
           </p>
         </div>
 
-        <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
+        <section className="mt-5 rounded-3xl border bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-blue-700">みんなの単語帳</p>
@@ -1635,23 +1635,23 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {featuredBooks.map((book, index) => (
               <button
                 key={book.id}
                 type="button"
                 onClick={() => pickBook(book.id)}
-                className={`overflow-hidden rounded-3xl border text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                className={`flex min-h-[104px] overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition active:scale-[0.99] sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
                   book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                 }`}
               >
-                <div className="relative h-40 w-full bg-slate-100">
+                <div className="relative h-auto w-24 flex-shrink-0 bg-slate-100 sm:h-40 sm:w-full">
                   <img
                     src={getBookCover(book, index)}
                     alt={book.title}
                     className="h-full w-full object-cover"
                   />
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/80 to-transparent p-4">
+                  <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-slate-950/80 to-transparent p-4 sm:block">
                     <div className="flex items-center justify-between gap-2">
                       <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-800">
                         {planLabel(book.requiredPlan)}
@@ -1662,16 +1662,24 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="p-4">
-                  <h4 className="text-lg font-black text-slate-900">{book.title}</h4>
-                  <p className="mt-1 text-sm font-bold text-blue-700">{book.level}</p>
+                <div className="min-w-0 flex-1 p-3 sm:p-4">
+                  <div className="flex items-start justify-between gap-2 sm:block">
+                    <h4 className="line-clamp-2 text-base font-black leading-snug text-slate-900 sm:text-lg">{book.title}</h4>
+                    <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-700 sm:hidden">
+                      {planLabel(book.requiredPlan)}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-bold text-blue-700 sm:text-sm">{book.level}</p>
+                    <span className="text-[11px] font-bold text-slate-400 sm:hidden">{getBookWordCount(book)}語</span>
+                  </div>
                   <p className="mt-1 truncate text-xs font-bold text-slate-400">
                     作成者: {book.creator ?? "Vocab Print Pro"}
                   </p>
-                  <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">
+                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:min-h-12 sm:text-sm sm:leading-6">
                     {book.description ?? "印刷用の見やすい教材として、すぐ使える単語帳です。"}
                   </p>
-                  <div className="mt-3 text-sm font-bold text-slate-700">この単語帳を使う</div>
+                  <div className="mt-2 text-xs font-black text-slate-700 sm:mt-3 sm:text-sm">この単語帳を使う</div>
                 </div>
               </button>
             ))}

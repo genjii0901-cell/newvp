@@ -269,7 +269,7 @@ export default function WordbooksPage() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-5 py-8">
+    <main className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
@@ -311,12 +311,12 @@ export default function WordbooksPage() {
 
       {tab === "official" ? (
         <>
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-5 flex gap-2 overflow-x-auto pb-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {(["all", "free", "personal", "teacher"] as const).map((value) => (
               <button
                 key={value}
                 onClick={() => setOfficialFilter(value)}
-                className={`rounded-full px-4 py-2 text-sm font-bold ${
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
                   officialFilter === value ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
                 }`}
               >
@@ -344,44 +344,44 @@ export default function WordbooksPage() {
               <p className="text-lg font-black text-slate-700">表示できる単語帳がまだありません</p>
             </div>
           ) : (
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-5 grid gap-2.5 sm:mt-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {filteredOfficialBooks.map((book) => {
                 const words = Array.isArray(book.words) ? book.words : [];
                 const units = new Set(words.map((word) => word.unit).filter(Boolean)).size;
                 const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
                 return (
-                  <article key={book.id} className="overflow-hidden rounded-3xl border bg-white shadow-sm">
+                  <article key={book.id} className="flex min-h-[118px] overflow-hidden rounded-2xl border bg-white shadow-sm sm:block sm:min-h-0 sm:rounded-3xl">
                     {book.coverImage ? (
-                      <img src={book.coverImage} alt={book.title} className="h-40 w-full object-cover" />
+                      <img src={book.coverImage} alt={book.title} className="h-auto w-24 flex-shrink-0 object-cover sm:h-40 sm:w-full" />
                     ) : null}
-                    <div className="p-5">
-                      <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1 p-3 sm:p-5">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                           {planLabel(book.requiredPlan)}
                         </span>
                         <span className="text-xs text-slate-400">{wordCount}語</span>
                       </div>
-                      <h2 className="mt-3 text-xl font-black text-slate-900">{book.title}</h2>
+                      <h2 className="mt-2 line-clamp-2 text-base font-black leading-snug text-slate-900 sm:mt-3 sm:text-xl">{book.title}</h2>
                       <p className="mt-1 truncate text-xs font-bold text-slate-400">
                         作成者: {book.creator ?? "Vocab Print Pro"}
                       </p>
-                      <p className="mt-2 line-clamp-3 text-sm text-slate-500">
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:line-clamp-3 sm:text-sm">
                         {book.description || "公式単語帳です。"}
                       </p>
-                      <div className="mt-4 flex gap-4 text-xs text-slate-500">
+                      <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         <span>{units}ユニット</span>
                         <span>最初: {words[0]?.english ?? "-"}</span>
                       </div>
-                      <div className="mt-5 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2 sm:mt-5">
                         <Link
                           href={`/wordbooks/${book.id}`}
-                          className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700"
+                          className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700 sm:px-4 sm:text-sm"
                         >
                           単語帳を見る
                         </Link>
                         <Link
                           href={`/listening?source=official&id=${encodeURIComponent(book.id)}`}
-                          className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                          className="rounded-xl border px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:px-4 sm:text-sm"
                         >
                           聞き流し
                         </Link>
