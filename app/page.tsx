@@ -1081,29 +1081,21 @@ export default function Home() {
   }
 
   async function printWords(words: Word[], sourceTitle: string, sourceLabel: string) {
-    if (!user) {
-      alert("単語テスト作成にはログインが必要です。");
-      return;
-    }
-
-    if (!supabase) {
-      alert("Supabaseの設定が必要です。");
-      return;
-    }
-
-    const { data } = await supabase.auth.getSession();
-    const token = data.session?.access_token;
+    const activePlan = user ? plan : "free";
+    const usageUserId = user?.id ?? "guest";
+    const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     let usageCheckedByServer = false;
-    const pageCount = getPageCount(words.length);
+    const limitedWordCount = activePlan === "free" ? Math.min(words.length, 50) : words.length;
+    const pageCount = getPageCount(limitedWordCount);
 
-    if (token) {
+    if (token && user) {
       const usageResponse = await fetch("/api/usage/check", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ wordCount: words.length, pageCount }),
+        body: JSON.stringify({ wordCount: limitedWordCount, pageCount }),
       });
       const usageResult = await usageResponse.json().catch(() => ({}));
 
@@ -1115,7 +1107,7 @@ export default function Home() {
           writeCachedPlan(user.id, serverPlan);
         }
       } else if (usageResponse.status !== 401) {
-        const fallback = checkLocalUsage(user.id, plan, words.length, pageCount);
+        const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
         if (!fallback.ok) {
           alert(usageResult.message ?? fallback.message);
           return;
@@ -1124,16 +1116,16 @@ export default function Home() {
     }
 
     if (!usageCheckedByServer) {
-      const fallback = checkLocalUsage(user.id, plan, words.length, pageCount);
+      const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
       if (!fallback.ok) {
-        alert(fallback.message);
+        alert(`${fallback.message}\n\nもっと作成したい場合は、Personalプランの7日無料トライアルをご利用ください。`);
         return;
       }
     }
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
-    const printWordsList = plan === "free" ? words.slice(0, 50) : words;
+    const printWordsList = activePlan === "free" ? words.slice(0, 50) : words;
     const fullTitle = pdfTitle.trim() || autoTitle;
     const html = buildPrintHtml({
       title: fullTitle,
@@ -1141,7 +1133,7 @@ export default function Home() {
       type,
       showPageNo,
       makeQuestion,
-      plan,
+      plan: activePlan,
       printStyle,
       includeWatermark,
       showRecordFields,
@@ -1153,7 +1145,7 @@ export default function Home() {
       studentName,
       includeDate,
       generatedAt: now,
-      userEmail: user.email ?? "",
+      userEmail: user?.email ?? "",
       titleOffsetX: titleOffset.x,
       titleOffsetY: titleOffset.y,
       dateOffsetX: dateOffset.x,
@@ -1216,8 +1208,8 @@ export default function Home() {
       ...history,
     ]);
 
-    recordLocalUsage(user.id, plan);
-    await savePdfHistory();
+    recordLocalUsage(usageUserId, activePlan);
+    if (user) await savePdfHistory();
 
     if (usePrintPage) {
       window.location.href = "/print";
@@ -1627,7 +1619,7 @@ export default function Home() {
               <p className="text-sm font-bold text-blue-700">みんなの単語帳</p>
               <h3 className="text-xl sm:text-2xl font-black text-slate-900">使いたい単語帳をすぐに選んで印刷</h3>
               <p className="mt-1 text-sm text-slate-500">
-                カードをクリックすると単語帳が選択されます。
+                スマホでは教材アプリのように小さく探して、単語帳ページから印刷・聞き流しを選べます。
               </p>
             </div>
             <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
@@ -1635,17 +1627,15 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-2 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {featuredBooks.map((book, index) => (
-              <button
+              <div
                 key={book.id}
-                type="button"
-                onClick={() => pickBook(book.id)}
-                className={`flex min-h-[104px] overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition active:scale-[0.99] sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
+                className={`flex min-h-[92px] overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
                   book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                 }`}
               >
-                <div className="relative h-auto w-24 flex-shrink-0 bg-slate-100 sm:h-40 sm:w-full">
+                <div className="relative h-auto w-20 flex-shrink-0 bg-slate-100 sm:h-40 sm:w-full">
                   <img
                     src={getBookCover(book, index)}
                     alt={book.title}
@@ -1663,9 +1653,9 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="min-w-0 flex-1 p-3 sm:p-4">
+                <div className="min-w-0 flex-1 p-2.5 sm:p-4">
                   <div className="flex items-start justify-between gap-2 sm:block">
-                    <h4 className="line-clamp-2 text-base font-black leading-snug text-slate-900 sm:text-lg">{book.title}</h4>
+                    <h4 className="line-clamp-2 text-sm font-black leading-snug text-slate-900 sm:text-lg">{book.title}</h4>
                     <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-700 sm:hidden">
                       {planLabel(book.requiredPlan)}
                     </span>
@@ -1677,12 +1667,26 @@ export default function Home() {
                   <p className="mt-1 truncate text-xs font-bold text-slate-400">
                     作成者: {book.creator ?? "Vocab Print Pro"}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:min-h-12 sm:text-sm sm:leading-6">
+                  <p className="mt-1 hidden line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:min-h-12 sm:text-sm sm:leading-6">
                     {book.description ?? "印刷用の見やすい教材として、すぐ使える単語帳です。"}
                   </p>
-                  <div className="mt-2 text-xs font-black text-slate-700 sm:mt-3 sm:text-sm">この単語帳を使う</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => pickBook(book.id)}
+                      className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 sm:px-3 sm:py-2"
+                    >
+                      選択
+                    </button>
+                    <Link
+                      href={`/wordbooks/${book.id}`}
+                      className="rounded-lg border px-2.5 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 sm:px-3 sm:py-2"
+                    >
+                      詳細
+                    </Link>
+                  </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </section>

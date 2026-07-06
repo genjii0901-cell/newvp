@@ -77,6 +77,30 @@ export default function ListeningPage() {
     const params = new URLSearchParams(window.location.search);
     const source = params.get("source");
     const id = params.get("id");
+    if (params.get("import") === "1") {
+      const stored = sessionStorage.getItem("vpp-import-words");
+      if (stored) {
+        try {
+          const { title, words } = JSON.parse(stored) as { title?: string; words?: Word[] };
+          if (Array.isArray(words) && words.length > 0) {
+            const text = [
+              "number\tenglish\tjapanese",
+              ...words.map((word, index) => `${word.no || index + 1}\t${word.english}\t${word.japanese}`),
+            ].join("\n");
+            setPasteText(text);
+            setTab("paste");
+            setRangeStart(1);
+            setRangeEnd(Math.min(words.length, 20));
+            sessionStorage.removeItem("vpp-import-words");
+            window.history.replaceState(null, "", "/listening");
+            if (title) document.title = `${title} 聞き流し | Vocab Print Pro`;
+            return;
+          }
+        } catch {
+          // Ignore broken temporary data and fall back to normal loading.
+        }
+      }
+    }
     if (source === "my") setTab("my");
     if (source === "paste") setTab("paste");
     if (source === "official" && id) setOfficialId(id);

@@ -9,7 +9,7 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 const siteName = "Vocab Print Pro";
 const titleText = "Vocab Print Pro | 単語帳から英単語テストPDFを自動作成";
 const siteDescription =
-  "単語帳データから、一覧・問題・解答のA4 PDFをすぐに作れる学習Webサービスです。英語学習や受験対策のプリント作成をシンプルに進められます。";
+  "単語帳データから、一覧・問題・解答のA4プリントをすぐに作れる学習Webサービスです。英検、大学受験、資格試験の小テスト作成をシンプルに進められます。";
 const ogImage = `${siteUrl}/opengraph-image`;
 const twitterImage = `${siteUrl}/twitter-image`;
 
@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     "学習プリント",
     "A4印刷",
     "英語教材",
+    "小テスト作成",
   ],
   openGraph: {
     type: "website",
