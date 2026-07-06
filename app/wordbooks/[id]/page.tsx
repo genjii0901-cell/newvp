@@ -86,6 +86,12 @@ function buildPrintHtml({
   showPageNo,
   includeDate,
   showRecordFields,
+  showClassField,
+  showNumberField,
+  showNameField,
+  studentClass,
+  studentNumber,
+  studentName,
   includeWatermark,
 }: {
   title: string;
@@ -97,6 +103,12 @@ function buildPrintHtml({
   showPageNo: boolean;
   includeDate: boolean;
   showRecordFields: boolean;
+  showClassField: boolean;
+  showNumberField: boolean;
+  showNameField: boolean;
+  studentClass: string;
+  studentNumber: string;
+  studentName: string;
   includeWatermark: boolean;
 }) {
   const perPage = 50;
@@ -106,6 +118,7 @@ function buildPrintHtml({
   const heading = type === "list" ? `${title} 一覧` : type === "answer" ? `${title} 解答` : `${title} 問題`;
   const dateLabel = includeDate ? formatPrintDate(new Date()) : "";
   const watermark = includeWatermark ? "Vocab Print Pro" : "";
+  const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
 
   const pagesHtml = pages
     .map((pageWords, pageIndex) => {
@@ -156,7 +169,7 @@ function buildPrintHtml({
         : "";
 
       return `
-        <section class="print-page${showRecordFields ? " has-info" : ""}">
+        <section class="print-page${hasInfoBox ? " has-info" : ""}">
           ${watermarkHtml}
           <div class="print-page-header">
             <h1>${escapeHtml(heading)}</h1>
@@ -164,8 +177,12 @@ function buildPrintHtml({
           </div>
           <div class="print-grid">${tables}</div>
           ${
-            showRecordFields
-              ? `<div class="print-info-box"><div class="print-info-fields"><div class="pif pif-sm"><span class="pif-label">組</span><span class="pif-value"></span></div><div class="pif pif-sm"><span class="pif-label">番</span><span class="pif-value"></span></div><div class="pif pif-lg"><span class="pif-label">氏名</span><span class="pif-value"></span></div></div></div>`
+            hasInfoBox
+              ? `<div class="print-info-box"><div class="print-info-fields">
+                ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
+                ${showNumberField ? `<div class="pif pif-sm"><span class="pif-label">番号</span><span class="pif-value">${escapeHtml(studentNumber)}</span></div>` : ""}
+                ${showNameField ? `<div class="pif pif-lg"><span class="pif-label">氏名</span><span class="pif-value">${escapeHtml(studentName)}</span></div>` : ""}
+              </div></div>`
               : ""
           }
           <footer><span></span><span>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span><span>Created by Vocab Print Pro</span></footer>
@@ -173,8 +190,52 @@ function buildPrintHtml({
     })
     .join("");
 
-  return `<div id="print-root">${pagesHtml}</div>`;
+  return `<style>@media print{.paper-preview .print-page:last-child{page-break-after:auto!important;break-after:auto!important}}.print-page:last-child{page-break-after:auto;break-after:auto}</style><div id="print-root">${pagesHtml}</div>`;
 }
+
+const detailPreviewCss = `
+  body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; }
+  .preview-stage { width: 820px; padding: 14px; box-sizing:border-box; transform-origin: top left; }
+  #print-root { display:block; }
+  .print-page {
+    width:192mm; height:280mm; box-sizing:border-box; position:relative; overflow:hidden;
+    font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white; display:flex; flex-direction:column;
+    padding-bottom:1mm; margin:0 0 12mm; border:1px solid #e2e8f0;
+  }
+  .print-page-header { position:relative; text-align:center; margin-bottom:4mm; flex:0 0 auto; }
+  .print-page-header h1 { margin:0; font-size:12pt; font-weight:900; letter-spacing:.04em; }
+  .print-date { position:absolute; right:0; top:0; font-size:7.5pt; color:#333; font-weight:600; line-height:1.2; }
+  .print-watermark { position:absolute; inset:-20% -20%; z-index:0; overflow:hidden; display:flex; flex-direction:column; justify-content:space-around; align-items:center; transform:rotate(-30deg); pointer-events:none; user-select:none; }
+  .print-watermark .wm-row { white-space:nowrap; font-size:13pt; font-weight:800; letter-spacing:.18em; color:rgba(37,99,235,.08); }
+  .print-page-header,.print-grid,.print-info-box,footer { position:relative; z-index:1; }
+  .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
+  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.4pt; line-height:1.2; }
+  .print-table th,.print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
+  .print-table th { height:8.5mm; text-align:center; font-weight:800; background:#fff; }
+  .has-info .print-table { font-size:7.8pt; }
+  .has-info .print-table td { height:9.0mm; max-height:9.0mm; }
+  .has-info .print-table th { height:8.0mm; max-height:8.0mm; }
+  .p-no { width:10%; text-align:center; }
+  .p-word { width:26%; }
+  .p-meaning { width:64%; }
+  .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
+  .p-fit.center { justify-content:center; text-align:center; }
+  .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
+  .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
+  .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
+  .p-blank { display:inline-block; width:100%; min-width:22mm; border-bottom:1.2pt solid #111; transform:translateY(-.5mm); }
+  .p-red { color:#dc2626; font-weight:800; }
+  .print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
+  .print-info-fields { display:flex; gap:3mm; align-items:flex-end; }
+  .pif { display:flex; align-items:baseline; gap:1.5mm; border-bottom:.75pt solid #111; padding-bottom:1mm; padding-top:.5mm; }
+  .pif-sm { flex:0 0 26mm; }
+  .pif-lg { flex:1 1 auto; }
+  .pif-label { flex:0 0 auto; font-size:6.8pt; font-weight:800; white-space:nowrap; color:#333; }
+  .pif-value { flex:1 1 auto; font-size:8.2pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; min-width:0; }
+  footer { flex:0 0 auto; margin-top:9mm; height:6mm; display:grid; grid-template-columns:1fr 1fr 1fr; align-items:end; font-size:7.5pt; color:#555; background:white; }
+  footer span:nth-child(2) { text-align:center; }
+  footer span:nth-child(3) { text-align:right; word-break:break-word; }
+`;
 
 export default function WordbookDetailPage() {
   const params = useParams();
@@ -196,7 +257,14 @@ export default function WordbookDetailPage() {
   const [showPageNo, setShowPageNo] = useState(true);
   const [includeDate, setIncludeDate] = useState(false);
   const [showRecordFields, setShowRecordFields] = useState(true);
+  const [showClassField, setShowClassField] = useState(true);
+  const [showNumberField, setShowNumberField] = useState(true);
+  const [showNameField, setShowNameField] = useState(true);
+  const [studentClass, setStudentClass] = useState("");
+  const [studentNumber, setStudentNumber] = useState("");
+  const [studentName, setStudentName] = useState("");
   const [includeWatermark, setIncludeWatermark] = useState(true);
+  const [customTitle, setCustomTitle] = useState("");
   const [listenIndex, setListenIndex] = useState(0);
   const [showMeaning, setShowMeaning] = useState(false);
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
@@ -271,9 +339,52 @@ export default function WordbookDetailPage() {
     return [...visibleWords].sort(() => Math.random() - 0.5);
   }, [randomOrder, visibleWords]);
 
-  const printPreviewWords = testWords.slice(0, 50);
   const listenWord = visibleWords[listenIndex] ?? null;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
+  const printTitle = customTitle.trim() || (selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`);
+  const printHtml = useMemo(() => {
+    if (!book || visibleWords.length === 0) return "";
+    return buildPrintHtml({
+      title: printTitle,
+      words: testWords,
+      type: testType,
+      direction: testDirection,
+      printStyle,
+      pageLimit,
+      showPageNo,
+      includeDate,
+      showRecordFields,
+      showClassField,
+      showNumberField,
+      showNameField,
+      studentClass,
+      studentNumber,
+      studentName,
+      includeWatermark,
+    });
+  }, [
+    book,
+    includeDate,
+    includeWatermark,
+    pageLimit,
+    printStyle,
+    printTitle,
+    showClassField,
+    showNameField,
+    showNumberField,
+    showPageNo,
+    showRecordFields,
+    studentClass,
+    studentName,
+    studentNumber,
+    testDirection,
+    testType,
+    testWords,
+    visibleWords.length,
+  ]);
+  const previewDoc = useMemo(() => {
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${detailPreviewCss}</style></head><body><div class="preview-stage">${printHtml}</div></body></html>`;
+  }, [printHtml]);
 
   useEffect(() => {
     stopListening();
@@ -301,25 +412,12 @@ export default function WordbookDetailPage() {
   }
 
   function openPrintPage() {
-    if (!book || visibleWords.length === 0) return;
-    const title = selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`;
-    const html = buildPrintHtml({
-      title,
-      words: testWords,
-      type: testType,
-      direction: testDirection,
-      printStyle,
-      pageLimit,
-      showPageNo,
-      includeDate,
-      showRecordFields,
-      includeWatermark,
-    });
+    if (!book || visibleWords.length === 0 || !printHtml) return;
     sessionStorage.setItem(
       "vpp-print-job",
       JSON.stringify({
-        html,
-        title,
+        html: printHtml,
+        title: printTitle,
         sourceLabel: "wordbook-detail",
         createdAt: new Date().toISOString(),
       }),
@@ -550,6 +648,15 @@ export default function WordbookDetailPage() {
             <h2 className="mt-1 text-2xl font-black text-slate-950">PDF設定</h2>
             <div className="mt-5 space-y-3">
               <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">PDFタイトル</span>
+                <input
+                  value={customTitle}
+                  onChange={(event) => setCustomTitle(event.target.value)}
+                  placeholder={selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`}
+                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
+                />
+              </label>
+              <label className="block rounded-2xl border p-3">
                 <span className="text-xs font-black text-slate-500">形式</span>
                 <select value={testType} onChange={(event) => setTestType(event.target.value as TestType)} className="mt-1 w-full bg-transparent text-sm font-bold">
                   <option value="test">問題PDF</option>
@@ -600,6 +707,35 @@ export default function WordbookDetailPage() {
                   </label>
                 ))}
               </div>
+
+              {showRecordFields ? (
+                <div className="rounded-2xl border bg-slate-50 p-3">
+                  <p className="text-xs font-black text-slate-500">記入欄の詳細</p>
+                  <div className="mt-3 grid gap-2">
+                    <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-bold">
+                      クラス欄
+                      <input type="checkbox" checked={showClassField} onChange={(event) => setShowClassField(event.target.checked)} className="h-5 w-5" />
+                    </label>
+                    {showClassField ? (
+                      <input value={studentClass} onChange={(event) => setStudentClass(event.target.value)} placeholder="例: 3-A" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                    ) : null}
+                    <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-bold">
+                      番号欄
+                      <input type="checkbox" checked={showNumberField} onChange={(event) => setShowNumberField(event.target.checked)} className="h-5 w-5" />
+                    </label>
+                    {showNumberField ? (
+                      <input value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} placeholder="例: 12" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                    ) : null}
+                    <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-bold">
+                      氏名欄
+                      <input type="checkbox" checked={showNameField} onChange={(event) => setShowNameField(event.target.checked)} className="h-5 w-5" />
+                    </label>
+                    {showNameField ? (
+                      <input value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="空欄のままでも使えます" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 grid gap-2">
@@ -608,7 +744,7 @@ export default function WordbookDetailPage() {
                 disabled={visibleWords.length === 0}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
-                PDFプレビューへ進む
+                単語テストを印刷
               </button>
               <button
                 onClick={openAdvancedPrinter}
@@ -624,56 +760,19 @@ export default function WordbookDetailPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-black text-blue-700">プレビュー</p>
-                <h2 className="mt-1 text-xl font-black text-slate-950">最初の1ページ</h2>
+                <h2 className="mt-1 text-xl font-black text-slate-950">実際の印刷イメージ</h2>
               </div>
               <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
                 {Math.min(testWords.length, pageLimit * 50)}語 / 最大{pageLimit}ページ
               </p>
             </div>
-            <div className="mt-4 overflow-hidden rounded-2xl border bg-slate-50 p-3">
-              <div className="mx-auto max-w-[760px] bg-white p-4 shadow-sm">
-                <div className="mb-3 text-center">
-                  <h3 className="text-base font-black">{selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`}</h3>
-                  <p className="text-xs text-slate-400">{includeDate ? formatPrintDate(new Date()) : ""}</p>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {chunkWords(printPreviewWords, 25).map((columnWords, columnIndex) => (
-                    <table key={columnIndex} className="w-full table-fixed border-collapse text-[11px]">
-                      <thead>
-                        <tr className="bg-slate-50">
-                          <th className="w-10 border p-1">番号</th>
-                          <th className="w-24 border p-1">{testType === "list" ? "単語" : "問題"}</th>
-                          <th className="border p-1">{testType === "test" ? "解答欄" : testType === "answer" ? "答え" : "意味"}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {columnWords.map((word) => {
-                          const question = testDirection === "ja-en" ? word.japanese : word.english;
-                          const answer = testDirection === "ja-en" ? word.english : word.japanese;
-                          const left = testType === "list" ? word.english : question;
-                          const right = testType === "list" ? word.japanese : testType === "answer" ? answer : "";
-                          return (
-                            <tr key={`${columnIndex}-${word.no}-${word.english}`}>
-                              <td className="border p-1 text-center font-bold text-slate-400">{word.no}</td>
-                              <td className={`border p-1 ${printStyle === "red-english" ? "font-black text-red-600" : "font-bold"}`}>
-                                {printStyle === "blank-english" && (testType === "list" || testDirection === "en-ja") ? "________" : left}
-                              </td>
-                              <td className={`border p-1 ${printStyle === "red-japanese" ? "font-black text-red-600" : "text-slate-600"}`}>
-                                {printStyle === "blank-japanese" && right ? "________" : right}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  ))}
-                </div>
-                {showRecordFields ? <div className="mt-5 grid grid-cols-[1fr_1fr_2fr] gap-3 text-xs"><span className="border-b p-1">組</span><span className="border-b p-1">番</span><span className="border-b p-1">氏名</span></div> : null}
-                <div className="mt-4 flex justify-between text-xs text-slate-400">
-                  <span>{showPageNo ? "1/1" : ""}</span>
-                  <span>{includeWatermark ? "Created by Vocab Print Pro" : ""}</span>
-                </div>
-              </div>
+            <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-3">
+              <iframe
+                title="単語テスト印刷プレビュー"
+                srcDoc={previewDoc}
+                className="h-[620px] w-[820px] origin-top-left rounded-xl bg-white shadow-sm"
+                style={{ transform: "scale(0.82)", transformOrigin: "top left", marginBottom: "-110px" }}
+              />
             </div>
           </div>
         </section>
