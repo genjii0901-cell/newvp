@@ -86,6 +86,10 @@ function getAuthRedirectBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.vocabprint.com";
 }
 
+function getAuthConfirmUrl(next = "/") {
+  return `${getAuthRedirectBaseUrl()}/auth/confirm?next=${encodeURIComponent(next)}`;
+}
+
 function isLineLoginEnabled() {
   return process.env.NEXT_PUBLIC_ENABLE_LINE_LOGIN === "true";
 }
@@ -1011,12 +1015,11 @@ export default function Home() {
     }
 
     if (authMode === "signup") {
-      const appUrl = getAuthRedirectBaseUrl();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${appUrl}/auth/callback?next=/`,
+          emailRedirectTo: getAuthConfirmUrl("/"),
         },
       });
 
@@ -1062,11 +1065,10 @@ export default function Home() {
       return;
     }
 
-    const appUrl = getAuthRedirectBaseUrl();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${appUrl}/auth/callback?next=/`,
+        redirectTo: getAuthConfirmUrl("/"),
       },
     });
 

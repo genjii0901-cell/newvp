@@ -42,6 +42,10 @@ function getAuthRedirectBaseUrl() {
   return envUrl ? envUrl.replace(/\/$/, "") : "https://www.vocabprint.com";
 }
 
+function getAuthConfirmUrl(next = "/account") {
+  return `${getAuthRedirectBaseUrl()}/auth/confirm?next=${encodeURIComponent(next)}`;
+}
+
 function isErrorMessage(message: string) {
   return /失敗|できません|エラー|削除できません/.test(message);
 }
@@ -146,7 +150,7 @@ export default function AccountPage() {
     setSavingEmail(true);
     setMsg("");
 
-    const redirectUrl = `${getAuthRedirectBaseUrl()}/auth/callback?next=/account`;
+    const redirectUrl = getAuthConfirmUrl("/account");
     const { error } = await supabase.auth.updateUser(
       { email: newEmail },
       { emailRedirectTo: redirectUrl }
