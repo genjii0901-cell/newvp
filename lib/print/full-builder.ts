@@ -233,6 +233,8 @@ export const printCss = `
     font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white;
     display:flex; flex-direction:column; padding-bottom:1mm;
   }
+  /* 最終ページの後ろに空白ページを出さない */
+  .print-page:last-child { page-break-after:auto; break-after:auto; }
 
   /* ヘッダー: タイトル中央・日付右上 */
   .print-page-header { position:relative; text-align:center; margin-bottom:4mm; }

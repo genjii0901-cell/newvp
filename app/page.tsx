@@ -536,13 +536,13 @@ export default function Home() {
         });
         setPlan("free");
         setRole("user");
-        cachePlan(user.id, "free");
+        writeCachedPlan(user.id, "free");
         return;
       }
       const nextPlan = isPlan(data.plan) ? data.plan : "free";
       setPlan(nextPlan);
       setRole(data.role === "admin" ? "admin" : "user");
-      cachePlan(user.id, nextPlan);
+      writeCachedPlan(user.id, nextPlan);
     }
 
     async function loadUser() {
