@@ -69,6 +69,8 @@ export default function ListeningPage() {
   const [myBooks, setMyBooks] = useState<Wordbook[]>([]);
   const [officialId, setOfficialId] = useState("");
   const [myBookId, setMyBookId] = useState("");
+  const [officialPickerOpen, setOfficialPickerOpen] = useState(false);
+  const [myPickerOpen, setMyPickerOpen] = useState(false);
   const [pasteText, setPasteText] = useState(
     "number\tenglish\tjapanese\n1\tapple\tりんご\n2\tbook\t本\n3\tstudy\t勉強する",
   );
@@ -195,6 +197,8 @@ export default function ListeningPage() {
     if (tab === "paste") return pastedBook;
     return officialBooks.find((book) => book.id === officialId) ?? null;
   }, [myBookId, myBooks, officialBooks, officialId, pastedBook, tab]);
+  const selectedOfficialBook = officialBooks.find((book) => book.id === officialId) ?? officialBooks[0] ?? null;
+  const selectedMyBook = myBooks.find((book) => book.id === myBookId) ?? myBooks[0] ?? null;
 
   const allWords = activeBook?.words ?? [];
   const totalWords = allWords.length;
@@ -367,20 +371,36 @@ export default function ListeningPage() {
             {tab === "official" && (
               <div>
                 <label className="block text-sm font-bold">みんなの単語帳を選ぶ</label>
-                <div className="mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
-                  {officialBooks.map((book) => (
-                    <button
-                      key={book.id}
-                      type="button"
-                      onClick={() => setOfficialId(book.id)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
-                        officialId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
-                      }`}
-                    >
-                      <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
-                    </button>
-                  ))}
+                <div className="relative mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setOfficialPickerOpen((open) => !open)}
+                    className="flex w-full items-center gap-3 rounded-2xl border bg-white px-3 py-3 text-left shadow-sm hover:bg-slate-50"
+                  >
+                    {selectedOfficialBook ? <img src={getBookCover(selectedOfficialBook)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" /> : null}
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{selectedOfficialBook?.title ?? "単語帳を選択"}</span>
+                    <span className="text-xs font-black text-slate-400">{officialPickerOpen ? "閉じる" : "選ぶ"}</span>
+                  </button>
+                  {officialPickerOpen && (
+                    <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2 shadow-xl">
+                      {officialBooks.map((book) => (
+                        <button
+                          key={book.id}
+                          type="button"
+                          onClick={() => {
+                            setOfficialId(book.id);
+                            setOfficialPickerOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                            officialId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -388,20 +408,36 @@ export default function ListeningPage() {
             {tab === "my" && (
               <div>
                 <label className="block text-sm font-bold">マイ単語帳を選ぶ</label>
-                <div className="mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
-                  {myBooks.map((book) => (
-                    <button
-                      key={book.id}
-                      type="button"
-                      onClick={() => setMyBookId(book.id)}
-                      className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
-                        myBookId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
-                      }`}
-                    >
-                      <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
-                    </button>
-                  ))}
+                <div className="relative mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setMyPickerOpen((open) => !open)}
+                    className="flex w-full items-center gap-3 rounded-2xl border bg-white px-3 py-3 text-left shadow-sm hover:bg-slate-50"
+                  >
+                    {selectedMyBook ? <img src={getBookCover(selectedMyBook)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" /> : null}
+                    <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{selectedMyBook?.title ?? "単語帳を選択"}</span>
+                    <span className="text-xs font-black text-slate-400">{myPickerOpen ? "閉じる" : "選ぶ"}</span>
+                  </button>
+                  {myPickerOpen && (
+                    <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2 shadow-xl">
+                      {myBooks.map((book) => (
+                        <button
+                          key={book.id}
+                          type="button"
+                          onClick={() => {
+                            setMyBookId(book.id);
+                            setMyPickerOpen(false);
+                          }}
+                          className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                            myBookId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                          }`}
+                        >
+                          <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
+                          <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {myBooks.length === 0 && (
                   <p className="mt-3 text-sm text-slate-500">マイ単語帳がまだない場合は、単語帳ページから追加できます。</p>

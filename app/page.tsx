@@ -382,6 +382,7 @@ export default function Home() {
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [bookId, setBookId] = useState("");
   const [bookSearch, setBookSearch] = useState("");
+  const [bookPickerOpen, setBookPickerOpen] = useState(false);
   const [startNo, setStartNo] = useState(1);
   const [endNo, setEndNo] = useState(50);
   const [count, setCount] = useState(50);
@@ -831,6 +832,11 @@ export default function Home() {
     );
   }, [bookSearch, books]);
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
+  const pickerBooks = searchableBooks.some((book) => book.id === bookId)
+    ? searchableBooks
+    : selectedBook
+      ? [selectedBook, ...searchableBooks]
+      : searchableBooks;
   const overlapBaseBook = books.find((book) => book.id === overlapBaseBookId) ?? null;
   const overlapCompareBook = books.find((book) => book.id === overlapCompareBookId) ?? null;
   const locked =
@@ -891,6 +897,7 @@ export default function Home() {
     if (!nextBook) return;
 
     setBookId(nextBookId);
+    setBookPickerOpen(false);
     setStartNo(1);
     setEndNo(getBookWordCount(nextBook));
     setCount(Math.min(getBookWordCount(nextBook), 50));
@@ -1877,30 +1884,41 @@ export default function Home() {
             {!booksLoaded ? (
               <div className="mt-1 w-full rounded-xl border px-3 py-3 text-base text-slate-400">読み込み中...</div>
             ) : (
-              <div className="mt-1 max-h-64 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
-                {(searchableBooks.some((book) => book.id === bookId)
-                  ? searchableBooks
-                  : selectedBook
-                    ? [selectedBook, ...searchableBooks]
-                    : searchableBooks
-                ).map((book, index) => (
-                  <button
-                    key={book.id}
-                    type="button"
-                    onClick={() => pickBook(book.id)}
-                    className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
-                      book.id === bookId ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <img src={getBookCover(book, index)} alt="" className="h-10 w-10 flex-none rounded-lg object-cover" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-black text-slate-800">
-                        {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
-                      </span>
-                      <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "Vocab Print Pro"}</span>
-                    </span>
-                  </button>
-                ))}
+              <div className="relative mt-1">
+                <button
+                  type="button"
+                  onClick={() => setBookPickerOpen((open) => !open)}
+                  className="flex w-full items-center gap-3 rounded-2xl border bg-white px-3 py-3 text-left shadow-sm hover:bg-slate-50"
+                >
+                  {selectedBook ? <img src={getBookCover(selectedBook, 0)} alt="" className="h-10 w-10 flex-none rounded-lg object-cover" /> : null}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black text-slate-800">{selectedBook?.title ?? "単語帳を選択"}</span>
+                    <span className="block truncate text-xs font-bold text-slate-400">{selectedBook?.creator ?? "クリックして選択"}</span>
+                  </span>
+                  <span className="text-xs font-black text-slate-400">{bookPickerOpen ? "閉じる" : "選ぶ"}</span>
+                </button>
+                {bookPickerOpen && (
+                  <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2 shadow-xl">
+                    {pickerBooks.map((book, index) => (
+                      <button
+                        key={book.id}
+                        type="button"
+                        onClick={() => pickBook(book.id)}
+                        className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                          book.id === bookId ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                        }`}
+                      >
+                        <img src={getBookCover(book, index)} alt="" className="h-10 w-10 flex-none rounded-lg object-cover" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-black text-slate-800">
+                            {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
+                          </span>
+                          <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "Vocab Print Pro"}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             {bookSearch && (
