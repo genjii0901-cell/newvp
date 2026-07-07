@@ -1065,8 +1065,9 @@ export default function Home() {
       return;
     }
 
+    const supabaseProvider = provider === "line" ? "custom:line" : provider;
     const { error } = await supabase.auth.signInWithOAuth({
-      provider,
+      provider: supabaseProvider,
       options: {
         redirectTo: getAuthConfirmUrl("/"),
       },
