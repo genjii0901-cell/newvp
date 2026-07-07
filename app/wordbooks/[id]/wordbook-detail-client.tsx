@@ -7,9 +7,10 @@ import { formatMeaning } from "@/lib/meaning";
 import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuestion } from "@/lib/print/full-builder";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
+import QuizPanel from "./quiz-panel";
 
 type Plan = "free" | "personal" | "teacher";
-type DetailTab = "overview" | "test" | "listen";
+type DetailTab = "overview" | "test" | "quiz" | "listen";
 type TestType = "list" | "test" | "answer";
 type TestDirection = "en-ja" | "ja-en";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
@@ -319,7 +320,7 @@ export default function WordbookDetailPage() {
   useEffect(() => {
     primeSpeechVoices();
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "test" || tab === "listen") setActiveTab(tab);
+    if (tab === "test" || tab === "quiz" || tab === "listen") setActiveTab(tab);
     if (tab === "words") setActiveTab("overview");
   }, []);
 
@@ -616,6 +617,7 @@ export default function WordbookDetailPage() {
   const tabs: Array<{ key: DetailTab; label: string; hint: string }> = [
     { key: "overview", label: "概要", hint: "単語一覧" },
     { key: "test", label: "単語テスト", hint: "印刷作成" },
+    { key: "quiz", label: "オンライン練習", hint: "4択・カード" },
     { key: "listen", label: "聞き流し", hint: "音声学習" },
   ];
 
@@ -656,7 +658,7 @@ export default function WordbookDetailPage() {
       </section>
 
       <section className="sticky top-0 z-10 mt-4 border-y bg-slate-50/95 py-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:py-0">
-        <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+        <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
           {tabs.map((tab) => (
             <button
               key={tab.key}
@@ -954,6 +956,32 @@ export default function WordbookDetailPage() {
                 className="mx-auto block h-[840px] w-[572px] rounded-xl bg-white shadow-sm"
               />
             </div>
+          </div>
+        </section>
+      )}
+
+      {activeTab === "quiz" && (
+        <section className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
+          <div className="rounded-3xl border bg-white p-5 shadow-sm">
+            <p className="text-sm font-black text-blue-700">オンライン練習</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">選んだ範囲で解く</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              上の「使う範囲」で選んだ{visibleWords.length}語をそのまま使います。印刷用の設定は変えずに、画面上だけで練習できます。
+            </p>
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-600">
+              <p>対象: {selectedUnit === "all" ? "すべて" : selectedUnit}</p>
+              <p className="mt-1">番号: {rangeStart || "-"} - {rangeEnd || "-"}</p>
+              <p className="mt-1">語数: {visibleWords.length}語</p>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <QuizPanel
+              words={visibleWords.map((word) => ({
+                no: word.no,
+                english: word.english,
+                japanese: word.japanese,
+              }))}
+            />
           </div>
         </section>
       )}
