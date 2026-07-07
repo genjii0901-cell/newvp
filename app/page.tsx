@@ -86,6 +86,10 @@ function getAuthRedirectBaseUrl() {
   return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.vocabprint.com";
 }
 
+function isLineLoginEnabled() {
+  return process.env.NEXT_PUBLIC_ENABLE_LINE_LOGIN === "true";
+}
+
 function parsePastedWords(text: string) {
   return text
     .split(/\r?\n/)
@@ -1860,15 +1864,17 @@ export default function Home() {
                 </span>
                 <span>Googleで続ける</span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleOAuthSignIn("line")}
-                disabled={!supabase}
-                className="flex h-12 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
-              >
-                <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
-                <span>LINEで続ける</span>
-              </button>
+              {isLineLoginEnabled() && (
+                <button
+                  type="button"
+                  onClick={() => handleOAuthSignIn("line")}
+                  disabled={!supabase}
+                  className="flex h-12 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
+                >
+                  <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
+                  <span>LINEで続ける</span>
+                </button>
+              )}
             </div>
 
             <div className="mt-4 flex items-center gap-3 text-xs font-bold text-slate-400">
