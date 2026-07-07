@@ -556,12 +556,29 @@ export default function WordbookDetailPage() {
 
   function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
-    // メイン画面と同じ「隠しiframeで印刷ダイアログを直接開く」方式。
-    // ページ遷移しないので、印刷後の「戻る」で開いていた単語帳ページに残る。
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${printHtml}</div></body></html>`;
+
+    // メイン画面と同じ挙動：スマホは/printページで表示（iframe印刷が不安定なため）、PCは隠しiframeで直接ダイアログ。
+    const usePrintPage =
+      typeof window !== "undefined" &&
+      (window.matchMedia("(max-width: 767px)").matches ||
+        /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent));
+    if (usePrintPage) {
+      sessionStorage.setItem(
+        "vpp-print-job",
+        JSON.stringify({
+          html: `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`,
+          title: printTitle,
+          sourceLabel: "wordbook-detail",
+          createdAt: new Date().toISOString(),
+        }),
+      );
+      window.location.href = "/print";
+      return;
+    }
 
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type PrintJob = {
@@ -94,6 +94,12 @@ const printJobCss = `
   .paper-preview-shell {
     transform-origin: top left;
     margin: 0 auto;
+    overflow: hidden;
+  }
+
+  @media (max-width: 640px) {
+    .sheet { padding: 12px 8px 28px; }
+    .paper-wrap { padding: 8px; }
   }
 
   .paper-preview #print-root {
@@ -422,8 +428,14 @@ const printJobCss = `
 `;
 
 export default function PrintPage() {
+  const router = useRouter();
   const [job, setJob] = useState<PrintJob | null>(null);
   const [viewportWidth, setViewportWidth] = useState(1100);
+
+  function goBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) router.back();
+    else router.push("/");
+  }
 
   function openPrintDialog() {
     window.requestAnimationFrame(() => {
@@ -457,7 +469,7 @@ export default function PrintPage() {
 
   const previewNaturalWidth = 794;
   const previewNaturalHeight = 1123;
-  const previewScale = Math.min(1, Math.max(0.42, (viewportWidth - 64) / previewNaturalWidth));
+  const previewScale = Math.min(1, Math.max(0.28, (viewportWidth - 40) / previewNaturalWidth));
   const previewPageCount = Math.max(1, job?.html.match(/class=["']print-page/g)?.length ?? 1);
 
   return (
@@ -475,9 +487,9 @@ export default function PrintPage() {
           <button type="button" onClick={openPrintDialog} className="btn primary">
             印刷ダイアログを開く
           </button>
-          <Link href="/" className="btn">
+          <button type="button" onClick={goBack} className="btn">
             戻る
-          </Link>
+          </button>
         </div>
       </div>
 

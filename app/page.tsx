@@ -2223,9 +2223,9 @@ export default function Home() {
                 type="button"
                 onClick={() => setShowPreview(true)}
                 className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 sm:py-3 font-black text-blue-700 hover:bg-blue-100 active:bg-blue-200"
-                title="印刷レイアウトをプレビュー・調整"
+                title="印刷レイアウトを確認・調整"
               >
-                プレビュー
+                レイアウト
               </button>
             </div>
             {pdfMessage && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-xs font-bold text-blue-700">{pdfMessage}</p>}
@@ -2916,10 +2916,10 @@ export default function Home() {
             onMouseLeave={() => { if (dragging) setDragging(null); }}
           >
             <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:flex-row">
-              {/* A4プレビュー */}
+              {/* A4レイアウト */}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b px-5 py-4">
-                  <h2 className="text-lg font-black">印刷プレビュー</h2>
+                  <h2 className="text-lg font-black">印刷レイアウト</h2>
                   <p className="mt-0.5 text-xs text-slate-400">
                     <span style={{ color: "#3b82f6" }}>■</span> タイトル &nbsp;
                     <span style={{ color: "#ca8a04" }}>■</span> 日付 &nbsp;
