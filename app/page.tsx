@@ -71,6 +71,10 @@ function planRank(plan: Plan) {
   return 0;
 }
 
+function isPlan(value: unknown): value is Plan {
+  return value === "free" || value === "personal" || value === "teacher";
+}
+
 function planCacheKey(userId: string) {
   return `vpp-profile-plan:${userId}`;
 }
@@ -505,12 +509,34 @@ export default function Home() {
 
     const client = supabase;
 
+    async function ensureProfile(user: User) {
+      const email = user.email ?? "";
+      const { data } = await client.from("profiles").select("id,plan,role").eq("id", user.id).maybeSingle();
+      if (!data) {
+        await client.from("profiles").upsert({
+          id: user.id,
+          email,
+          plan: "free",
+          role: "user",
+        });
+        setPlan("free");
+        setRole("user");
+        cachePlan(user.id, "free");
+        return;
+      }
+      const nextPlan = isPlan(data.plan) ? data.plan : "free";
+      setPlan(nextPlan);
+      setRole(data.role === "admin" ? "admin" : "user");
+      cachePlan(user.id, nextPlan);
+    }
+
     async function loadUser() {
       const { data } = await client.auth.getUser();
       setUser(data.user ?? null);
       if (data.user) {
         const cachedPlan = readCachedPlan(data.user.id);
         if (cachedPlan) setPlan(cachedPlan);
+        void ensureProfile(data.user);
       }
     }
 
@@ -521,6 +547,7 @@ export default function Home() {
       if (session?.user) {
         const cachedPlan = readCachedPlan(session.user.id);
         if (cachedPlan) setPlan(cachedPlan);
+        void ensureProfile(session.user);
       }
     });
 
@@ -1013,6 +1040,36 @@ export default function Home() {
 
     setMessageTone("success");
     setMessage("ログインしました。");
+  }
+
+  async function handleOAuthSignIn(provider: "google" | "line") {
+    setMessage("");
+    setMessageTone("info");
+
+    if (!supabase) {
+      setMessageTone("error");
+      setMessage("SupabaseのURLとAnon KeyをVercelの環境変数に設定してください。");
+      return;
+    }
+
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+      (typeof window !== "undefined" ? window.location.origin : "https://www.vocabprint.com");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${appUrl}/auth/confirm?next=/`,
+      },
+    });
+
+    if (error) {
+      setMessageTone("error");
+      setMessage(
+        provider === "google"
+          ? `Googleログインを開始できませんでした。SupabaseのGoogle Provider設定を確認してください。${normalizeAuthErrorMessage(error.message)}`
+          : `LINEログインを開始できませんでした。SupabaseのLINE Provider設定を確認してください。${normalizeAuthErrorMessage(error.message)}`
+      );
+    }
   }
 
   async function logout() {
@@ -1767,6 +1824,33 @@ export default function Home() {
               >
                 新規登録
               </button>
+            </div>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn("google")}
+                disabled={!supabase}
+                className="flex items-center justify-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-800 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full border bg-white text-sm font-black text-blue-600">G</span>
+                Googleで続ける
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn("line")}
+                disabled={!supabase}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-[#06c755] px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
+              >
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-[#06c755]">LINE</span>
+                LINEで続ける
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3 text-xs font-bold text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span>またはメールアドレスで続ける</span>
+              <span className="h-px flex-1 bg-slate-200" />
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
