@@ -767,7 +767,7 @@ export default function WordbookDetailPage() {
 
       {activeTab === "test" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
+          <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
             <p className="text-sm font-black text-blue-700">単語テスト</p>
             <h2 className="mt-1 text-2xl font-black text-slate-950">印刷設定</h2>
             <div className="mt-5 space-y-3">
@@ -937,7 +937,7 @@ export default function WordbookDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
+          <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-black text-blue-700">プレビュー</p>
