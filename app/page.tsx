@@ -91,7 +91,7 @@ function getAuthConfirmUrl(next = "/") {
 }
 
 function isLineLoginEnabled() {
-  return process.env.NEXT_PUBLIC_ENABLE_LINE_LOGIN === "true";
+  return process.env.NEXT_PUBLIC_ENABLE_LINE_LOGIN !== "false";
 }
 
 function parsePastedWords(text: string) {

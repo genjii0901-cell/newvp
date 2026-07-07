@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMeaning } from "@/lib/meaning";
 import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuestion } from "@/lib/print/full-builder";
@@ -16,6 +17,11 @@ type TestDirection = "en-ja" | "ja-en";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type MeaningMode = "main" | "all";
 type ListeningMode = "listen" | "test";
+type DragTarget = "title" | "date" | "info" | "grid" | "pageNo";
+
+const PREVIEW_SCALE = 0.48;
+const PREVIEW_WIDTH = 794;
+const PREVIEW_HEIGHT = 1123;
 
 type Word = {
   no: number;
@@ -308,6 +314,8 @@ export default function WordbookDetailPage() {
   const [gridOffsetY, setGridOffsetY] = useState(0);
   const [pageNoOffsetX, setPageNoOffsetX] = useState(0);
   const [pageNoOffsetY, setPageNoOffsetY] = useState(0);
+  const [dragging, setDragging] = useState<DragTarget | null>(null);
+  const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
   const [listenIndex, setListenIndex] = useState(0);
   const [showMeaning, setShowMeaning] = useState(false);
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
@@ -453,12 +461,52 @@ export default function WordbookDetailPage() {
   const previewDoc = useMemo(() => {
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${detailPreviewCss}</style></head><body><div class="preview-stage">${printHtml}</div></body></html>`;
   }, [printHtml]);
+  const printedWordCount = Math.min(testWords.length, pageLimit * 50);
+  const previewPageCount = Math.max(1, printHtml.match(/<section class=["']print-page/g)?.length ?? 1);
 
   useEffect(() => {
     stopListening();
     setListenIndex(0);
     setShowMeaning(false);
   }, [rangeStart, rangeEnd, selectedUnit]);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const ppMM = PREVIEW_SCALE * 3.78;
+    const snapX = (value: number) => (Math.abs(value) <= 3 ? 0 : value);
+    const snapY = (value: number) => (Math.abs(value) <= 2 ? 0 : value);
+    const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+    const onMove = (event: MouseEvent) => {
+      const dx = (event.clientX - dragStart.cx) / ppMM;
+      const dy = (event.clientY - dragStart.cy) / ppMM;
+      const nextX = dragStart.ox + dx;
+      const nextY = dragStart.oy + dy;
+
+      if (dragging === "title") {
+        setTitleOffsetX(snapX(clamp(nextX, -80, 80)));
+        setTitleOffsetY(snapY(clamp(nextY, -5, 15)));
+      } else if (dragging === "date") {
+        setDateOffsetX(snapX(clamp(nextX, -80, 80)));
+        setDateOffsetY(snapY(clamp(nextY, -5, 20)));
+      } else if (dragging === "info") {
+        setInfoOffsetX(snapX(clamp(nextX, -80, 80)));
+        setInfoOffsetY(snapY(clamp(nextY, -10, 10)));
+      } else if (dragging === "grid") {
+        setGridOffsetX(snapX(clamp(nextX, -80, 80)));
+        setGridOffsetY(snapY(clamp(nextY, -30, 30)));
+      } else if (dragging === "pageNo") {
+        setPageNoOffsetX(snapX(clamp(nextX, -80, 80)));
+        setPageNoOffsetY(snapY(clamp(nextY, -20, 20)));
+      }
+    };
+    const onUp = () => setDragging(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging, dragStart]);
 
   function storeSelectedRange() {
     if (!book || visibleWords.length === 0) return false;
@@ -617,7 +665,7 @@ export default function WordbookDetailPage() {
   const tabs: Array<{ key: DetailTab; label: string; hint: string }> = [
     { key: "overview", label: "概要", hint: "単語一覧" },
     { key: "test", label: "単語テスト", hint: "印刷作成" },
-    { key: "quiz", label: "オンライン練習", hint: "4択・カード" },
+    { key: "quiz", label: "単語チェック", hint: "4択・カード" },
     { key: "listen", label: "聞き流し", hint: "音声学習" },
   ];
 
@@ -768,6 +816,239 @@ export default function WordbookDetailPage() {
       )}
 
       {activeTab === "test" && (
+        <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
+          <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
+            <p className="text-sm font-black text-blue-700">単語テスト</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">印刷設定</h2>
+
+            <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
+              <p>{rangeStart || "-"}番から{rangeEnd || "-"}番まで / {visibleWords.length}語</p>
+              <p className="mt-1 text-xs text-blue-700">
+                この設定では{printedWordCount}語、{previewPageCount}ページ分を印刷します。
+              </p>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">印刷タイトル</span>
+                <input
+                  value={customTitle}
+                  onChange={(event) => setCustomTitle(event.target.value)}
+                  placeholder={selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`}
+                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
+                />
+              </label>
+
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block rounded-2xl border p-3">
+                  <span className="text-xs font-black text-slate-500">プリントの種類</span>
+                  <select value={testType} onChange={(event) => setTestType(event.target.value as TestType)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                    <option value="test">問題プリント</option>
+                    <option value="answer">解答プリント</option>
+                    <option value="list">単語一覧</option>
+                  </select>
+                </label>
+                <label className="block rounded-2xl border p-3">
+                  <span className="text-xs font-black text-slate-500">出題方向</span>
+                  <select value={testDirection} onChange={(event) => setTestDirection(event.target.value as TestDirection)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                    <option value="en-ja">英語 → 日本語</option>
+                    <option value="ja-en">日本語 → 英語</option>
+                  </select>
+                </label>
+              </div>
+
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">表示の加工</span>
+                <select value={printStyle} onChange={(event) => setPrintStyle(event.target.value as PrintStyle)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                  <option value="standard">通常</option>
+                  <option value="blank-english">英語を空欄</option>
+                  <option value="blank-japanese">日本語を空欄</option>
+                  <option value="red-english">英語を赤字</option>
+                  <option value="red-japanese">日本語を赤字</option>
+                </select>
+              </label>
+
+              <label className="block rounded-2xl border p-3">
+                <span className="flex items-center justify-between text-xs font-black text-slate-500">
+                  最大ページ数
+                  <span>{pageLimit}ページまで</span>
+                </span>
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={pageLimit}
+                  onChange={(event) => setPageLimit(Number(event.target.value))}
+                  className="mt-3 w-full"
+                />
+                <p className="mt-1 text-xs font-bold text-slate-400">1ページ50語で計算します。Personalは1回5ページまでです。</p>
+              </label>
+
+              <div className="grid gap-2 text-sm font-bold sm:grid-cols-2">
+                {[
+                  ["ランダム順", randomOrder, setRandomOrder],
+                  ["ページ番号", showPageNo, setShowPageNo],
+                ].map(([label, value, setter]) => (
+                  <label key={String(label)} className="flex items-center justify-between rounded-2xl border px-3 py-2">
+                    {label as string}
+                    <input
+                      type="checkbox"
+                      checked={value as boolean}
+                      onChange={(event) => (setter as (next: boolean) => void)(event.target.checked)}
+                      className="h-5 w-5"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <details className="rounded-2xl border bg-slate-50 p-3">
+                <summary className="cursor-pointer list-none text-sm font-black text-slate-800">詳細設定</summary>
+                <div className="mt-3 grid gap-2 text-sm font-bold">
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    日付を入れる
+                    <input type="checkbox" checked={includeDate} onChange={(event) => setIncludeDate(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    組・番・氏名欄
+                    <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    Created by / 透かし
+                    <input type="checkbox" checked={includeWatermark} onChange={(event) => setIncludeWatermark(event.target.checked)} className="h-5 w-5" />
+                  </label>
+                </div>
+
+                {showRecordFields ? (
+                  <div className="mt-3 rounded-2xl border bg-white p-3">
+                    <p className="text-xs font-black text-slate-500">記入欄</p>
+                    <div className="mt-3 grid gap-2">
+                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
+                        クラス欄
+                        <input type="checkbox" checked={showClassField} onChange={(event) => setShowClassField(event.target.checked)} className="h-5 w-5" />
+                      </label>
+                      {showClassField ? <input value={studentClass} onChange={(event) => setStudentClass(event.target.value)} placeholder="例: 3-A" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
+                        番号欄
+                        <input type="checkbox" checked={showNumberField} onChange={(event) => setShowNumberField(event.target.checked)} className="h-5 w-5" />
+                      </label>
+                      {showNumberField ? <input value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} placeholder="例: 12" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
+                        氏名欄
+                        <input type="checkbox" checked={showNameField} onChange={(event) => setShowNameField(event.target.checked)} className="h-5 w-5" />
+                      </label>
+                      {showNameField ? <input value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="空欄のままでも使えます" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="mt-3 rounded-2xl border bg-white p-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowLayoutTools((value) => !value)}
+                    className="flex w-full items-center justify-between text-left text-sm font-black text-slate-800"
+                  >
+                    レイアウトを細かく調整
+                    <span className="text-xs text-blue-600">{showLayoutTools ? "閉じる" : "開く"}</span>
+                  </button>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">右のプレビュー上の色付き枠をドラッグしても動かせます。</p>
+                  {showLayoutTools ? (
+                    <div className="mt-3 grid gap-2">
+                      <LayoutSlider label="タイトル 左右" value={titleOffsetX} onChange={setTitleOffsetX} />
+                      <LayoutSlider label="タイトル 上下" value={titleOffsetY} onChange={setTitleOffsetY} min={-6} max={10} />
+                      <LayoutSlider label="表 左右" value={gridOffsetX} onChange={setGridOffsetX} />
+                      <LayoutSlider label="表 上下" value={gridOffsetY} onChange={setGridOffsetY} min={-10} max={10} />
+                      {includeDate ? (
+                        <>
+                          <LayoutSlider label="日付 左右" value={dateOffsetX} onChange={setDateOffsetX} />
+                          <LayoutSlider label="日付 上下" value={dateOffsetY} onChange={setDateOffsetY} />
+                        </>
+                      ) : null}
+                      {showRecordFields ? (
+                        <>
+                          <LayoutSlider label="記入欄 左右" value={infoOffsetX} onChange={setInfoOffsetX} />
+                          <LayoutSlider label="記入欄 上下" value={infoOffsetY} onChange={setInfoOffsetY} />
+                        </>
+                      ) : null}
+                      {showPageNo ? (
+                        <>
+                          <LayoutSlider label="ページ番号 左右" value={pageNoOffsetX} onChange={setPageNoOffsetX} />
+                          <LayoutSlider label="ページ番号 上下" value={pageNoOffsetY} onChange={setPageNoOffsetY} />
+                        </>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </details>
+            </div>
+
+            <div className="mt-5 grid gap-2">
+              <button
+                onClick={openPrintPage}
+                disabled={visibleWords.length === 0}
+                className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
+              >
+                単語テストを印刷
+              </button>
+              <button
+                onClick={openAdvancedPrinter}
+                disabled={visibleWords.length === 0}
+                className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-300"
+              >
+                メイン画面の詳細作成で開く
+              </button>
+            </div>
+          </div>
+
+          <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-black text-blue-700">プレビュー</p>
+                <h2 className="mt-1 text-xl font-black text-slate-950">実際の印刷イメージ</h2>
+              </div>
+              <p className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-500">
+                {printedWordCount}語 / {previewPageCount}ページ
+              </p>
+            </div>
+            <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-4">
+              <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, minHeight: PREVIEW_HEIGHT * PREVIEW_SCALE * previewPageCount }}>
+                <div
+                  className="origin-top-left"
+                  style={{ width: PREVIEW_WIDTH, transform: `scale(${PREVIEW_SCALE})` }}
+                  dangerouslySetInnerHTML={{ __html: printHtml }}
+                  onCopy={(event) => event.preventDefault()}
+                  onCut={(event) => event.preventDefault()}
+                  onContextMenu={(event) => event.preventDefault()}
+                />
+                <div className="absolute inset-0" onMouseLeave={() => { if (dragging) setDragging(null); }}>
+                  {(() => {
+                    const ppMM = PREVIEW_SCALE * 3.78;
+                    const hasInfoFields = showRecordFields && (showClassField || showNumberField || showNameField);
+                    const startDrag = (type: DragTarget, event: ReactMouseEvent, ox: number, oy: number) => {
+                      event.preventDefault();
+                      setDragging(type);
+                      setDragStart({ cx: event.clientX, cy: event.clientY, ox, oy });
+                    };
+                    const handleBase = "absolute flex items-center justify-center rounded border border-dashed text-[9px] font-black cursor-move select-none";
+                    return (
+                      <>
+                        <div className={`${handleBase} border-blue-500 bg-blue-500/15 text-blue-700`} style={{ top: Math.round((9 + titleOffsetY) * ppMM), left: "12%", right: "12%", height: Math.round(13 * ppMM), transform: `translateX(${titleOffsetX * ppMM}px)` }} onMouseDown={(event) => startDrag("title", event, titleOffsetX, titleOffsetY)}>タイトル</div>
+                        {includeDate ? <div className={`${handleBase} border-yellow-500 bg-yellow-400/20 text-yellow-700`} style={{ top: Math.round((9 + titleOffsetY + dateOffsetY) * ppMM), right: Math.max(2, Math.round((9 - dateOffsetX) * ppMM)), width: 56, height: Math.round(8 * ppMM) }} onMouseDown={(event) => startDrag("date", event, dateOffsetX, dateOffsetY)}>日付</div> : null}
+                        <div className={`${handleBase} border-violet-500 bg-violet-500/15 text-violet-700`} style={{ top: Math.round((9 + 95 + gridOffsetY) * ppMM), left: "3%", right: "3%", height: Math.round(16 * ppMM), transform: `translateX(${gridOffsetX * ppMM}px)` }} onMouseDown={(event) => startDrag("grid", event, gridOffsetX, gridOffsetY)}>単語リスト</div>
+                        {hasInfoFields ? <div className={`${handleBase} border-emerald-500 bg-emerald-500/15 text-emerald-700`} style={{ bottom: Math.round((28 - infoOffsetY) * ppMM), left: "5%", right: "5%", height: Math.round(10 * ppMM), transform: `translateX(${infoOffsetX * ppMM}px)` }} onMouseDown={(event) => startDrag("info", event, infoOffsetX, infoOffsetY)}>記入欄</div> : null}
+                        {showPageNo ? <div className={`${handleBase} border-slate-500 bg-slate-500/15 text-slate-600`} style={{ bottom: Math.round((14 - pageNoOffsetY) * ppMM), left: "35%", right: "35%", height: Math.round(8 * ppMM), transform: `translateX(${pageNoOffsetX * ppMM}px)` }} onMouseDown={(event) => startDrag("pageNo", event, pageNoOffsetX, pageNoOffsetY)}>ページ番号</div> : null}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs font-bold text-slate-400">色付きの枠をドラッグすると位置を調整できます。</p>
+          </div>
+        </section>
+      )}
+
+      {false && activeTab === "test" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
             <p className="text-sm font-black text-blue-700">単語テスト</p>
@@ -963,7 +1244,7 @@ export default function WordbookDetailPage() {
       {activeTab === "quiz" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
           <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">オンライン練習</p>
+            <p className="text-sm font-black text-blue-700">単語チェック</p>
             <h2 className="mt-1 text-2xl font-black text-slate-950">選んだ範囲で解く</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">
               上の「使う範囲」で選んだ{visibleWords.length}語をそのまま使います。印刷用の設定は変えずに、画面上だけで練習できます。
@@ -987,6 +1268,99 @@ export default function WordbookDetailPage() {
       )}
 
       {activeTab === "listen" && (
+        <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
+          <div className="rounded-3xl border bg-white p-5 shadow-sm">
+            <p className="text-sm font-black text-blue-700">聞き流し</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">再生設定</h2>
+            <div className="mt-5 space-y-3">
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">モード</span>
+                <select value={listeningMode} onChange={(event) => setListeningMode(event.target.value as ListeningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                  <option value="listen">聞き流し: 英語 → 日本語</option>
+                  <option value="test">テスト: 英語 → 答え表示</option>
+                </select>
+              </label>
+              <label className="block rounded-2xl border p-3">
+                <span className="text-xs font-black text-slate-500">意味の表示</span>
+                <select value={meaningMode} onChange={(event) => setMeaningMode(event.target.value as MeaningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                  <option value="main">メインの意味だけ</option>
+                  <option value="all">意味を全部表示</option>
+                </select>
+              </label>
+              <label className="block rounded-2xl border p-3">
+                <span className="flex items-center justify-between text-xs font-black text-slate-500">
+                  読み上げ速度
+                  <span>x{listeningSpeed.toFixed(2)}</span>
+                </span>
+                <input
+                  type="range"
+                  min={0.7}
+                  max={1.35}
+                  step={0.05}
+                  value={listeningSpeed}
+                  onChange={(event) => setListeningSpeed(Number(event.target.value))}
+                  className="mt-3 w-full"
+                />
+              </label>
+              <label className="block rounded-2xl border p-3">
+                <span className="flex items-center justify-between text-xs font-black text-slate-500">
+                  単語の間隔
+                  <span>{(listeningGapMs / 1000).toFixed(1)}秒</span>
+                </span>
+                <input
+                  type="range"
+                  min={200}
+                  max={2000}
+                  step={100}
+                  value={listeningGapMs}
+                  onChange={(event) => setListeningGapMs(Number(event.target.value))}
+                  className="mt-3 w-full"
+                />
+              </label>
+              <button
+                onClick={openInListening}
+                disabled={visibleWords.length === 0}
+                className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-300"
+              >
+                聞き流し専用ページで開く
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border bg-white p-5 shadow-sm">
+            <div className="rounded-3xl border bg-gradient-to-br from-blue-50 to-white p-5 text-center">
+              {listenWord ? (
+                <>
+                  <p className="text-xs font-black text-slate-400">
+                    {listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}
+                  </p>
+                  <div className="mt-5 min-h-[220px] rounded-3xl bg-white p-5 shadow-sm">
+                    <p className="break-words text-[clamp(2.2rem,9vw,4.5rem)] font-black leading-tight text-slate-950">{listenWord.english}</p>
+                    <p className={`mt-5 min-h-[72px] text-2xl font-black text-blue-700 transition ${showMeaning ? "opacity-100" : "opacity-0"}`}>
+                      {displayMeaning}
+                    </p>
+                  </div>
+                  <div className="mt-5 grid gap-2 sm:grid-cols-5">
+                    <button onClick={() => goListen(-1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">前へ</button>
+                    <button onClick={() => setShowMeaning((value) => !value)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">答え表示</button>
+                    <button onClick={() => speakWord(listenWord)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">1語再生</button>
+                    {isPlaying ? (
+                      <button onClick={stopListening} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">停止</button>
+                    ) : (
+                      <button onClick={startAutoListening} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">連続再生</button>
+                    )}
+                    <button onClick={() => goListen(1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">次へ</button>
+                  </div>
+                </>
+              ) : (
+                <p className="py-12 text-sm font-bold text-slate-400">範囲に単語がありません。</p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {false && activeTab === "listen" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="rounded-3xl border bg-white p-5 shadow-sm">
             <p className="text-sm font-black text-blue-700">聞き流し</p>

@@ -17,11 +17,12 @@ function shuffle<T>(items: T[]): T[] {
 }
 
 function compactMeaning(value: string) {
-  return formatMeaning(value, "main")
-    .replace(/^[\s\d.．、,]+/, "")
-    .replace(/^[【［\[(（][^】］\])）]{1,12}[】］\])）]\s*/, "")
-    .split(/[;；,，、。／/]/)[0]
-    .trim() || value.trim();
+  const main = formatMeaning(value, "main")
+    .replace(/^[\s\d.、,;:：・-]+/, "")
+    .replace(/^[\[({（【][^\])}）】]{1,14}[\])}）】]\s*/, "")
+    .split(/[;；、，,。／/]/)[0]
+    .trim();
+  return main || value.trim();
 }
 
 function uniqueChoices(values: string[]) {
@@ -82,7 +83,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
   if (words.length === 0) {
     return (
       <div className="rounded-3xl border bg-white p-8 text-center text-sm font-bold text-slate-400 shadow-sm">
-        使う範囲を選ぶと、ここでオンライン練習ができます。
+        使う範囲を選ぶと、ここで単語チェックができます。
       </div>
     );
   }
@@ -90,11 +91,13 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
   if (!started) {
     return (
       <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
-        <p className="text-sm font-black text-blue-700">オンライン練習</p>
-        <h2 className="mt-1 text-2xl font-black text-slate-950">その場で解いて覚える</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          選択中の{words.length}語を使って、フラッシュカードや4択クイズで練習できます。印刷せずにスマホでも復習できます。
-        </p>
+        <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-sky-500 p-5 text-white">
+          <p className="text-sm font-black text-blue-100">単語チェック</p>
+          <h2 className="mt-1 text-2xl font-black">その場で解いて覚える</h2>
+          <p className="mt-2 text-sm leading-6 text-blue-50">
+            選択中の{words.length}語を使って、4択クイズやカードで練習できます。スマホでも片手で進めやすい形にしています。
+          </p>
+        </div>
 
         <div className="mt-5 rounded-2xl bg-slate-50 p-3">
           <p className="text-xs font-black text-slate-500">出題方向</p>
@@ -108,7 +111,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
                 type="button"
                 onClick={() => setDirection(value)}
                 className={`rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                  direction === value ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700"
+                  direction === value ? "border-blue-500 bg-blue-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-700"
                 }`}
               >
                 {label}
@@ -124,7 +127,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
             disabled={!canUseChoice}
             className="rounded-2xl bg-blue-600 px-4 py-4 text-base font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
           >
-            4択クイズを始める
+            4択でチェック
             {!canUseChoice ? <span className="mt-1 block text-[11px] font-bold">4語以上の範囲で使えます</span> : null}
           </button>
           <button
@@ -132,7 +135,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
             onClick={() => begin("card")}
             className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-base font-black text-blue-700 hover:bg-blue-100"
           >
-            フラッシュカードで覚える
+            カードで覚える
           </button>
         </div>
       </div>
@@ -198,7 +201,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
     <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black text-slate-500">
-          {mode === "choice" ? "4択クイズ" : "フラッシュカード"}・{index + 1} / {total}
+          {mode === "choice" ? "4択チェック" : "フラッシュカード"}・{index + 1} / {total}
         </p>
         <button type="button" onClick={() => setStarted(false)} className="text-xs font-bold text-slate-400 hover:text-slate-600">
           やめる
@@ -209,12 +212,12 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
         <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${((index + 1) / Math.max(total, 1)) * 100}%` }} />
       </div>
 
-      <div className="mt-5 rounded-3xl border bg-gradient-to-br from-blue-50 to-white p-6 text-center">
+      <div className="mt-5 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white p-6 text-center">
         {current ? <p className="text-xs font-black text-slate-400">No.{current.no}</p> : null}
-        <p className="mt-2 break-words text-3xl font-black leading-tight text-slate-950 sm:text-5xl">{promptText}</p>
+        <p className="mt-2 break-words text-[clamp(2rem,9vw,4rem)] font-black leading-tight text-slate-950">{promptText}</p>
 
         {mode === "card" ? (
-          <p className={`mt-5 min-h-[48px] text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>
+          <p className={`mt-5 min-h-[56px] text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>
             {answerText}
           </p>
         ) : null}
