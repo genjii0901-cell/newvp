@@ -15,6 +15,7 @@ type Wordbook = {
   id: string;
   title: string;
   description?: string;
+  coverImage?: string | null;
   requiredPlan?: "free" | "personal" | "teacher";
   wordCount?: number;
   words: Word[];
@@ -41,6 +42,10 @@ function parsePastedWords(text: string) {
 
 function getListeningPlaceholder(title: string) {
   return `https://dummyimage.com/900x540/e2e8f0/64748b&text=${encodeURIComponent(title || "Vocab Print Pro")}`;
+}
+
+function getBookCover(book: Wordbook | null | undefined) {
+  return book?.coverImage || getListeningPlaceholder(book?.title ?? "Vocab Print Pro");
 }
 
 function isJapaneseOnlyText(value: string) {
@@ -136,6 +141,7 @@ export default function ListeningPage() {
         id: String(book.id),
         title: book.title ?? "単語帳",
         description: book.description ?? "",
+        coverImage: book.coverImage ?? null,
         requiredPlan: book.requiredPlan ?? "free",
         wordCount: typeof book.wordCount === "number" ? book.wordCount : (book.words ?? []).length,
         words: (book.words ?? []).map((word: any, index: number) => ({
@@ -166,7 +172,7 @@ export default function ListeningPage() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) return;
       const books = Array.isArray(result.wordbooks) ? result.wordbooks : [];
-      setMyBooks(books);
+      setMyBooks(books.map((book: any) => ({ ...book, coverImage: book.coverImage ?? null })));
       setMyBookId((current) => current || books[0]?.id || "");
     }
 
@@ -361,34 +367,42 @@ export default function ListeningPage() {
             {tab === "official" && (
               <div>
                 <label className="block text-sm font-bold">みんなの単語帳を選ぶ</label>
-                <select
-                  value={officialId}
-                  onChange={(e) => setOfficialId(e.target.value)}
-                  className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
-                >
+                <div className="mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
                   {officialBooks.map((book) => (
-                    <option key={book.id} value={book.id}>
-                      {book.title}
-                    </option>
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => setOfficialId(book.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                        officialId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             )}
 
             {tab === "my" && (
               <div>
                 <label className="block text-sm font-bold">マイ単語帳を選ぶ</label>
-                <select
-                  value={myBookId}
-                  onChange={(e) => setMyBookId(e.target.value)}
-                  className="mt-2 w-full rounded-xl border px-3 py-3 text-sm"
-                >
+                <div className="mt-2 max-h-72 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
                   {myBooks.map((book) => (
-                    <option key={book.id} value={book.id}>
-                      {book.title}
-                    </option>
+                    <button
+                      key={book.id}
+                      type="button"
+                      onClick={() => setMyBookId(book.id)}
+                      className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                        myBookId === book.id ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <img src={getBookCover(book)} alt="" className="h-9 w-9 flex-none rounded-lg object-cover" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                    </button>
                   ))}
-                </select>
+                </div>
                 {myBooks.length === 0 && (
                   <p className="mt-3 text-sm text-slate-500">マイ単語帳がまだない場合は、単語帳ページから追加できます。</p>
                 )}
@@ -557,7 +571,7 @@ export default function ListeningPage() {
             <div className="overflow-hidden rounded-2xl border bg-slate-50">
               <div className="relative h-52 w-full overflow-hidden sm:h-64">
                 <img
-                  src={getListeningPlaceholder(activeBook?.title ?? "Listening")}
+                  src={getBookCover(activeBook)}
                   alt={activeBook?.title ?? "Listening"}
                   className="h-full w-full object-cover opacity-70"
                 />

@@ -1877,22 +1877,31 @@ export default function Home() {
             {!booksLoaded ? (
               <div className="mt-1 w-full rounded-xl border px-3 py-3 text-base text-slate-400">読み込み中...</div>
             ) : (
-              <select
-                value={bookId}
-                onChange={(event) => pickBook(event.target.value)}
-                className="mt-1 w-full rounded-xl border px-3 py-3 text-base"
-              >
+              <div className="mt-1 max-h-64 space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2">
                 {(searchableBooks.some((book) => book.id === bookId)
                   ? searchableBooks
                   : selectedBook
                     ? [selectedBook, ...searchableBooks]
                     : searchableBooks
-                ).map((book) => (
-                  <option key={book.id} value={book.id}>
-                    {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
-                  </option>
+                ).map((book, index) => (
+                  <button
+                    key={book.id}
+                    type="button"
+                    onClick={() => pickBook(book.id)}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-2 py-2 text-left transition ${
+                      book.id === bookId ? "border-blue-400 bg-blue-50" : "border-transparent bg-white hover:bg-slate-50"
+                    }`}
+                  >
+                    <img src={getBookCover(book, index)} alt="" className="h-10 w-10 flex-none rounded-lg object-cover" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black text-slate-800">
+                        {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
+                      </span>
+                      <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "Vocab Print Pro"}</span>
+                    </span>
+                  </button>
                 ))}
-              </select>
+              </div>
             )}
             {bookSearch && (
               <p className="mt-1 text-xs font-bold text-slate-400">{searchableBooks.length}件見つかりました</p>

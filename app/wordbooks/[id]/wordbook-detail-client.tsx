@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMeaning } from "@/lib/meaning";
+import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuestion } from "@/lib/print/full-builder";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 
@@ -387,15 +388,19 @@ export default function WordbookDetailPage() {
   const printTitle = customTitle.trim() || (selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`);
   const printHtml = useMemo(() => {
     if (!book || visibleWords.length === 0) return "";
-    return buildPrintHtml({
-      title: printTitle,
-      words: testWords,
+    const headingTitle = `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`;
+    return buildSharedPrintHtml({
+      title: headingTitle,
+      words: testWords.slice(0, 50 * pageLimit),
       type: testType,
-      direction: testDirection,
-      printStyle,
-      pageLimit,
       showPageNo,
+      makeQuestion: (word) => makeSharedQuestion(word, testDirection),
+      plan: "admin",
+      printStyle,
+      includeWatermark,
       includeDate,
+      generatedAt: new Date(),
+      userEmail: "",
       showRecordFields,
       showClassField,
       showNumberField,
@@ -403,7 +408,6 @@ export default function WordbookDetailPage() {
       studentClass,
       studentNumber,
       studentName,
-      includeWatermark,
       titleOffsetX,
       titleOffsetY,
       dateOffsetX,
@@ -476,10 +480,12 @@ export default function WordbookDetailPage() {
 
   function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
+    const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
+    const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     sessionStorage.setItem(
       "vpp-print-job",
       JSON.stringify({
-        html: printHtml,
+        html: `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`,
         title: printTitle,
         sourceLabel: "wordbook-detail",
         createdAt: new Date().toISOString(),
