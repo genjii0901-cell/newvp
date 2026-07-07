@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatMeaning } from "@/lib/meaning";
-import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuestion } from "@/lib/print/full-builder";
+import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuestion, previewCss as sharedPreviewCss } from "@/lib/print/full-builder";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
+import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import QuizPanel from "./quiz-panel";
 
@@ -280,6 +281,11 @@ export default function WordbookDetailPage() {
   const slug = String(params.id ?? "");
   const lookupId = extractWordbookIdFromSlug(slug);
 
+  const supabase = useMemo(() => createClient(), []);
+  const [userPlan, setUserPlan] = useState<Plan>("free");
+  const isPaid = userPlan === "personal" || userPlan === "teacher";
+  const FREE_WORD_LIMIT = 50;
+
   const [book, setBook] = useState<OfficialWordbook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -370,6 +376,24 @@ export default function WordbookDetailPage() {
     });
   }, [lookupId]);
 
+  // ログインユーザーのプランを取得（無料は50語まで／それ以上はPersonal案内）
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      if (!token) return;
+      const response = await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      if (!response) return;
+      const result = await response.json().catch(() => ({}));
+      const plan = result?.profile?.plan;
+      if (active && response.ok && (plan === "personal" || plan === "teacher")) setUserPlan(plan);
+    });
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
   const units = useMemo(() => {
     if (!book) return [];
     return Array.from(new Set(book.words.map((word) => word.unit).filter(Boolean))) as string[];
@@ -404,7 +428,7 @@ export default function WordbookDetailPage() {
       type: testType,
       showPageNo,
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
-      plan: "admin",
+      plan: isPaid ? userPlan : "free",
       printStyle,
       includeWatermark,
       includeDate,
@@ -457,9 +481,12 @@ export default function WordbookDetailPage() {
     titleOffsetX,
     titleOffsetY,
     visibleWords.length,
+    isPaid,
+    userPlan,
   ]);
   const previewDoc = useMemo(() => {
-    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${detailPreviewCss}</style></head><body><div class="preview-stage">${printHtml}</div></body></html>`;
+    // メイン画面と同じ共有プレビューCSSを使い、独立iframe内で描画する（画面崩れ防止）
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${sharedPreviewCss}</style></head><body>${printHtml}</body></html>`;
   }, [printHtml]);
   const printedWordCount = Math.min(testWords.length, pageLimit * 50);
   const previewPageCount = Math.max(1, printHtml.match(/<section class=["']print-page/g)?.length ?? 1);
@@ -834,7 +861,7 @@ export default function WordbookDetailPage() {
                 <input
                   value={customTitle}
                   onChange={(event) => setCustomTitle(event.target.value)}
-                  placeholder={selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`}
+                  placeholder={selectedUnit === "all" ? book?.title : `${book?.title} - ${selectedUnit}`}
                   className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
                 />
               </label>
@@ -982,6 +1009,21 @@ export default function WordbookDetailPage() {
               </details>
             </div>
 
+            {!isPaid && visibleWords.length > FREE_WORD_LIMIT ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
+                <p className="mt-1 text-xs leading-5 text-amber-700">
+                  無料プランは1回{FREE_WORD_LIMIT}語まで。選択中は{visibleWords.length}語なので、印刷は先頭{FREE_WORD_LIMIT}語＋「見本」の透かし入りになります。全範囲をまとめて印刷するにはPersonal（初月無料）へ。
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-3 inline-block rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700"
+                >
+                  プランを見る
+                </Link>
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-2">
               <button
                 onClick={openPrintPage}
@@ -1011,15 +1053,15 @@ export default function WordbookDetailPage() {
               </p>
             </div>
             <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-4">
-              <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, minHeight: PREVIEW_HEIGHT * PREVIEW_SCALE * previewPageCount }}>
-                <div
-                  className="origin-top-left"
-                  style={{ width: PREVIEW_WIDTH, transform: `scale(${PREVIEW_SCALE})` }}
-                  dangerouslySetInnerHTML={{ __html: printHtml }}
-                  onCopy={(event) => event.preventDefault()}
-                  onCut={(event) => event.preventDefault()}
-                  onContextMenu={(event) => event.preventDefault()}
+              <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, height: PREVIEW_HEIGHT * PREVIEW_SCALE * previewPageCount }}>
+                <iframe
+                  title="単語テスト印刷プレビュー"
+                  srcDoc={previewDoc}
+                  aria-label="単語テスト印刷プレビュー"
+                  className="origin-top-left border-0"
+                  style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT * previewPageCount, transform: `scale(${PREVIEW_SCALE})` }}
                 />
+                {false && (
                 <div className="absolute inset-0" onMouseLeave={() => { if (dragging) setDragging(null); }}>
                   {(() => {
                     const ppMM = PREVIEW_SCALE * 3.78;
@@ -1041,9 +1083,10 @@ export default function WordbookDetailPage() {
                     );
                   })()}
                 </div>
+                )}
               </div>
             </div>
-            <p className="mt-2 text-xs font-bold text-slate-400">色付きの枠をドラッグすると位置を調整できます。</p>
+            <p className="mt-2 text-xs font-bold text-slate-400">メイン画面と同じレイアウトのプレビューです。細かい位置調整は「メイン画面の詳細作成で開く」から。</p>
           </div>
         </section>
       )}
@@ -1059,7 +1102,7 @@ export default function WordbookDetailPage() {
                 <input
                   value={customTitle}
                   onChange={(event) => setCustomTitle(event.target.value)}
-                  placeholder={selectedUnit === "all" ? book.title : `${book.title} - ${selectedUnit}`}
+                  placeholder={selectedUnit === "all" ? book?.title : `${book?.title} - ${selectedUnit}`}
                   className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
                 />
               </label>
@@ -1201,6 +1244,21 @@ export default function WordbookDetailPage() {
               </div>
               </details>
             </div>
+
+            {!isPaid && visibleWords.length > FREE_WORD_LIMIT ? (
+              <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
+                <p className="mt-1 text-xs leading-5 text-amber-700">
+                  無料プランは1回{FREE_WORD_LIMIT}語まで。選択中は{visibleWords.length}語なので、印刷は先頭{FREE_WORD_LIMIT}語＋「見本」の透かし入りになります。全範囲をまとめて印刷するにはPersonal（初月無料）へ。
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-3 inline-block rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700"
+                >
+                  プランを見る
+                </Link>
+              </div>
+            ) : null}
 
             <div className="mt-5 grid gap-2">
               <button
