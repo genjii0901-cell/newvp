@@ -224,7 +224,7 @@ function buildPrintHtml({
 
 const detailPreviewCss = `
   body { margin:0; background:#f8fafc; font-family:"Yu Gothic","Meiryo",sans-serif; overflow:hidden; }
-  .preview-stage { width: 794px; min-height: 1123px; box-sizing:border-box; transform-origin: top left; transform:scale(.72); }
+  .preview-stage { width: 794px; min-height: 1123px; box-sizing:border-box; transform-origin: top center; transform:scale(.72); margin:0 auto; }
   @media (max-width: 699px) { .preview-stage { transform:scale(.72); } }
   #print-root { display:block; }
   .print-page {
@@ -485,7 +485,7 @@ export default function WordbookDetailPage() {
     sessionStorage.setItem(
       "vpp-print-job",
       JSON.stringify({
-        html: `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`,
+        html: `${copyGuardStyle}${copyGuardScript}${printHtml}`,
         title: printTitle,
         sourceLabel: "wordbook-detail",
         createdAt: new Date().toISOString(),
