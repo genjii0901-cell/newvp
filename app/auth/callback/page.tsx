@@ -49,7 +49,7 @@ function AuthCallbackContent() {
         setStatus("error");
         setMessage(
           error.message.includes("PKCE")
-            ? "ログイン開始時と同じブラウザで開けませんでした。もう一度GoogleまたはLINEログインをお試しください。"
+            ? "ログインを開始したブラウザと同じブラウザで開けませんでした。もう一度ログインをお試しください。"
             : error.message
         );
         return;

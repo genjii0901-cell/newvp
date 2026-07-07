@@ -1006,7 +1006,7 @@ export default function Home() {
         email,
         password,
         options: {
-          emailRedirectTo: `${appUrl}/auth/confirm?next=/`,
+          emailRedirectTo: `${appUrl}/auth/callback?next=/`,
         },
       });
 

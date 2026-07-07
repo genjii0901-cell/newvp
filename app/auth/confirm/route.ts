@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
   if (!supabase) {
     return NextResponse.redirect(
-      buildStatusUrl(request, "Supabase の環境変数が未設定のため、認証を完了できませんでした。", next),
+      buildStatusUrl(request, "Supabaseの設定が未完了のため、認証を完了できませんでした。", next)
     );
   }
 
@@ -49,9 +49,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       buildStatusUrl(
         request,
-        error.message || "メール認証の完了に失敗しました。もう一度メール内のリンクを開いてください。",
-        next,
-      ),
+        error.message || "メール認証の完了に失敗しました。もう一度、最新のメール内リンクを開いてください。",
+        next
+      )
     );
   }
 
