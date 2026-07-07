@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
   const next = normalizeNextPath(requestUrl.searchParams.get("next"));
 
   if (!code) {
-    return NextResponse.redirect(buildStatusUrl(request, "確認リンクに必要な情報が見つかりませんでした。", next));
+    return NextResponse.redirect(
+      buildStatusUrl(request, "確認リンクに必要な情報が見つかりませんでした。", next)
+    );
   }
 
   const successUrl = new URL(next, request.url);

@@ -79,6 +79,13 @@ function planCacheKey(userId: string) {
   return `vpp-profile-plan:${userId}`;
 }
 
+function getAuthRedirectBaseUrl() {
+  if (typeof window !== "undefined") {
+    return window.location.origin.replace(/\/$/, "");
+  }
+  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.vocabprint.com";
+}
+
 function parsePastedWords(text: string) {
   return text
     .split(/\r?\n/)
@@ -1000,8 +1007,7 @@ export default function Home() {
     }
 
     if (authMode === "signup") {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://www.vocabprint.com";
+      const appUrl = getAuthRedirectBaseUrl();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -1052,9 +1058,7 @@ export default function Home() {
       return;
     }
 
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-      (typeof window !== "undefined" ? window.location.origin : "https://www.vocabprint.com");
+    const appUrl = getAuthRedirectBaseUrl();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {

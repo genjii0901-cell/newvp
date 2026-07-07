@@ -13,19 +13,19 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   free: {
     label: "Free",
     color: "bg-slate-100 text-slate-700",
-    limit: "1日2回・1回1ページまで / 合計10回まで",
+    limit: "1日2回、1回1ページまで。合計10回までお試しできます。",
     price: "無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
-    limit: "1回5ページまで / 履歴保存・自作単語帳対応",
+    limit: "1回5ページまで。履歴保存、自作単語帳、透かしなし印刷に対応します。",
     price: "¥780 / 月",
   },
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "教材管理・公式単語帳管理・拡張機能",
+    limit: "教材管理、公式単語帳管理、CSV出力などを拡張予定です。",
     price: "¥2,980 / 月",
   },
 };
@@ -34,12 +34,16 @@ function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
 }
 
-function getAppUrl() {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (envUrl) {
-    return envUrl.replace(/\/$/, "");
+function getAuthRedirectBaseUrl() {
+  if (typeof window !== "undefined") {
+    return window.location.origin.replace(/\/$/, "");
   }
-  return "https://www.vocabprint.com";
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  return envUrl ? envUrl.replace(/\/$/, "") : "https://www.vocabprint.com";
+}
+
+function isErrorMessage(message: string) {
+  return /失敗|できません|エラー|削除できません/.test(message);
 }
 
 export default function AccountPage() {
@@ -66,9 +70,11 @@ export default function AccountPage() {
     if (!authStatus) return;
 
     if (authStatus === "confirmed") {
-      setMsg("メールアドレスの確認が完了しました。Vocab Print Pro でそのまま利用できます。");
+      setMsg("メールアドレスの確認が完了しました。Vocab Print Proをそのまま利用できます。");
+    } else if (authStatus === "deleted") {
+      setMsg("アカウントを削除しました。");
     } else if (authStatus === "error") {
-      setMsg("確認リンクの処理に失敗しました。もう一度メールのリンクを開いてください。");
+      setMsg("確認リンクの処理に失敗しました。もう一度、最新のメール内リンクを開いてください。");
     }
 
     currentUrl.searchParams.delete("auth");
@@ -113,11 +119,10 @@ export default function AccountPage() {
       if (!cancelled) setLoading(false);
     }
 
-    loadProfile();
+    void loadProfile();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null);
-      loadProfile();
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      void loadProfile();
     });
 
     return () => {
@@ -141,7 +146,7 @@ export default function AccountPage() {
     setSavingEmail(true);
     setMsg("");
 
-    const redirectUrl = `${getAppUrl()}/auth/confirm?next=/account`;
+    const redirectUrl = `${getAuthRedirectBaseUrl()}/auth/callback?next=/account`;
     const { error } = await supabase.auth.updateUser(
       { email: newEmail },
       { emailRedirectTo: redirectUrl }
@@ -150,7 +155,7 @@ export default function AccountPage() {
     setMsg(
       error
         ? `メールアドレス変更に失敗しました: ${error.message}`
-        : "確認メールを送信しました。メール内のボタンを開くと Vocab Print Pro に戻って変更が完了します。"
+        : "確認メールを送信しました。メール内のリンクを開くと、Vocab Print Proに戻って変更が完了します。"
     );
     setNewEmail("");
     setSavingEmail(false);
@@ -253,15 +258,15 @@ export default function AccountPage() {
     return (
       <div className="mx-auto max-w-2xl px-5 py-20 text-center">
         <p className="mt-4 font-bold text-slate-700">ログイン後に利用できます。</p>
-        <Link href="/" className="mt-4 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">
-          トップへ戻る
+        <Link href="/#auth" className="mt-4 inline-block rounded-xl bg-blue-600 px-6 py-3 font-bold text-white">
+          ログイン画面へ
         </Link>
       </div>
     );
   }
 
   const info = planInfo[plan];
-  const isError = msg.includes("失敗") || msg.includes("できません");
+  const isError = isErrorMessage(msg);
 
   return (
     <main className="mx-auto max-w-2xl px-5 py-8">
@@ -289,10 +294,10 @@ export default function AccountPage() {
               disabled={portalLoading}
               className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
-              {portalLoading ? "開いています..." : "請求・解約を開く"}
+              {portalLoading ? "開いています..." : "請求・解約ページを開く"}
             </button>
             <p className="mt-2 text-xs text-slate-500">
-              Stripe の請求ページで、支払い方法の変更や解約ができます。
+              Stripeの請求ページで、支払い方法の変更や解約ができます。
             </p>
           </>
         ) : (
@@ -301,7 +306,7 @@ export default function AccountPage() {
               有料プランを見る
             </Link>
             <p className="mt-2 text-xs text-slate-500">
-              Freeプランでは試用ができます。印刷回数や機能に制限があります。
+              Freeプランではお試し印刷ができます。印刷回数や機能に制限があります。
             </p>
           </>
         )}
@@ -311,7 +316,7 @@ export default function AccountPage() {
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
           <h2 className="text-lg font-black text-amber-900">管理者プレビュー</h2>
           <p className="mt-2 text-sm text-amber-800">
-            管理者アカウントは Free / Personal / Teacher を切り替えて表示確認できます。
+            管理者アカウントは、表示確認用にFree / Personal / Teacherを切り替えられます。
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {(["free", "personal", "teacher"] as Plan[]).map((nextPlan) => {
@@ -327,7 +332,7 @@ export default function AccountPage() {
                       : "border-amber-200 bg-white text-amber-900 hover:bg-amber-100"
                   } disabled:opacity-60`}
                 >
-                  {current ? `${planInfo[nextPlan].label} 利用中` : `${planInfo[nextPlan].label} で確認`}
+                  {current ? `${planInfo[nextPlan].label} 利用中` : `${planInfo[nextPlan].label}で確認`}
                 </button>
               );
             })}
@@ -350,7 +355,7 @@ export default function AccountPage() {
       <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
         <p className="mt-2 text-sm text-slate-500">
-          新しいメールアドレスに確認メールを送信します。確認後に Vocab Print Pro のアカウントへ反映されます。
+          新しいメールアドレスに確認メールを送信します。確認後にVocab Print Proへ反映されます。
         </p>
         <div className="mt-4 flex gap-2">
           <input
@@ -405,7 +410,7 @@ export default function AccountPage() {
             単語テスト作成
           </Link>
           <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
-            みんなの単語帳
+            単語帳
           </Link>
           <Link href="/history" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
             生成履歴

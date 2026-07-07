@@ -18,6 +18,7 @@ function AuthCallbackContent() {
 
   const next = normalizeNextPath(params.get("next"));
   const code = params.get("code");
+  const statusParam = params.get("status");
   const errorDescription = params.get("error_description") || params.get("message");
 
   useEffect(() => {
@@ -30,9 +31,9 @@ function AuthCallbackContent() {
         return;
       }
 
-      if (errorDescription) {
+      if (statusParam === "error" || errorDescription) {
         setStatus("error");
-        setMessage(errorDescription);
+        setMessage(errorDescription || "ログイン確認に失敗しました。もう一度お試しください。");
         return;
       }
 
@@ -49,7 +50,7 @@ function AuthCallbackContent() {
         setStatus("error");
         setMessage(
           error.message.includes("PKCE")
-            ? "ログインを開始したブラウザと同じブラウザで開けませんでした。もう一度ログインをお試しください。"
+            ? "ログインを始めたブラウザと同じブラウザで開けませんでした。もう一度ログインをお試しください。"
             : error.message
         );
         return;
@@ -66,7 +67,7 @@ function AuthCallbackContent() {
     return () => {
       cancelled = true;
     };
-  }, [code, errorDescription, next, supabase]);
+  }, [code, errorDescription, next, statusParam, supabase]);
 
   const loginHref = next === "/" ? "/#auth" : `${next}#auth`;
 
