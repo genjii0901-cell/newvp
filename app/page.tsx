@@ -1058,7 +1058,7 @@ export default function Home() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${appUrl}/auth/confirm?next=/`,
+        redirectTo: `${appUrl}/auth/callback?next=/`,
       },
     });
 
@@ -1183,7 +1183,7 @@ export default function Home() {
       } else if (usageResponse.status !== 401) {
         const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
         if (!fallback.ok) {
-          alert(usageResult.message ?? fallback.message);
+          await guideToPersonal(usageResult.message ?? fallback.message);
           return;
         }
       }
@@ -1192,7 +1192,7 @@ export default function Home() {
     if (!usageCheckedByServer) {
       const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
       if (!fallback.ok) {
-        alert(`${fallback.message}\n\nもっと作成したい場合は、Personalプランの7日無料トライアルをご利用ください。`);
+        await guideToPersonal(fallback.message);
         return;
       }
     }
@@ -1301,7 +1301,7 @@ export default function Home() {
       return;
     }
     if (locked) {
-      alert("この単語帳はTeacherプラン用です。Teacherに変更してください。");
+      await guideToPersonal("この単語帳は上位プラン向けです。");
       return;
     }
     await printWords(outputWords, selectedBook.title, selectedBook.title);
@@ -1613,6 +1613,24 @@ export default function Home() {
     }
   }
 
+  async function guideToPersonal(reason: string) {
+    if (!user) {
+      setAuthMode("signup");
+      setMessageTone("info");
+      setMessage(`${reason} まず無料会員登録をすると、利用状況を保存してPersonalの7日無料トライアルにも進めます。`);
+      document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (configuredPlans.personal) {
+      const ok = window.confirm(`${reason}\n\nPersonalは7日間無料で試せます。チェックアウトへ進みますか？`);
+      if (ok) await startCheckout("personal");
+      return;
+    }
+
+    window.location.href = "/pricing";
+  }
+
   async function startCheckout(targetPlan: Exclude<Plan, "free">) {
     if (plan === targetPlan) {
       alert("現在利用中のプランです。");
@@ -1826,24 +1844,26 @@ export default function Home() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2">
               <button
                 type="button"
                 onClick={() => handleOAuthSignIn("google")}
                 disabled={!supabase}
-                className="flex items-center justify-center gap-2 rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-800 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+                className="flex h-12 items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full border bg-white text-sm font-black text-blue-600">G</span>
-                Googleで続ける
+                <span className="text-lg font-black">
+                  <span className="text-blue-600">G</span><span className="text-red-500">o</span><span className="text-yellow-500">o</span><span className="text-blue-600">g</span><span className="text-emerald-600">l</span><span className="text-red-500">e</span>
+                </span>
+                <span>Googleで続ける</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleOAuthSignIn("line")}
                 disabled={!supabase}
-                className="flex items-center justify-center gap-2 rounded-2xl bg-[#06c755] px-4 py-3 text-sm font-black text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
+                className="flex h-12 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-[#06c755]">LINE</span>
-                LINEで続ける
+                <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
+                <span>LINEで続ける</span>
               </button>
             </div>
 

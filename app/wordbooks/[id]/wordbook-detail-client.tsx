@@ -485,7 +485,7 @@ export default function WordbookDetailPage() {
     sessionStorage.setItem(
       "vpp-print-job",
       JSON.stringify({
-        html: `${copyGuardStyle}${copyGuardScript}${printHtml}`,
+        html: `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`,
         title: printTitle,
         sourceLabel: "wordbook-detail",
         createdAt: new Date().toISOString(),
