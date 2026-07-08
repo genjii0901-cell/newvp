@@ -1284,8 +1284,11 @@ export default function Home() {
         iframeDoc.write(fullDoc);
         iframeDoc.close();
         iframe.contentWindow?.focus();
+        const previousTitle = document.title;
+        document.title = fullTitle;
         setTimeout(() => {
           try { iframe.contentWindow?.print(); } catch { /* ignore */ }
+          setTimeout(() => { document.title = previousTitle; }, 8_000);
           setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
         }, 400);
       } else {

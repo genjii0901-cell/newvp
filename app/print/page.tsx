@@ -461,6 +461,15 @@ export default function PrintPage() {
   }, []);
 
   useEffect(() => {
+    if (!job?.title) return;
+    const previousTitle = document.title;
+    document.title = job.title;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [job?.title]);
+
+  useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth);
     update();
     window.addEventListener("resize", update);

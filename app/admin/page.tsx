@@ -1179,22 +1179,25 @@ export default function AdminPage() {
       pageNoOffsetX: pdfPageNoOffset.x,
       pageNoOffsetY: pdfPageNoOffset.y,
     });
-    const safeTitle = (pdfTitle.trim() || autoTitle).replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
-    const titleBase = (pdfTitle.trim() || autoTitle).replace(/[\\/:*?"<>|]+/g, "_");
+    const outputTitle = mode === "first" ? `${pdfTitle.trim() || autoTitle} サンプル` : pdfTitle.trim() || autoTitle;
+    const safeTitle = outputTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
+    const titleBase = outputTitle.replace(/[\\/:*?"<>|]+/g, "_");
     const previewStyle = target === "render" ? `<style>${previewCss}</style>` : "";
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const firstPageOnlyStyle = mode === "first" ? "<style>.print-page:nth-of-type(n+2){display:none!important;}</style>" : "";
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
     const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}<div id="print-root">${html}</div>`;
-    return { fullDoc, printPageHtml, titleBase, title: pdfTitle.trim() || autoTitle };
+    return { fullDoc, printPageHtml, titleBase, title: outputTitle };
   }
 
   function openPrintPage(mode: "all" | "first" = "all") {
     const built = buildAdminPrintDocument(mode, "print");
     if (!built) return;
     setPdfMsg("");
-    const { fullDoc } = built;
+    const { fullDoc, title } = built;
+    const previousTitle = document.title;
+    document.title = title;
 
     const iframe = document.createElement("iframe");
     iframe.setAttribute("aria-hidden", "true");
@@ -1208,10 +1211,12 @@ export default function AdminPage() {
       iframe.contentWindow?.focus();
       setTimeout(() => {
         try { iframe.contentWindow?.print(); } catch { /* ignore */ }
+        setTimeout(() => { document.title = previousTitle; }, 8_000);
         setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
       }, 400);
       setPdfMsg("印刷ダイアログが開きます。");
     } else {
+      document.title = previousTitle;
       iframe.remove();
       setPdfMsg("印刷を開始できませんでした。ブラウザの設定をご確認ください。");
     }
@@ -1260,7 +1265,7 @@ export default function AdminPage() {
     try {
       await downloadLockedPdf(
         built.fullDoc,
-        mode === "first" ? `${built.titleBase}-page1.pdf` : `${built.titleBase}.pdf`,
+        `${built.titleBase}.pdf`,
         true,
         {
           lockEditing: pdfLockEditing,
@@ -1330,7 +1335,7 @@ export default function AdminPage() {
           })();
       const link = document.createElement("a");
       link.href = pageCanvas.toDataURL("image/png");
-      link.download = mode === "first" ? `${built.titleBase}-page1.png` : `${built.titleBase}.png`;
+      link.download = `${built.titleBase}.png`;
       link.click();
     } catch (error) {
       setPdfMsg(error instanceof Error ? `画像出力に失敗しました: ${error.message}` : "画像出力に失敗しました。");
