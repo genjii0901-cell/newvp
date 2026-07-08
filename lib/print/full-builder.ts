@@ -220,6 +220,7 @@ export function buildPrintHtml({
 
 export const printCss = `
 @media print {
+  html { width:210mm!important; min-height:0!important; background:white!important; }
   body { margin:0!important; background:white!important; }
   body * { visibility:hidden!important; }
   #print-root, #print-root * { visibility:visible!important; }
