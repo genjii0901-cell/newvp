@@ -276,7 +276,7 @@ export const printCss = `
   .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
   .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
   .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
-  .p-blank { display:inline-block; width:100%; min-width:22mm; border-bottom:1.2pt solid #111; transform:translateY(-.5mm); }
+  .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
   .p-red { color:#dc2626; font-weight:800; }
 
   /* 記入欄: クラス(小)・番号(小)・氏名(大) */
@@ -339,7 +339,7 @@ body { margin:0; background:white; overflow:hidden; }
 .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
 .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
 .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
-.p-blank { display:inline-block; width:100%; min-width:22mm; border-bottom:1.2pt solid #111; transform:translateY(-.5mm); }
+.p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
 .p-red { color:#dc2626; font-weight:800; }
 .print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
 .print-info-fields { display:flex; gap:3mm; align-items:flex-end; }

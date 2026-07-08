@@ -1180,7 +1180,7 @@ export default function AdminPage() {
       pageNoOffsetY: pdfPageNoOffset.y,
     });
     const safeTitle = (pdfTitle.trim() || autoTitle).replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
-    const titleBase = (pdfTitle.trim() || `${selectedPdfBook.title}-${pdfType}`).replace(/[\\/:*?"<>|]+/g, "_");
+    const titleBase = (pdfTitle.trim() || autoTitle).replace(/[\\/:*?"<>|]+/g, "_");
     const previewStyle = target === "render" ? `<style>${previewCss}</style>` : "";
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
