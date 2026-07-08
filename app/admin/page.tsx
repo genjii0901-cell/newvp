@@ -1186,33 +1186,25 @@ export default function AdminPage() {
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const firstPageOnlyStyle = mode === "first" ? "<style>.print-page:nth-of-type(n+2){display:none!important;}</style>" : "";
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
-    return { fullDoc, titleBase };
+    const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}<div id="print-root">${html}</div>`;
+    return { fullDoc, printPageHtml, titleBase, title: pdfTitle.trim() || autoTitle };
   }
 
   function openPrintPage(mode: "all" | "first" = "all") {
     const built = buildAdminPrintDocument(mode, "print");
     if (!built) return;
     setPdfMsg("");
-    const { fullDoc } = built;
-
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("aria-hidden", "true");
-    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
-    document.body.appendChild(iframe);
-    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
-    if (iframeDoc) {
-      iframeDoc.open();
-      iframeDoc.write(fullDoc);
-      iframeDoc.close();
-      iframe.contentWindow?.focus();
-      setTimeout(() => {
-        try { iframe.contentWindow?.print(); } catch { /* ignore */ }
-        setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
-      }, 400);
-    } else {
-      iframe.remove();
-      setPdfMsg("印刷を開始できませんでした。ブラウザの設定をご確認ください。");
-    }
+    window.sessionStorage.setItem(
+      "vpp-print-job",
+      JSON.stringify({
+        html: built.printPageHtml,
+        title: built.title,
+        sourceLabel: mode === "first" ? "admin-first-page" : "admin",
+        createdAt: new Date().toISOString(),
+      }),
+    );
+    setPdfMsg("印刷専用ページを開きます。表示後に印刷ダイアログを開けます。");
+    window.location.href = "/print";
   }
 
   async function prepareRenderedPages(fullDoc: string) {
