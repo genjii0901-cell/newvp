@@ -285,6 +285,7 @@ export default function WordbookDetailPage() {
   const [userPlan, setUserPlan] = useState<Plan>("free");
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
+  const maxWords = isPaid ? 250 : FREE_WORD_LIMIT; // Personal/Teacher=最大5ページ, Free=1ページ
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -297,6 +298,7 @@ export default function WordbookDetailPage() {
   const [testDirection, setTestDirection] = useState<TestDirection>("en-ja");
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [pageLimit, setPageLimit] = useState(1);
+  const [count, setCount] = useState(50);
   const [randomOrder, setRandomOrder] = useState(false);
   const [showPageNo, setShowPageNo] = useState(true);
   const [includeDate, setIncludeDate] = useState(false);
@@ -416,6 +418,13 @@ export default function WordbookDetailPage() {
     return [...visibleWords].sort(() => Math.random() - 0.5);
   }, [randomOrder, visibleWords]);
 
+  // 問題数は「範囲の語数（プラン上限まで）」を既定にする
+  useEffect(() => {
+    setCount(Math.min(Math.max(visibleWords.length, 1), maxWords));
+  }, [visibleWords.length, maxWords]);
+
+  const effectiveCount = Math.max(1, Math.min(Number(count) || 1, maxWords, testWords.length || 1));
+
   const listenWord = visibleWords[listenIndex] ?? null;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
   const printTitle = customTitle.trim() || (selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`);
@@ -424,7 +433,7 @@ export default function WordbookDetailPage() {
     const headingTitle = `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`;
     return buildSharedPrintHtml({
       title: headingTitle,
-      words: testWords.slice(0, 50 * pageLimit),
+      words: testWords.slice(0, effectiveCount),
       type: testType,
       showPageNo,
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
@@ -462,7 +471,7 @@ export default function WordbookDetailPage() {
     includeWatermark,
     infoOffsetX,
     infoOffsetY,
-    pageLimit,
+    effectiveCount,
     pageNoOffsetX,
     pageNoOffsetY,
     printStyle,
@@ -488,7 +497,7 @@ export default function WordbookDetailPage() {
     // メイン画面と同じ共有プレビューCSSを使い、独立iframe内で描画する（画面崩れ防止）
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${sharedPreviewCss}</style></head><body>${printHtml}</body></html>`;
   }, [printHtml]);
-  const printedWordCount = Math.min(testWords.length, pageLimit * 50);
+  const printedWordCount = effectiveCount;
   const previewPageCount = Math.max(1, printHtml.match(/<section class=["']print-page/g)?.length ?? 1);
 
   useEffect(() => {
@@ -885,7 +894,7 @@ export default function WordbookDetailPage() {
 
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block rounded-2xl border p-3">
-                  <span className="text-xs font-black text-slate-500">プリントの種類</span>
+                  <span className="text-xs font-black text-slate-500">出力形式</span>
                   <select value={testType} onChange={(event) => setTestType(event.target.value as TestType)} className="mt-1 w-full bg-transparent text-sm font-bold">
                     <option value="test">問題プリント</option>
                     <option value="answer">解答プリント</option>
@@ -913,20 +922,17 @@ export default function WordbookDetailPage() {
               </label>
 
               <label className="block rounded-2xl border p-3">
-                <span className="flex items-center justify-between text-xs font-black text-slate-500">
-                  最大ページ数
-                  <span>{pageLimit}ページまで</span>
-                </span>
+                <span className="text-xs font-black text-slate-500">問題数</span>
                 <input
-                  type="range"
+                  type="number"
                   min={1}
-                  max={5}
-                  step={1}
-                  value={pageLimit}
-                  onChange={(event) => setPageLimit(Number(event.target.value))}
-                  className="mt-3 w-full"
+                  value={count}
+                  onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
+                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
                 />
-                <p className="mt-1 text-xs font-bold text-slate-400">1ページ50語で計算します。Personalは1回5ページまでです。</p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  範囲の{visibleWords.length}語のうち先頭{effectiveCount}語（{previewPageCount}ページ）を印刷します。1ページ50語。{isPaid ? "" : "無料プランは50語まで。"}
+                </p>
               </label>
 
               <div className="grid gap-2 text-sm font-bold sm:grid-cols-2">
