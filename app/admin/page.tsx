@@ -1185,48 +1185,8 @@ export default function AdminPage() {
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const firstPageOnlyStyle = mode === "first" ? "<style>.print-page:nth-of-type(n+2){display:none!important;}</style>" : "";
-    const adminPrintFixStyle = target === "print"
-      ? `<style>
-@media print {
-  @page { size:A4 portrait; margin:0!important; }
-  html, body {
-    width:210mm!important;
-    min-height:0!important;
-    height:auto!important;
-    margin:0!important;
-    padding:0!important;
-    background:#fff!important;
-  }
-  #print-root.admin-print-root {
-    position:static!important;
-    inset:auto!important;
-    width:210mm!important;
-    height:auto!important;
-    min-height:0!important;
-    margin:0!important;
-    padding:0!important;
-    overflow:visible!important;
-    background:#fff!important;
-  }
-  #print-root.admin-print-root .print-page {
-    width:192mm!important;
-    height:280mm!important;
-    margin:9mm 9mm 8mm 9mm!important;
-    box-sizing:border-box!important;
-    page-break-after:always!important;
-    break-after:page!important;
-  }
-  #print-root.admin-print-root .print-page:last-child {
-    page-break-after:auto!important;
-    break-after:auto!important;
-  }
-  ${pdfDate ? "" : "#print-root.admin-print-root .print-date { display:none!important; }"}
-}
-</style>`
-      : "";
-    const adminRootClass = target === "print" ? "admin-print-root" : "";
-    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root" class="${adminRootClass}">${html}${adminPrintFixStyle}</div></body></html>`;
-    const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}<div id="print-root" class="admin-print-root">${html}${adminPrintFixStyle}</div>`;
+    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+    const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}<div id="print-root">${html}</div>`;
     return { fullDoc, printPageHtml, titleBase, title: pdfTitle.trim() || autoTitle };
   }
 
