@@ -1188,16 +1188,15 @@ export default function AdminPage() {
     const adminPrintFixStyle = target === "print"
       ? `<style>
 @media print {
-  #print-root.admin-print-root { position:static!important; left:auto!important; top:auto!important; width:192mm!important; margin:0 auto!important; }
-  #print-root.admin-print-root .print-table th, #print-root.admin-print-root .print-table td { height:9.2mm!important; max-height:9.2mm!important; }
-  #print-root.admin-print-root .print-table th { height:8.0mm!important; max-height:8.0mm!important; }
-  #print-root.admin-print-root .has-info .print-table td { height:8.65mm!important; max-height:8.65mm!important; }
-  #print-root.admin-print-root .has-info .print-table th { height:7.7mm!important; max-height:7.7mm!important; }
+  #print-root.admin-print-root .print-table th, #print-root.admin-print-root .print-table td { height:9.35mm!important; max-height:9.35mm!important; }
+  #print-root.admin-print-root .print-table th { height:8.3mm!important; max-height:8.3mm!important; }
+  #print-root.admin-print-root .has-info .print-table td { height:8.9mm!important; max-height:8.9mm!important; }
+  #print-root.admin-print-root .has-info .print-table th { height:7.95mm!important; max-height:7.95mm!important; }
   ${pdfDate ? "" : "#print-root.admin-print-root .print-date { display:none!important; }"}
 }
 </style>`
       : "";
-    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
+    const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}${adminPrintFixStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root" class="${target === "print" ? "admin-print-root" : ""}">${html}</div></body></html>`;
     const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}${adminPrintFixStyle}<div id="print-root" class="admin-print-root">${html}</div>`;
     return { fullDoc, printPageHtml, titleBase, title: pdfTitle.trim() || autoTitle };
   }
@@ -1206,17 +1205,27 @@ export default function AdminPage() {
     const built = buildAdminPrintDocument(mode, "print");
     if (!built) return;
     setPdfMsg("");
-    window.sessionStorage.setItem(
-      "vpp-print-job",
-      JSON.stringify({
-        html: built.printPageHtml,
-        title: built.title,
-        sourceLabel: mode === "first" ? "admin-first-page" : "admin",
-        createdAt: new Date().toISOString(),
-      }),
-    );
-    setPdfMsg("印刷専用ページを開きます。表示後に印刷ダイアログを開けます。");
-    window.location.href = "/print";
+    const { fullDoc } = built;
+
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("aria-hidden", "true");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
+    document.body.appendChild(iframe);
+    const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (iframeDoc) {
+      iframeDoc.open();
+      iframeDoc.write(fullDoc);
+      iframeDoc.close();
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        try { iframe.contentWindow?.print(); } catch { /* ignore */ }
+        setTimeout(() => { try { iframe.remove(); } catch { /* ignore */ } }, 60_000);
+      }, 400);
+      setPdfMsg("印刷ダイアログが開きます。");
+    } else {
+      iframe.remove();
+      setPdfMsg("印刷を開始できませんでした。ブラウザの設定をご確認ください。");
+    }
   }
 
   async function prepareRenderedPages(fullDoc: string) {
