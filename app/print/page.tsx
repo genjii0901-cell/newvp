@@ -400,12 +400,23 @@ const printJobCss = `
       min-width: 0;
       padding: 0;
       transform: none !important;
+      margin: 0 auto !important;
     }
 
     .paper-preview-shell {
       width: auto !important;
       height: auto !important;
       transform: none !important;
+      margin: 0 auto !important;
+      overflow: visible !important;
+    }
+
+    .paper-preview #print-root {
+      position: static !important;
+      left: auto !important;
+      top: auto !important;
+      width: 192mm !important;
+      margin: 0 auto !important;
     }
 
     .paper-preview .print-page {

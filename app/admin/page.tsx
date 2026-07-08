@@ -1185,8 +1185,20 @@ export default function AdminPage() {
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const firstPageOnlyStyle = mode === "first" ? "<style>.print-page:nth-of-type(n+2){display:none!important;}</style>" : "";
+    const adminPrintFixStyle = target === "print"
+      ? `<style>
+@media print {
+  #print-root.admin-print-root { position:static!important; left:auto!important; top:auto!important; width:192mm!important; margin:0 auto!important; }
+  #print-root.admin-print-root .print-table th, #print-root.admin-print-root .print-table td { height:9.2mm!important; max-height:9.2mm!important; }
+  #print-root.admin-print-root .print-table th { height:8.0mm!important; max-height:8.0mm!important; }
+  #print-root.admin-print-root .has-info .print-table td { height:8.65mm!important; max-height:8.65mm!important; }
+  #print-root.admin-print-root .has-info .print-table th { height:7.7mm!important; max-height:7.7mm!important; }
+  ${pdfDate ? "" : "#print-root.admin-print-root .print-date { display:none!important; }"}
+}
+</style>`
+      : "";
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${previewStyle}${copyGuardStyle}${firstPageOnlyStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
-    const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}<div id="print-root">${html}</div>`;
+    const printPageHtml = `${copyGuardStyle}${copyGuardScript}${firstPageOnlyStyle}${adminPrintFixStyle}<div id="print-root" class="admin-print-root">${html}</div>`;
     return { fullDoc, printPageHtml, titleBase, title: pdfTitle.trim() || autoTitle };
   }
 
