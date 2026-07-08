@@ -423,7 +423,9 @@ export default function WordbookDetailPage() {
     setCount(Math.min(Math.max(visibleWords.length, 1), maxWords));
   }, [visibleWords.length, maxWords]);
 
-  const effectiveCount = Math.max(1, Math.min(Number(count) || 1, maxWords, testWords.length || 1));
+  const requestedCount = Math.max(1, Math.min(Number(count) || 1, testWords.length || 1));
+  const freePrintBlocked = !isPaid && requestedCount > FREE_WORD_LIMIT;
+  const effectiveCount = Math.max(1, Math.min(requestedCount, maxWords, testWords.length || 1));
 
   const listenWord = visibleWords[listenIndex] ?? null;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
@@ -565,6 +567,12 @@ export default function WordbookDetailPage() {
 
   function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
+    if (freePrintBlocked) {
+      window.alert(
+        `無料プランで印刷できるのは1回${FREE_WORD_LIMIT}語までです。問題数を${FREE_WORD_LIMIT}語以内にするか、Personalの7日無料トライアルをご利用ください。`
+      );
+      return;
+    }
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
@@ -877,7 +885,7 @@ export default function WordbookDetailPage() {
             <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
               <p>{rangeStart || "-"}番から{rangeEnd || "-"}番まで / {visibleWords.length}語</p>
               <p className="mt-1 text-xs text-blue-700">
-                この設定では{printedWordCount}語、{previewPageCount}ページ分を印刷します。
+                この設定では{requestedCount}語、{previewPageCount}ページ分を印刷します。
               </p>
             </div>
 
@@ -921,19 +929,42 @@ export default function WordbookDetailPage() {
                 </select>
               </label>
 
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">問題数</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={count}
-                  onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
-                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
-                />
-                <p className="mt-1 text-xs font-bold text-slate-400">
-                  範囲の{visibleWords.length}語のうち先頭{effectiveCount}語（{previewPageCount}ページ）を印刷します。1ページ50語。{isPaid ? "" : "無料プランは50語まで。"}
+              <div className="rounded-2xl border p-3">
+                <p className="text-xs font-black text-slate-500">使う範囲と問題数</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  <label className="block">
+                    <span className="text-[11px] font-black text-slate-400">開始</span>
+                    <input
+                      value={rangeStart}
+                      onChange={(event) => setRangeStart(event.target.value)}
+                      type="number"
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-black text-slate-400">終了</span>
+                    <input
+                      value={rangeEnd}
+                      onChange={(event) => setRangeEnd(event.target.value)}
+                      type="number"
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-[11px] font-black text-slate-400">問題数</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={count}
+                      onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
+                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                    />
+                  </label>
+                </div>
+                <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
+                  範囲の{visibleWords.length}語から{requestedCount}語を使います。1ページ50語。{isPaid ? "Personal以上は1回5ページまで印刷できます。" : "無料プランは50語まで印刷できます。"}
                 </p>
-              </label>
+              </div>
 
               <div className="grid gap-2 text-sm font-bold sm:grid-cols-2">
                 {[
@@ -1032,11 +1063,11 @@ export default function WordbookDetailPage() {
               </details>
             </div>
 
-            {!isPaid && visibleWords.length > FREE_WORD_LIMIT ? (
+            {freePrintBlocked ? (
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  無料プランは1回{FREE_WORD_LIMIT}語まで。選択中は{visibleWords.length}語なので、印刷は先頭{FREE_WORD_LIMIT}語＋「見本」の透かし入りになります。全範囲をまとめて印刷するにはPersonal（初月無料）へ。
+                  無料プランは1回{FREE_WORD_LIMIT}語までです。現在の問題数は{requestedCount}語なので、このままでは印刷できません。問題数を{FREE_WORD_LIMIT}語以内にするか、Personalの7日無料トライアルをご利用ください。
                 </p>
                 <Link
                   href="/pricing"
@@ -1050,10 +1081,10 @@ export default function WordbookDetailPage() {
             <div className="mt-5 grid gap-2">
               <button
                 onClick={openPrintPage}
-                disabled={visibleWords.length === 0}
+                disabled={visibleWords.length === 0 || freePrintBlocked}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
-                単語テストを印刷
+                {freePrintBlocked ? "50語以内にすると印刷できます" : "単語テストを印刷"}
               </button>
               <button
                 onClick={openAdvancedPrinter}
@@ -1084,7 +1115,7 @@ export default function WordbookDetailPage() {
                   className="origin-top-left border-0"
                   style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT * previewPageCount, transform: `scale(${PREVIEW_SCALE})` }}
                 />
-                {false && (
+                {showLayoutTools && (
                 <div className="absolute inset-0" onMouseLeave={() => { if (dragging) setDragging(null); }}>
                   {(() => {
                     const ppMM = PREVIEW_SCALE * 3.78;

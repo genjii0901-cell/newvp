@@ -1170,8 +1170,15 @@ export default function Home() {
     const usageUserId = user?.id ?? "guest";
     const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     let usageCheckedByServer = false;
-    const limitedWordCount = activePlan === "free" ? Math.min(words.length, 50) : words.length;
-    const pageCount = getPageCount(limitedWordCount);
+    const wordCount = words.length;
+    if (activePlan === "free" && wordCount > 50) {
+      await guideToPersonal(
+        `無料プランで印刷できるのは1回50語までです。現在の設定は${wordCount}語なので、範囲や問題数を50語以内にするか、Personalの7日無料トライアルをご利用ください。`
+      );
+      return;
+    }
+
+    const pageCount = getPageCount(wordCount);
 
     if (token && user) {
       const usageResponse = await fetch("/api/usage/check", {
@@ -1180,7 +1187,7 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ wordCount: limitedWordCount, pageCount }),
+        body: JSON.stringify({ wordCount, pageCount }),
       });
       const usageResult = await usageResponse.json().catch(() => ({}));
 
@@ -1192,7 +1199,7 @@ export default function Home() {
           writeCachedPlan(user.id, serverPlan);
         }
       } else if (usageResponse.status !== 401) {
-        const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
+        const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
         if (!fallback.ok) {
           await guideToPersonal(usageResult.message ?? fallback.message);
           return;
@@ -1201,7 +1208,7 @@ export default function Home() {
     }
 
     if (!usageCheckedByServer) {
-      const fallback = checkLocalUsage(usageUserId, activePlan, limitedWordCount, pageCount);
+      const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
       if (!fallback.ok) {
         await guideToPersonal(fallback.message);
         return;
@@ -1210,7 +1217,7 @@ export default function Home() {
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
-    const printWordsList = activePlan === "free" ? words.slice(0, 50) : words;
+    const printWordsList = words;
     const fullTitle = pdfTitle.trim() || autoTitle;
     const html = buildPrintHtml({
       title: fullTitle,
