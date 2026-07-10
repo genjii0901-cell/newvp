@@ -8,7 +8,7 @@ let sourceBook = null;
 let currentBook = null;
 let currentLicense = null;
 let activeTab = "overview";
-let quiz = { questions: [], index: 0, score: 0, start: 1, end: 50, count: 10, direction: "word-to-meaning", answered: false };
+let quiz = { questions: [], index: 0, score: 0, start: 1, end: 50, count: 10, direction: "word-to-meaning", random: true, answered: false };
 let listen = { index: 0, playing: false, timer: null, start: 1, end: 50, order: "word-meaning", voice: "female", rate: 0.82, interval: 3600 };
 let printState = { mode: "test", direction: "word-to-meaning", start: 1, end: 50, count: 20, shuffle: false, answers: true, columns: 2 };
 
@@ -102,14 +102,13 @@ function shell() {
           <span>${visibleWords().length}語表示</span>
           <span>全${currentBook.totalWords}語</span>
           <span>${locked ? "透かしあり" : "透かしなし"}</span>
-          <span>${currentLicense?.email ? escapeHtml(currentLicense.email) : "未登録"}</span>
+          <span>${currentLicense?.email ? escapeHtml(currentLicense.email) : "サンプルモード"}</span>
         </div>
       </div>
       <div class="hero-side no-print">
         ${locked ? `
-          <p class="side-label">無料サンプルで利用中</p>
-          <a class="primary-action" href="${BASE_PATH}/activate">メール + ライセンスコードで登録</a>
-          <a class="secondary-action" href="${BASE_PATH}/login">ライセンスキーでログイン</a>
+          <p class="side-label">サンプルモード</p>
+          <p class="sample-copy">noteで購入すると、透かしなしの全315語版を使えます。</p>
         ` : `
           <p class="side-label">購入者版で利用中</p>
           <button id="logoutBtn" class="secondary-action" type="button">ログアウト</button>
@@ -120,7 +119,7 @@ function shell() {
       ${[["overview", "概要"], ["quiz", "単語テスト"], ["listen", "聞き流し"], ["print", "印刷設定"]]
         .map(([id, label]) => `<button class="${activeTab === id ? "active" : ""}" data-tab="${id}" type="button">${label}</button>`).join("")}
     </nav>
-    ${locked ? `<section class="sample-notice no-print"><strong>無料サンプル版です。</strong> 50語まで試せます。単語一覧と印刷には「無料版 SAMPLE」の透かしが入ります。</section>` : ""}
+    ${locked ? `<section class="sample-notice no-print"><strong>サンプルモードです。</strong> 50語まで試せます。noteで購入いただくと、透かしなしの全315語版を使えます。</section>` : ""}
     <section id="tabPanel"></section>
   `;
 }
@@ -142,6 +141,7 @@ function bindShell() {
 
 function renderBook() {
   stopListening();
+  app.classList.toggle("print-active", activeTab === "print");
   app.innerHTML = shell();
   bindShell();
   if (activeTab === "quiz") renderQuiz();
@@ -212,7 +212,8 @@ function renderOverview() {
 
 function makeQuestions() {
   const pool = wordsInRange(quiz.start, quiz.end);
-  return shuffle(pool).slice(0, Math.min(quiz.count, pool.length)).map((word) => {
+  const ordered = quiz.random ? shuffle(pool) : [...pool];
+  return ordered.slice(0, Math.min(quiz.count, pool.length)).map((word) => {
     const answer = quiz.direction === "meaning-to-word" ? word.word : word.meaning;
     const choices = shuffle([
       answer,
@@ -261,6 +262,12 @@ function drawQuiz() {
           <label>終了番号<input id="quizEnd" type="number" min="1" max="${visibleWords().length}" value="${quiz.end}" /></label>
         </div>
         <label>問題数<input id="quizCount" type="number" min="1" max="${wordsInRange(quiz.start, quiz.end).length}" value="${quiz.count}" /></label>
+        <label>出題順
+          <select id="quizRandom">
+            <option value="true" ${quiz.random ? "selected" : ""}>ランダム</option>
+            <option value="false" ${!quiz.random ? "selected" : ""}>番号順</option>
+          </select>
+        </label>
         <button id="resetQuiz" type="button">問題を作り直す</button>
       </aside>
     </section>
@@ -271,6 +278,7 @@ function drawQuiz() {
     quiz.start = clamp(document.querySelector("#quizStart").value, 1, visibleWords().length);
     quiz.end = clamp(document.querySelector("#quizEnd").value, quiz.start, visibleWords().length);
     quiz.count = clamp(document.querySelector("#quizCount").value, 1, wordsInRange(quiz.start, quiz.end).length);
+    quiz.random = document.querySelector("#quizRandom").value === "true";
     renderQuiz();
   });
   document.querySelectorAll(".quiz-option").forEach((button) => button.addEventListener("click", () => answerQuiz(button)));
@@ -475,17 +483,30 @@ function printWords() {
 function updatePrintPreview() {
   const words = printWords();
   const title = printState.mode === "list" ? "単語一覧" : printState.mode === "answer" ? "解答" : "小テスト";
-  const body = printState.mode === "list"
-    ? tableRows(words)
-    : `<ol class="print-questions columns-${printState.columns}">${words.map((word) => {
-      const prompt = printState.direction === "meaning-to-word" ? word.meaning : word.word;
-      const answer = printState.direction === "meaning-to-word" ? word.word : word.meaning;
-      return `<li><strong>${escapeHtml(prompt)}</strong>${printState.answers || printState.mode === "answer" ? `<span>答え: ${escapeHtml(answer)}</span>` : ""}</li>`;
-    }).join("")}</ol>`;
+  const body = printSheetBody(words);
   const density = words.length > 30 ? "dense-3" : words.length > 20 ? "dense-2" : "dense-1";
   const preview = document.querySelector("#printPreview");
   preview.className = `print-sheet ${currentBook.watermark ? "watermarked" : ""} ${density}`;
   preview.innerHTML = `<div class="watermark">無料版 SAMPLE</div><div class="print-title"><span>${escapeHtml(currentBook.title)}</span><span>${title} ${words[0]?.no ?? printState.start}-${words[words.length - 1]?.no ?? printState.end}</span></div>${body}`;
+}
+
+function printSheetBody(words) {
+  if (printState.mode === "list") return tableRows(words);
+  const columns = printState.columns === 2 ? [words.filter((_, index) => index % 2 === 0), words.filter((_, index) => index % 2 === 1)] : [words];
+  return `<div class="print-vpp-grid columns-${printState.columns}">
+    ${columns.map((items) => `
+      <table class="print-vpp-table">
+        <thead><tr><th>番号</th><th>問題</th><th>${printState.mode === "answer" || printState.answers ? "答え" : "解答欄"}</th></tr></thead>
+        <tbody>
+          ${items.map((word) => {
+            const prompt = printState.direction === "meaning-to-word" ? word.meaning : word.word;
+            const answer = printState.direction === "meaning-to-word" ? word.word : word.meaning;
+            return `<tr><td>${word.no}</td><td>${escapeHtml(prompt)}</td><td>${printState.mode === "answer" || printState.answers ? escapeHtml(answer) : ""}</td></tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    `).join("")}
+  </div>`;
 }
 
 function tableRows(words) {

@@ -164,6 +164,14 @@ h2 {
   color: var(--purple);
 }
 
+.sample-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  font-weight: 800;
+}
+
 button,
 .primary-action,
 .secondary-action {
@@ -462,13 +470,13 @@ select {
 
 .print-layout {
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   gap: 14px;
 }
 
 .settings-grid {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .range-grid {
@@ -500,6 +508,56 @@ select {
 .print-sheet {
   min-height: 520px;
   padding: 18px;
+}
+
+.print-active {
+  width: min(1120px, calc(100% - 24px));
+}
+
+.print-active .dictionary-hero,
+.print-active .sample-notice {
+  display: none;
+}
+
+.print-active .section-tabs {
+  position: static;
+  margin-top: 0;
+}
+
+.print-active #tabPanel {
+  margin-top: 10px;
+}
+
+.print-active .print-settings {
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.print-active .print-settings h2 {
+  font-size: 15px;
+}
+
+.print-active label {
+  gap: 4px;
+  font-size: 11px;
+}
+
+.print-active input,
+.print-active select {
+  min-height: 34px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  font-size: 12px;
+}
+
+.print-active button,
+.print-active .primary-action,
+.print-active .secondary-action {
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 
 .print-title {
@@ -580,6 +638,40 @@ select {
   font-size: 12px;
   line-height: 1.5;
   font-weight: 800;
+}
+
+.print-vpp-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+}
+
+.print-vpp-grid.columns-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.print-vpp-table {
+  table-layout: fixed;
+  font-size: 12px;
+}
+
+.print-vpp-table th,
+.print-vpp-table td {
+  border: 1px solid var(--line);
+  padding: 6px 7px;
+  line-height: 1.35;
+}
+
+.print-vpp-table th:nth-child(1),
+.print-vpp-table td:nth-child(1) {
+  width: 44px;
+  text-align: center;
+}
+
+.print-vpp-table th:nth-child(2),
+.print-vpp-table td:nth-child(2) {
+  width: 38%;
 }
 
 .word-list,
