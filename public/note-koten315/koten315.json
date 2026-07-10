@@ -1,0 +1,1897 @@
+{
+  "id": "koten-315",
+  "title": "????315 ???",
+  "description": "??????315?????????????????????",
+  "words": [
+    {
+      "no": 1,
+      "word": "見る",
+      "meaning": "思う、関係を結ぶ、面倒を見る",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 2,
+      "word": "見す",
+      "meaning": "結婚させる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 3,
+      "word": "見ゆ",
+      "meaning": "見える・思われる、見せる、結婚する",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 4,
+      "word": "かいまみる",
+      "meaning": "のぞき見る",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 5,
+      "word": "よばふ",
+      "meaning": "呼び続ける、求婚する",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 6,
+      "word": "好く",
+      "meaning": "風流を好む",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 7,
+      "word": "わたる",
+      "meaning": "通る、いらっしゃる、～続ける、一面に",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 8,
+      "word": "ありく",
+      "meaning": "出歩く、～しまわる、～続ける",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 9,
+      "word": "おこなふ",
+      "meaning": "仏道修行をする",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 10,
+      "word": "なやむ",
+      "meaning": "病気になる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 11,
+      "word": "おこたる",
+      "meaning": "病気が治る",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 12,
+      "word": "おくる",
+      "meaning": "先立たれる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 13,
+      "word": "ながむ",
+      "meaning": "物思いに沈む、口ずさむ",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 14,
+      "word": "ときめく",
+      "meaning": "寵愛を受ける、栄える",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 15,
+      "word": "かしづく",
+      "meaning": "大切に育てる、大切に世話をする",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 16,
+      "word": "めず",
+      "meaning": "愛する、感嘆する",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 17,
+      "word": "おどろく",
+      "meaning": "目を覚ます、気づく、",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 18,
+      "word": "こうず",
+      "meaning": "疲れる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 19,
+      "word": "おぼゆ",
+      "meaning": "思われる、思い出される、似る",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 20,
+      "word": "聞こゆ",
+      "meaning": "聞こえる、評判になる、分かる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 21,
+      "word": "まもる、まぼる",
+      "meaning": "見つめる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 22,
+      "word": "たのむ",
+      "meaning": "あてにする、あてにさせる",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 23,
+      "word": "かづく",
+      "meaning": "かぶる、いただく、与える",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 24,
+      "word": "ののしる",
+      "meaning": "大声で騒ぐ、評判になる、羽振りをきかす",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 25,
+      "word": "やる",
+      "meaning": "送る、～きれない",
+      "unit": "Unit 1"
+    },
+    {
+      "no": 26,
+      "word": "いらふ",
+      "meaning": "答える",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 27,
+      "word": "あきらむ",
+      "meaning": "明らかにする",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 28,
+      "word": "にほふ",
+      "meaning": "美しく映える",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 29,
+      "word": "ねんず",
+      "meaning": "がまんする",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 30,
+      "word": "まうく",
+      "meaning": "用意する",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 31,
+      "word": "ゐる",
+      "meaning": "座る、～ている、連れる",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 32,
+      "word": "具す",
+      "meaning": "伴う、連れる、添える",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 33,
+      "word": "経",
+      "meaning": "たつ、通る",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 34,
+      "word": "さる",
+      "meaning": "避ける、なる",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 35,
+      "word": "ものす",
+      "meaning": "する、いらっしゃる",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 36,
+      "word": "ならふ",
+      "meaning": "慣れる、なじむ",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 37,
+      "word": "しのぶ",
+      "meaning": "がまんする、人目につかないようにする、思い出す",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 38,
+      "word": "わぶ",
+      "meaning": "困る、嘆く、～かねる",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 39,
+      "word": "をかし",
+      "meaning": "すばらしい、滑稽だ",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 40,
+      "word": "よろし",
+      "meaning": "悪くはない、普通だ",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 41,
+      "word": "ありがたし",
+      "meaning": "めったにない、すばらしい",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 42,
+      "word": "つきづきし",
+      "meaning": "似つかわしい",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 43,
+      "word": "なまめかし",
+      "meaning": "上品だ、若々しい",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 44,
+      "word": "めでたし",
+      "meaning": "すばらしい",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 45,
+      "word": "うるはし",
+      "meaning": "きちんとしている、美しい",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 46,
+      "word": "やむごとなし",
+      "meaning": "高貴だ、並々でない",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 47,
+      "word": "おとなし",
+      "meaning": "大人びている、思慮分別がある、主だっている",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 48,
+      "word": "ゆかし",
+      "meaning": "見たい・聞きたい・知りたい、心ひかれる",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 49,
+      "word": "なつかし",
+      "meaning": "親しみ深い",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 50,
+      "word": "はづかし",
+      "meaning": "立派だ",
+      "unit": "Unit 2"
+    },
+    {
+      "no": 51,
+      "word": "こころにくし",
+      "meaning": "奥ゆかしい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 52,
+      "word": "うつくし",
+      "meaning": "かわいい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 53,
+      "word": "かなし",
+      "meaning": "いとしい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 54,
+      "word": "らうたし",
+      "meaning": "かわいい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 55,
+      "word": "めやすし",
+      "meaning": "感じがよい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 56,
+      "word": "あやし",
+      "meaning": "不思議だ、身分が低い、粗末だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 57,
+      "word": "さうざうし",
+      "meaning": "もの足りない",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 58,
+      "word": "つれなし",
+      "meaning": "平然としている、冷淡だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 59,
+      "word": "なめし",
+      "meaning": "無礼だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 60,
+      "word": "おどろおどろし",
+      "meaning": "大げさだ、気味が悪い",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 61,
+      "word": "憂し",
+      "meaning": "つらい、いやだ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 62,
+      "word": "むつかし",
+      "meaning": "うっとうしい、気味が悪い",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 63,
+      "word": "すさまじ",
+      "meaning": "興ざめだ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 64,
+      "word": "びんなし",
+      "meaning": "不都合だ、気の毒だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 65,
+      "word": "いとほし",
+      "meaning": "気の毒だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 66,
+      "word": "いはけなし",
+      "meaning": "子どもっぽい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 67,
+      "word": "つらし",
+      "meaning": "薄情だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 68,
+      "word": "ところせし",
+      "meaning": "窮屈だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 69,
+      "word": "うしろめたし",
+      "meaning": "気がかりだ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 70,
+      "word": "かたはらいたし",
+      "meaning": "きまり悪い、苦々しい、気の毒だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 71,
+      "word": "わりなし",
+      "meaning": "ひどい、どうしようもない、苦しい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 72,
+      "word": "本意なし",
+      "meaning": "残念だ",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 73,
+      "word": "あさまし",
+      "meaning": "驚くほどだ、あきれるほどだ、情けない",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 74,
+      "word": "めざまし",
+      "meaning": "気にくわない",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 75,
+      "word": "いみじ",
+      "meaning": "すばらしい、ひどい",
+      "unit": "Unit 3"
+    },
+    {
+      "no": 76,
+      "word": "ゆゆし",
+      "meaning": "不吉だ、すばらしい、はなはだしく",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 77,
+      "word": "やさし",
+      "meaning": "優美だ・上品だ、殊勝だ",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 78,
+      "word": "しるし",
+      "meaning": "はっきりと分かる、～のとおりに",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 79,
+      "word": "とし",
+      "meaning": "早い",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 80,
+      "word": "ゆくりなし",
+      "meaning": "突然だ",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 81,
+      "word": "おぼつかなし",
+      "meaning": "はっきりしない、気がかりだ、待ち遠しい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 82,
+      "word": "こころもとなし",
+      "meaning": "かすかだ、不安だ、じれったい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 83,
+      "word": "あはれなり",
+      "meaning": "しみじみと心に深く感じられる",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 84,
+      "word": "つれづれなり",
+      "meaning": "退屈である、ものさびしい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 85,
+      "word": "すずろなり･そぞろなり",
+      "meaning": "なんということもない、思いがけない、むやみやたらに",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 86,
+      "word": "まめなり･まめやかなり",
+      "meaning": "まじめである、実用的である",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 87,
+      "word": "あだなり",
+      "meaning": "はかない、浮気だ",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 88,
+      "word": "いたづらなり",
+      "meaning": "役に立たない、むなしい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 89,
+      "word": "いうなり",
+      "meaning": "優れている、優雅である",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 90,
+      "word": "あてなり",
+      "meaning": "高貴である、上品である",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 91,
+      "word": "あからさまなり",
+      "meaning": "ほんのちょっと",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 92,
+      "word": "みそかなり",
+      "meaning": "ひそかに",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 93,
+      "word": "おろかなり",
+      "meaning": "いい加減だ、並ひととおりだ、言い尽くせない",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 94,
+      "word": "をこなり",
+      "meaning": "愚かだ、ばかばかしい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 95,
+      "word": "むげなり",
+      "meaning": "ひどい",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 96,
+      "word": "なかなかなり",
+      "meaning": "中途半端だ、かえってしないほうがよい・かえってしないほうがましだ",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 97,
+      "word": "手",
+      "meaning": "字",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 98,
+      "word": "文･書",
+      "meaning": "手紙、漢詩",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 99,
+      "word": "消息(せうそこ）",
+      "meaning": "手紙、訪問の申し入れ",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 100,
+      "word": "あそび",
+      "meaning": "管弦のあそび",
+      "unit": "Unit 4"
+    },
+    {
+      "no": 101,
+      "word": "うへ",
+      "meaning": "帝、奥様",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 102,
+      "word": "おほやけ",
+      "meaning": "朝廷、帝",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 103,
+      "word": "うち",
+      "meaning": "宮中、帝",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 104,
+      "word": "御前",
+      "meaning": "お側",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 105,
+      "word": "みゆき",
+      "meaning": "お出まし",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 106,
+      "word": "たより",
+      "meaning": "よりどころ",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 107,
+      "word": "物語",
+      "meaning": "世間話",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 108,
+      "word": "ためし",
+      "meaning": "先例",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 109,
+      "word": "いそぎ",
+      "meaning": "準備",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 110,
+      "word": "用意",
+      "meaning": "気配り",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 111,
+      "word": "かたち",
+      "meaning": "容貌",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 112,
+      "word": "かげ",
+      "meaning": "光、姿",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 113,
+      "word": "けしき",
+      "meaning": "様子、機嫌、意向",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 114,
+      "word": "こころざし",
+      "meaning": "愛情、お礼の贈り物",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 115,
+      "word": "ほい",
+      "meaning": "かねてからの願い",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 116,
+      "word": "こと",
+      "meaning": "言葉、和歌",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 117,
+      "word": "わざ",
+      "meaning": "こと、葬儀",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 118,
+      "word": "よろづ",
+      "meaning": "さまざま、何ごとにつけても",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 119,
+      "word": "ことわり",
+      "meaning": "道理",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 120,
+      "word": "ひがごと",
+      "meaning": "間違い",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 121,
+      "word": "そらごと",
+      "meaning": "嘘",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 122,
+      "word": "しるし",
+      "meaning": "効き目、ご利益、きざし",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 123,
+      "word": "料",
+      "meaning": "ため",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 124,
+      "word": "禄",
+      "meaning": "ほうび",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 125,
+      "word": "としごろ",
+      "meaning": "長年",
+      "unit": "Unit 5"
+    },
+    {
+      "no": 126,
+      "word": "つとめて",
+      "meaning": "早朝",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 127,
+      "word": "世・世の中",
+      "meaning": "男女の仲・夫婦の仲",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 128,
+      "word": "いかで・いかでか",
+      "meaning": "どうして、どうして、なんとかして",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 129,
+      "word": "いかが・いかに",
+      "meaning": "どのように・どうして、どんなにか",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 130,
+      "word": "など・などか・などて",
+      "meaning": "どうして",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 131,
+      "word": "いつしか",
+      "meaning": "いつの間にか",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 132,
+      "word": "おのづから",
+      "meaning": "たまたま、もしかして",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 133,
+      "word": "なほ",
+      "meaning": "依然としてやはり、なんといってもやはり・それでもやはり",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 134,
+      "word": "いとど",
+      "meaning": "ますます",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 135,
+      "word": "げに",
+      "meaning": "本当に",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 136,
+      "word": "かく",
+      "meaning": "このように",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 137,
+      "word": "さ",
+      "meaning": "そのように",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 138,
+      "word": "しか",
+      "meaning": "そのように",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 139,
+      "word": "と",
+      "meaning": "あのように",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 140,
+      "word": "やがて",
+      "meaning": "そのまま、すぐに",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 141,
+      "word": "すなはち",
+      "meaning": "すぐに",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 142,
+      "word": "やうやう",
+      "meaning": "しだいに",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 143,
+      "word": "やをら・やはら",
+      "meaning": "そっと",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 144,
+      "word": "なかなかに",
+      "meaning": "なまじ、かえって",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 145,
+      "word": "さすがに",
+      "meaning": "そうはいってもやはり、なんといってもやはり",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 146,
+      "word": "かたみに",
+      "meaning": "互いに",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 147,
+      "word": "うたて",
+      "meaning": "いやな感じに、異様に怪しく",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 148,
+      "word": "なべて",
+      "meaning": "一般に、並ひととおり",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 149,
+      "word": "わざと",
+      "meaning": "わざわざ、特に、正式な",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 150,
+      "word": "あまた",
+      "meaning": "たくさん",
+      "unit": "Unit 6"
+    },
+    {
+      "no": 151,
+      "word": "ここら・そこら",
+      "meaning": "たくさん、たいそう",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 152,
+      "word": "え",
+      "meaning": "ことができない",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 153,
+      "word": "な〜そ",
+      "meaning": "な・てはならない",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 154,
+      "word": "おほかた",
+      "meaning": "まったく",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 155,
+      "word": "さらに",
+      "meaning": "まったく",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 156,
+      "word": "世に",
+      "meaning": "まったく",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 157,
+      "word": "たえて",
+      "meaning": "まったく",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 158,
+      "word": "つゆ",
+      "meaning": "少しも",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 159,
+      "word": "ゆめ・ゆめゆめ",
+      "meaning": "決して",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 160,
+      "word": "つやつや",
+      "meaning": "まったく",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 161,
+      "word": "をさをさ",
+      "meaning": "ほとんど",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 162,
+      "word": "よも",
+      "meaning": "まさか",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 163,
+      "word": "あなかしこ",
+      "meaning": "決して",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 164,
+      "word": "ためらふ",
+      "meaning": "気持ちを静める",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 165,
+      "word": "やすらふ",
+      "meaning": "ためらう、立ち止まる",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 166,
+      "word": "かたらふ",
+      "meaning": "語り合う、親しく交際する、契る、説得する",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 167,
+      "word": "住む",
+      "meaning": "通う",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 168,
+      "word": "やむ",
+      "meaning": "終わる",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 169,
+      "word": "うつろふ",
+      "meaning": "色あせる",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 170,
+      "word": "見出だす",
+      "meaning": "外を見る",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 171,
+      "word": "もてなす",
+      "meaning": "振る舞う、取り扱う",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 172,
+      "word": "あつかふ",
+      "meaning": "面倒を見る、もてあます",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 173,
+      "word": "あくがる",
+      "meaning": "さまよい出る・浮かれ歩く",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 174,
+      "word": "あふ",
+      "meaning": "結婚する、耐えれれない、～きれない",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 175,
+      "word": "しおたる",
+      "meaning": "涙を流す",
+      "unit": "Unit 7"
+    },
+    {
+      "no": 176,
+      "word": "かきくらす",
+      "meaning": "空を暗くする、悲しみにくれる",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 177,
+      "word": "まどる",
+      "meaning": "迷う、ひどく",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 178,
+      "word": "たばかる",
+      "meaning": "工夫する、だます",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 179,
+      "word": "すさぶ",
+      "meaning": "興じる・気の向くままする",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 180,
+      "word": "すまふ",
+      "meaning": "抵抗する、断る",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 181,
+      "word": "まねぶ",
+      "meaning": "まねる、伝える",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 182,
+      "word": "ねぶ",
+      "meaning": "年をとる、大人びる",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 183,
+      "word": "おきつ",
+      "meaning": "決めておく、指図する",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 184,
+      "word": "うれふ",
+      "meaning": "訴える",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 185,
+      "word": "むすぶ",
+      "meaning": "できる、すくう",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 186,
+      "word": "とぶらふ",
+      "meaning": "訪ねる、見舞う、弔う",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 187,
+      "word": "やつす",
+      "meaning": "質素にする、出家する",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 188,
+      "word": "さはる",
+      "meaning": "差し支える・妨げられる",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 189,
+      "word": "かしこま",
+      "meaning": "恐縮する・恐縮して正座する",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 190,
+      "word": "かこつ",
+      "meaning": "嘆く",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 191,
+      "word": "わく",
+      "meaning": "理解する",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 192,
+      "word": "つつむ",
+      "meaning": "遠慮する",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 193,
+      "word": "あらまほし",
+      "meaning": "望ましい",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 194,
+      "word": "らうらうじ",
+      "meaning": "巧みだ、上品だ",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 195,
+      "word": "うるせし",
+      "meaning": "賢い、巧みだ",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 196,
+      "word": "はかばかし",
+      "meaning": "しっかりしている、はっきりしている",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 197,
+      "word": "をさをさし",
+      "meaning": "しっかりしている",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 198,
+      "word": "さうなし",
+      "meaning": "比べるものがない",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 199,
+      "word": "くまなし",
+      "meaning": "陰がない、なんでも知っている",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 200,
+      "word": "ずちなし",
+      "meaning": "どうしようもない",
+      "unit": "Unit 8"
+    },
+    {
+      "no": 201,
+      "word": "さがなし",
+      "meaning": "意地が悪い、いたずらだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 202,
+      "word": "あいなし",
+      "meaning": "つまらない、なんとなく",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 203,
+      "word": "はかなし",
+      "meaning": "頼りない、ちょっとしたことだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 204,
+      "word": "こころづきなし",
+      "meaning": "気にくわない",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 205,
+      "word": "あへなし",
+      "meaning": "落胆している、はかない",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 206,
+      "word": "よしなし",
+      "meaning": "つまらない、関係がない",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 207,
+      "word": "おほやけなし",
+      "meaning": "身のほど知らずだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 208,
+      "word": "さがなし",
+      "meaning": "意地が悪い、いたずらだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 209,
+      "word": "はしたなし",
+      "meaning": "中途半端だ、きまり悪い、そっけない、激しい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 210,
+      "word": "しどけなし",
+      "meaning": "怠慢だ、気楽だ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 211,
+      "word": "いぎたなし",
+      "meaning": "寝坊だ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 212,
+      "word": "ひとわろし",
+      "meaning": "うっとうしい、気がかりだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 213,
+      "word": "いぶせし",
+      "meaning": "うっとうしい、気がかりだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 214,
+      "word": "くちをし",
+      "meaning": "残念だ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 215,
+      "word": "あたらし",
+      "meaning": "惜しい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 216,
+      "word": "ねたし",
+      "meaning": "くやしい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 217,
+      "word": "こちたし",
+      "meaning": "うるさい、大げさだ、はなはだしい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 218,
+      "word": "けし",
+      "meaning": "異様だ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 219,
+      "word": "わびし",
+      "meaning": "苦しい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 220,
+      "word": "こころぐるし",
+      "meaning": "気の毒だ、気がかりだ",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 221,
+      "word": "まだし",
+      "meaning": "まだ早い",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 222,
+      "word": "さかし",
+      "meaning": "優れている、しっかりしている、こざかしい",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 223,
+      "word": "まばゆし",
+      "meaning": "まぶしい、美しい、恥ずかしい、見ていられない",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 224,
+      "word": "かたじけなし",
+      "meaning": "おそれ多い、面目ない",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 225,
+      "word": "かしこし",
+      "meaning": "おそれ多い、優れている、都合がよい、はなはだしく",
+      "unit": "Unit 9"
+    },
+    {
+      "no": 226,
+      "word": "しげし",
+      "meaning": "多い",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 227,
+      "word": "凄し",
+      "meaning": "気味が悪い、さびしい、すばらしい",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 228,
+      "word": "いたし",
+      "meaning": "すばらしい、ひどい、はなはだしく、それほど",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 229,
+      "word": "おぼろけなり",
+      "meaning": "並ひととおりだ、並ひととおりではない",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 230,
+      "word": "なのめなり",
+      "meaning": "並ひととおりだ、いい加減だ、並ひととおりではない",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 231,
+      "word": "清らなり・けうらなり",
+      "meaning": "清らかで美しい",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 232,
+      "word": "まほなり",
+      "meaning": "完全である",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 233,
+      "word": "あらはなり",
+      "meaning": "まる見えである",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 234,
+      "word": "あながちなり",
+      "meaning": "強引だ、むやみに",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 235,
+      "word": "せちなり",
+      "meaning": "切実である、大切である",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 236,
+      "word": "とみなり",
+      "meaning": "急だ",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 237,
+      "word": "うちつけなり",
+      "meaning": "にわかだ、軽率だ",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 238,
+      "word": "更なり",
+      "meaning": "言うまでもない",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 239,
+      "word": "ねんごろなり",
+      "meaning": "心を込めて丁寧だ、親密だ",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 240,
+      "word": "おいらかなり",
+      "meaning": "おっとりしている",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 241,
+      "word": "あやにくなり",
+      "meaning": "意地が悪い、あいにくだ",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 242,
+      "word": "覚え",
+      "meaning": "評判、寵愛",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 243,
+      "word": "ひま",
+      "meaning": "隙間、合間",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 244,
+      "word": "いとま",
+      "meaning": "暇、休むこと",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 245,
+      "word": "ざえ",
+      "meaning": "教養、才能",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 246,
+      "word": "喜び",
+      "meaning": "お礼",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 247,
+      "word": "心ばへ",
+      "meaning": "気だて、心づかい、趣",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 248,
+      "word": "心尽くし",
+      "meaning": "もの思いをすること",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 249,
+      "word": "そこ",
+      "meaning": "あなた",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 250,
+      "word": "ここ",
+      "meaning": "このわたし",
+      "unit": "Unit 10"
+    },
+    {
+      "no": 251,
+      "word": "かれ",
+      "meaning": "あの人",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 252,
+      "word": "それ",
+      "meaning": "その人",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 253,
+      "word": "これ",
+      "meaning": "このわたし",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 254,
+      "word": "あなた",
+      "meaning": "向こう",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 255,
+      "word": "そなた",
+      "meaning": "あなた",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 256,
+      "word": "こなた",
+      "meaning": "このわたし",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 257,
+      "word": "そのかみ",
+      "meaning": "その当時",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 258,
+      "word": "せうと",
+      "meaning": "兄",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 259,
+      "word": "おとうと・おとと",
+      "meaning": "妹",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 260,
+      "word": "いも",
+      "meaning": "いとしいあなた",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 261,
+      "word": "つま",
+      "meaning": "夫",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 262,
+      "word": "はらから",
+      "meaning": "兄弟",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 263,
+      "word": "かたへ",
+      "meaning": "半分、傍ら、仲間",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 264,
+      "word": "ほど",
+      "meaning": "ころ、広さ、身分、様子",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 265,
+      "word": "限り",
+      "meaning": "限界、機会、臨終、すべて",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 266,
+      "word": "際",
+      "meaning": "身分",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 267,
+      "word": "ついで",
+      "meaning": "序列、機会",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 268,
+      "word": "沙汰",
+      "meaning": "評議・裁き、命令、噂",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 269,
+      "word": "とが",
+      "meaning": "欠点、罪",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 270,
+      "word": "け",
+      "meaning": "ため",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 271,
+      "word": "よし",
+      "meaning": "風情、由緒、手立て、こと",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 272,
+      "word": "やう",
+      "meaning": "様子、理由、方法、〜ことには",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 273,
+      "word": "契り",
+      "meaning": "約束、宿縁",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 274,
+      "word": "ほだし",
+      "meaning": "障害となるもの",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 275,
+      "word": "あやめ",
+      "meaning": "道理",
+      "unit": "Unit 11"
+    },
+    {
+      "no": 276,
+      "word": "うつつ",
+      "meaning": "現実、正気",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 277,
+      "word": "あるじ",
+      "meaning": "もてなし",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 278,
+      "word": "ふるさと",
+      "meaning": "なじみの土地、わが家、旧都",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 279,
+      "word": "さて",
+      "meaning": "そのまま、そのほか",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 280,
+      "word": "さながら",
+      "meaning": "そのまま、すべて",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 281,
+      "word": "今",
+      "meaning": "すぐに、さらに",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 282,
+      "word": "せめて",
+      "meaning": "強いて、ひどく",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 283,
+      "word": "むべ・うべ",
+      "meaning": "なるほど",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 284,
+      "word": "かつ",
+      "meaning": "一方では、すぐに",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 285,
+      "word": "ひねもす",
+      "meaning": "一日中",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 286,
+      "word": "かまへて",
+      "meaning": "決して、なんとかして",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 287,
+      "word": "あへて",
+      "meaning": "まったく",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 288,
+      "word": "かけて",
+      "meaning": "まったく・決して",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 289,
+      "word": "定めて",
+      "meaning": "きっと",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 290,
+      "word": "のたまふ",
+      "meaning": "おっしゃる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 291,
+      "word": "おほす",
+      "meaning": "おっしゃる、命令なさる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 292,
+      "word": "聞こゆ・聞こえさす",
+      "meaning": "申し上げる、〜申し上げる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 293,
+      "word": "申す",
+      "meaning": "申し上げる、〜申し上げる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 294,
+      "word": "奏す",
+      "meaning": "申し上げる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 295,
+      "word": "啓す",
+      "meaning": "申し上げる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 296,
+      "word": "承る",
+      "meaning": "お受けする・お聞きする",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 297,
+      "word": "給ふ",
+      "meaning": "お与えになる・下さる、〜なさる、〜ます",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 298,
+      "word": "たまはす",
+      "meaning": "お与えになる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 299,
+      "word": "たまはる",
+      "meaning": "いただく、お与えになる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 300,
+      "word": "召す",
+      "meaning": "お呼びになる、お取り寄せになる、お召しになる、お乗りになる",
+      "unit": "Unit 12"
+    },
+    {
+      "no": 301,
+      "word": "思す・思し召す",
+      "meaning": "お思いになる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 302,
+      "word": "大殿籠る",
+      "meaning": "おやすみになる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 303,
+      "word": "候ふ",
+      "meaning": "お仕え申し上げる、あります",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 304,
+      "word": "侍り",
+      "meaning": "お仕え申し上げる、あります、〜ます",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 305,
+      "word": "奉る",
+      "meaning": "差し上げる、〜申し上げる、お召しになる、召し上がる、お乗りになる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 306,
+      "word": "参らす",
+      "meaning": "差し上げる、〜申し上げる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 307,
+      "word": "まゐる・まうづ",
+      "meaning": "参上する、差し上げる、召し上がる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 308,
+      "word": "まかる・まかづ",
+      "meaning": "退出する、出かけます",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 309,
+      "word": "遣はす",
+      "meaning": "おやりになる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 310,
+      "word": "仕まつる",
+      "meaning": "お仕え申し上げる、し申し上げる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 311,
+      "word": "聞こし召す",
+      "meaning": "お聞きになる、召し上がる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 312,
+      "word": "しろしめす",
+      "meaning": "知っていらっしゃる、お治めになる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 313,
+      "word": "おはす・おはします",
+      "meaning": "いらっしゃる、〜いらっしゃる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 314,
+      "word": "いますかり",
+      "meaning": "いらっしゃる、〜いらっしゃる",
+      "unit": "Unit 13"
+    },
+    {
+      "no": 315,
+      "word": "御覧ず",
+      "meaning": "御覧になる",
+      "unit": "Unit 13"
+    }
+  ]
+}
