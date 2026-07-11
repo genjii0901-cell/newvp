@@ -2221,6 +2221,21 @@ export default function Home() {
               </div>
             </details>
 
+            {plan === "free" ? (
+              <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <p className="text-sm font-black text-blue-800">無料プランでできること</p>
+                <p className="mt-1 text-xs leading-5 text-blue-700">
+                  無料版は「見本」の透かし入り・1回50語（1ページ）まで印刷できます。透かしなしで、たくさんまとめて印刷するにはPersonalプランへ。
+                </p>
+                <a
+                  href="/pricing"
+                  className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
+                >
+                  7日間無料で試す
+                </a>
+              </div>
+            ) : null}
+
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
