@@ -10,6 +10,7 @@ import { getPageCount, planLimits } from "@/lib/plan-limits";
 import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
+import OverlapTool from "./overlap-tool";
 
 type Word = {
   no: number;
@@ -2636,6 +2637,9 @@ export default function Home() {
           </p>
         </section>
 
+        <OverlapTool books={books} isPaid={plan !== "free"} />
+
+        {false && (
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -2723,7 +2727,7 @@ export default function Home() {
             </span>
             {overlapBaseBook && overlapCompareBook ? (
               <span>
-                基準: {overlapBaseBook.title} / 比較: {overlapCompareBook.title}
+                基準: {overlapBaseBook?.title} / 比較: {overlapCompareBook?.title}
               </span>
             ) : null}
           </div>
@@ -2801,6 +2805,7 @@ export default function Home() {
             </button>
           </div>
         </section>
+        )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
           <PlanCard title="Free" price="¥0" text="1日2回・1ページまで。Personal単語帳も体験できる無料プラン。" />
