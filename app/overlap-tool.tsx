@@ -28,21 +28,30 @@ function toTsv(words: Word[]) {
   ].join("\n");
 }
 
+function escapeTitle(value: string) {
+  return value.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
+}
+
 export default function OverlapTool({
   books,
   isPaid,
   onUseWords,
+  onSaveWords,
 }: {
   books: OverlapBook[];
   isPaid: boolean;
   onUseWords?: (words: Word[], title: string) => void;
+  onSaveWords?: (words: Word[], title: string) => Promise<void> | void;
 }) {
   const [states, setStates] = useState<Record<string, BookState>>({});
   const [includeMode, setIncludeMode] = useState<IncludeMode>("all");
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [saveTitle, setSaveTitle] = useState("");
   const [wordsById, setWordsById] = useState<Record<string, Word[]>>({});
   const [loadingIds, setLoadingIds] = useState<string[]>([]);
   const [printing, setPrinting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const selectedIds = useMemo(() => Object.keys(states), [states]);
   const includeIds = useMemo(() => selectedIds.filter((id) => states[id] === "include"), [selectedIds, states]);
@@ -51,6 +60,7 @@ export default function OverlapTool({
 
   const titleById = (id: string) => books.find((book) => book.id === id)?.title ?? id;
   const resultTitle = `かぶり調査（${includeMode === "all" ? "すべてにある" : "どれかにある"}: ${includeIds.map(titleById).join("・") || "-"}${excludeIds.length ? ` / ない: ${excludeIds.map(titleById).join("・")}` : ""}）`;
+  const finalTitle = saveTitle.trim() || resultTitle;
 
   useEffect(() => {
     const missing = selectedIds.filter((id) => !wordsById[id] && !loadingIds.includes(id));
@@ -146,11 +156,26 @@ export default function OverlapTool({
     });
   }
 
+  function resultWords() {
+    return exportRows.map(({ english, japanese }, index) => ({ no: index + 1, english, japanese }));
+  }
+
   function sendToPasteArea() {
-    if (exportRows.length === 0) return;
-    const words = exportRows.map(({ no, english, japanese }) => ({ no, english, japanese }));
+    const words = resultWords();
+    if (words.length === 0) return;
     navigator.clipboard?.writeText(toTsv(words)).catch(() => undefined);
-    onUseWords?.(words, resultTitle);
+    onUseWords?.(words, finalTitle);
+  }
+
+  async function saveToMyWordbook() {
+    const words = resultWords();
+    if (!onSaveWords || words.length === 0) return;
+    setSaving(true);
+    try {
+      await onSaveWords(words, finalTitle);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function printResult() {
@@ -158,7 +183,7 @@ export default function OverlapTool({
     setPrinting(true);
     try {
       const html = buildSharedPrintHtml({
-        title: resultTitle,
+        title: finalTitle,
         words: rows,
         type: "list",
         makeQuestion: (w) => makeSharedQuestion(w, "en-ja"),
@@ -177,8 +202,7 @@ export default function OverlapTool({
         generatedAt: new Date(),
         userEmail: "",
       });
-      const safeTitle = resultTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
-      const doc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title></head><body style="margin:0"><div id="print-root">${html}</div></body></html>`;
+      const doc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${escapeTitle(finalTitle)}</title></head><body style="margin:0"><div id="print-root">${html}</div></body></html>`;
       const iframe = document.createElement("iframe");
       iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;visibility:hidden;";
       document.body.appendChild(iframe);
@@ -189,7 +213,7 @@ export default function OverlapTool({
         idoc.close();
         iframe.contentWindow?.focus();
         const previousTitle = document.title;
-        document.title = resultTitle;
+        document.title = finalTitle;
         setTimeout(() => {
           try { iframe.contentWindow?.print(); } catch { /* ignore */ }
           setTimeout(() => { document.title = previousTitle; }, 8_000);
@@ -210,23 +234,27 @@ export default function OverlapTool({
           <p className="text-sm font-black text-blue-700">かぶり調査</p>
           <h3 className="text-lg font-black text-slate-900">「ある単語帳」「ない単語帳」で自由に抽出</h3>
           <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-500">
-            例: 「ターゲットにはある」「古文単語にはない」のように、単語帳ごとに条件を付けられます。
-            結果は貼り付け欄へ送って、自作単語帳として保存したり、そのまま印刷できます。
+            例: 「ターゲットにはある」「古文単語にはない」のように条件を付けられます。
+            結果は貼り付け欄や印刷設定へ送り、マイ単語帳として保存できます。
           </p>
         </div>
         {!isPaid ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">無料は先頭{FREE_VISIBLE_ROWS}語まで</span> : null}
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <label className="block">
-          <span className="text-xs font-black text-slate-500">単語帳検索</span>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="単語帳名で検索"
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-          />
-        </label>
+      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <button
+          type="button"
+          onClick={() => setSelectorOpen((open) => !open)}
+          className="flex items-center justify-between rounded-2xl border bg-slate-50 px-4 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
+        >
+          <span>
+            単語帳を選ぶ
+            <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-blue-700">
+              ある {includeIds.length} / ない {excludeIds.length}
+            </span>
+          </span>
+          <span className="text-xs text-slate-400">{selectorOpen ? "閉じる" : "開く"}</span>
+        </button>
         <div className="rounded-2xl bg-slate-50 p-1 text-xs font-black">
           <button
             type="button"
@@ -245,39 +273,65 @@ export default function OverlapTool({
         </div>
       </div>
 
-      <div className="mt-3 max-h-72 overflow-auto rounded-2xl border bg-slate-50">
-        {filteredBooks.map((book) => {
-          const state = states[book.id] ?? "ignore";
-          return (
-            <div key={book.id} className="grid gap-2 border-b bg-white p-2 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-              <p className="truncate text-sm font-bold text-slate-800">{book.title}</p>
-              <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1 text-xs font-black">
-                <button
-                  type="button"
-                  onClick={() => setBookState(book.id, "include")}
-                  className={`rounded-lg px-3 py-1.5 ${state === "include" ? "bg-blue-600 text-white" : "text-slate-500"}`}
-                >
-                  ある
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBookState(book.id, "exclude")}
-                  className={`rounded-lg px-3 py-1.5 ${state === "exclude" ? "bg-rose-500 text-white" : "text-slate-500"}`}
-                >
-                  ない
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBookState(book.id, "ignore")}
-                  className={`rounded-lg px-3 py-1.5 ${state === "ignore" ? "bg-white text-slate-700 shadow-sm" : "text-slate-500"}`}
-                >
-                  無視
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {selectorOpen ? (
+        <div className="mt-3 rounded-2xl border bg-slate-50 p-2">
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="単語帳名で検索"
+            className="mb-2 w-full rounded-xl border bg-white px-3 py-2 text-sm"
+          />
+          <div className="max-h-72 overflow-auto rounded-xl border bg-white">
+            {filteredBooks.map((book) => {
+              const state = states[book.id] ?? "ignore";
+              return (
+                <div key={book.id} className="grid gap-2 border-b p-2 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <p className="truncate text-sm font-bold text-slate-800">{book.title}</p>
+                  <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1 text-xs font-black">
+                    <button
+                      type="button"
+                      onClick={() => setBookState(book.id, "include")}
+                      className={`rounded-lg px-3 py-1.5 ${state === "include" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                    >
+                      ある
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookState(book.id, "exclude")}
+                      className={`rounded-lg px-3 py-1.5 ${state === "exclude" ? "bg-rose-500 text-white" : "text-slate-500"}`}
+                    >
+                      ない
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookState(book.id, "ignore")}
+                      className={`rounded-lg px-3 py-1.5 ${state === "ignore" ? "bg-white text-slate-700 shadow-sm" : "text-slate-500"}`}
+                    >
+                      無視
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            {filteredBooks.length === 0 ? (
+              <p className="p-4 text-center text-sm font-bold text-slate-400">該当する単語帳がありません。</p>
+            ) : null}
+          </div>
+        </div>
+      ) : selectedIds.length > 0 ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {includeIds.map((id) => (
+            <span key={`include-${id}`} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
+              ある: {titleById(id)}
+            </span>
+          ))}
+          {excludeIds.map((id) => (
+            <span key={`exclude-${id}`} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">
+              ない: {titleById(id)}
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold leading-6 text-slate-600">
         <span className="font-black text-slate-800">条件:</span>{" "}
@@ -290,6 +344,18 @@ export default function OverlapTool({
           </button>
         ) : null}
       </div>
+
+      {rows.length > 0 ? (
+        <label className="mt-3 block rounded-2xl border bg-white p-3">
+          <span className="text-xs font-black text-slate-500">保存・印刷タイトル</span>
+          <input
+            value={saveTitle}
+            onChange={(event) => setSaveTitle(event.target.value)}
+            placeholder={resultTitle}
+            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+          />
+        </label>
+      ) : null}
 
       <div className="mt-4">
         {includeIds.length === 0 ? (
@@ -307,8 +373,11 @@ export default function OverlapTool({
                   <button type="button" onClick={sendToPasteArea} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">
                     貼り付け欄へ送る
                   </button>
-                  <button type="button" onClick={() => onUseWords?.(exportRows, resultTitle)} className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
+                  <button type="button" onClick={() => onUseWords?.(resultWords(), finalTitle)} className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
                     印刷設定へ送る
+                  </button>
+                  <button type="button" onClick={saveToMyWordbook} disabled={saving} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:bg-slate-100 disabled:text-slate-400">
+                    {saving ? "保存中..." : "マイ単語帳に保存"}
                   </button>
                   {isPaid ? (
                     <button type="button" onClick={printResult} disabled={printing} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:bg-slate-300">

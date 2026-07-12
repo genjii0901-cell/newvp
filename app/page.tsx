@@ -1022,6 +1022,82 @@ export default function Home() {
     }
   }
 
+  async function saveOverlapWords(words: Word[], title: string) {
+    if (!user) {
+      alert("マイ単語帳の保存にはログインが必要です。");
+      return;
+    }
+    if (plan === "free") {
+      alert("マイ単語帳の保存はPersonal以上のプランでご利用いただけます。Freeプランでは貼り付けてそのまま印刷できます。");
+      return;
+    }
+    if (!supabase) {
+      alert("Supabase の設定が必要です。");
+      return;
+    }
+
+    const normalizedWords = words.map((word, index) => ({
+      no: index + 1,
+      english: word.english,
+      japanese: word.japanese,
+    }));
+    if (normalizedWords.length === 0) {
+      alert("保存できる単語がありません。");
+      return;
+    }
+
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      alert("ログイン状態を確認できませんでした。");
+      return;
+    }
+
+    const response = await fetch("/api/me/wordbooks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        title: title.trim() || "かぶり調査から作成",
+        description: "かぶり調査の結果から作成したマイ単語帳です。",
+        words: normalizedWords,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.wordbook) {
+      alert(result.error ?? "マイ単語帳の保存に失敗しました。");
+      return;
+    }
+
+    const savedBook: WordBook = {
+      id: String(result.wordbook.id),
+      title: result.wordbook.title ?? title,
+      description: result.wordbook.description ?? "かぶり調査の結果から作成したマイ単語帳です。",
+      level: "自作",
+      premium: false,
+      requiredPlan: "free",
+      wordCount: typeof result.wordbook.wordCount === "number" ? result.wordbook.wordCount : normalizedWords.length,
+      words: (result.wordbook.words ?? normalizedWords).map((word: any, index: number) => ({
+        no: Number(word.no) || index + 1,
+        english: word.english ?? "",
+        japanese: word.japanese ?? "",
+      })),
+    };
+
+    setBooks((prev) => [savedBook, ...prev.filter((book) => book.id !== savedBook.id)]);
+    setBookId(savedBook.id);
+    setStartNo(1);
+    setEndNo(savedBook.words.length);
+    setCount(Math.min(savedBook.words.length, 50));
+    setPdfTitle(savedBook.title);
+    setPdfMessage("かぶり調査の結果をマイ単語帳として保存しました。");
+    if (typeof window !== "undefined") {
+      document.getElementById("pdf-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   async function loadOverlapBooks(baseId: string, compareId: string) {
     const targets = [baseId, compareId].filter(Boolean);
     return Promise.all(targets.map((targetId) => ensureBookWords(targetId)));
@@ -2671,7 +2747,7 @@ export default function Home() {
           </p>
         </section>
 
-        <OverlapTool books={books} isPaid={plan !== "free"} onUseWords={useOverlapWords} />
+        <OverlapTool books={books} isPaid={plan !== "free"} onUseWords={useOverlapWords} onSaveWords={saveOverlapWords} />
 
         {false && (
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
