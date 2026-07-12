@@ -20,7 +20,6 @@ const FREE_VISIBLE_ROWS = 8;
 function normalizeKey(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
-
 function toTsv(words: Word[]) {
   return [
     "number\tenglish\tjapanese",
@@ -59,7 +58,7 @@ export default function OverlapTool({
   const allLoaded = selectedIds.every((id) => wordsById[id]);
 
   const titleById = (id: string) => books.find((book) => book.id === id)?.title ?? id;
-  const resultTitle = `かぶり調査（${includeMode === "all" ? "すべてにある" : "どれかにある"}: ${includeIds.map(titleById).join("・") || "-"}${excludeIds.length ? ` / ない: ${excludeIds.map(titleById).join("・")}` : ""}）`;
+  const resultTitle = `かぶり調査（${includeMode === "all" ? "選んだ全てに出る" : "選んだどれかに出る"}: ${includeIds.map(titleById).join("・") || "-"}${excludeIds.length ? ` / 除外: ${excludeIds.map(titleById).join("・")}` : ""}）`;
   const finalTitle = saveTitle.trim() || resultTitle;
 
   useEffect(() => {
@@ -232,10 +231,10 @@ export default function OverlapTool({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-blue-700">かぶり調査</p>
-          <h3 className="text-lg font-black text-slate-900">「ある単語帳」「ない単語帳」で自由に抽出</h3>
+          <h3 className="text-lg font-black text-slate-900">単語帳を組み合わせて、必要な単語だけ取り出す</h3>
           <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-500">
-            例: 「ターゲットにはある」「古文単語にはない」のように条件を付けられます。
-            結果は貼り付け欄や印刷設定へ送り、マイ単語帳として保存できます。
+            「この単語帳に出ている語を使う」「この単語帳に出ている語は外す」を選べます。
+            例: ターゲットに出ている語から、シス単にも出ている語を除外できます。
           </p>
         </div>
         {!isPaid ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">無料は先頭{FREE_VISIBLE_ROWS}語まで</span> : null}
@@ -250,7 +249,7 @@ export default function OverlapTool({
           <span>
             単語帳を選ぶ
             <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-blue-700">
-              ある {includeIds.length} / ない {excludeIds.length}
+              使う {includeIds.length} / 外す {excludeIds.length}
             </span>
           </span>
           <span className="text-xs text-slate-400">{selectorOpen ? "閉じる" : "開く"}</span>
@@ -261,14 +260,14 @@ export default function OverlapTool({
             onClick={() => setIncludeMode("all")}
             className={`rounded-xl px-3 py-2 ${includeMode === "all" ? "bg-blue-600 text-white" : "text-slate-600"}`}
           >
-            ある全部に共通
+            使う単語帳すべてに出る語
           </button>
           <button
             type="button"
             onClick={() => setIncludeMode("any")}
             className={`rounded-xl px-3 py-2 ${includeMode === "any" ? "bg-blue-600 text-white" : "text-slate-600"}`}
           >
-            あるどれかに含む
+            使う単語帳のどれかに出る語
           </button>
         </div>
       </div>
@@ -293,28 +292,28 @@ export default function OverlapTool({
                       onClick={() => setBookState(book.id, "include")}
                       className={`rounded-lg px-3 py-1.5 ${state === "include" ? "bg-blue-600 text-white" : "text-slate-500"}`}
                     >
-                      ある
+                      使う
                     </button>
                     <button
                       type="button"
                       onClick={() => setBookState(book.id, "exclude")}
                       className={`rounded-lg px-3 py-1.5 ${state === "exclude" ? "bg-rose-500 text-white" : "text-slate-500"}`}
                     >
-                      ない
+                      外す
                     </button>
                     <button
                       type="button"
                       onClick={() => setBookState(book.id, "ignore")}
                       className={`rounded-lg px-3 py-1.5 ${state === "ignore" ? "bg-white text-slate-700 shadow-sm" : "text-slate-500"}`}
                     >
-                      無視
+                      対象外
                     </button>
                   </div>
                 </div>
               );
             })}
             {filteredBooks.length === 0 ? (
-              <p className="p-4 text-center text-sm font-bold text-slate-400">該当する単語帳がありません。</p>
+              <p className="p-4 text-center text-sm font-bold text-slate-400">条件に合う単語帳が見つかりません。</p>
             ) : null}
           </div>
         </div>
@@ -322,22 +321,22 @@ export default function OverlapTool({
         <div className="mt-3 flex flex-wrap gap-2">
           {includeIds.map((id) => (
             <span key={`include-${id}`} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
-              ある: {titleById(id)}
+              使う: {titleById(id)}
             </span>
           ))}
           {excludeIds.map((id) => (
             <span key={`exclude-${id}`} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">
-              ない: {titleById(id)}
+              外す: {titleById(id)}
             </span>
           ))}
         </div>
       ) : null}
 
       <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold leading-6 text-slate-600">
-        <span className="font-black text-slate-800">条件:</span>{" "}
-        <span className="text-blue-700">{includeIds.length ? includeIds.map(titleById).join(" / ") : "ある単語帳を選択"}</span>
-        <span> に{includeMode === "all" ? "全部入っていて" : "どれかに入っていて"}</span>
-        {excludeIds.length ? <span>、<span className="text-rose-600">{excludeIds.map(titleById).join(" / ")}</span> には入っていない単語</span> : null}
+        <span className="font-black text-slate-800">抽出条件:</span>{" "}
+        <span className="text-blue-700">{includeIds.length ? includeIds.map(titleById).join(" / ") : "使う単語帳を選択"}</span>
+        <span> {includeMode === "all" ? "すべてに出ている単語" : "のどれかに出ている単語"}</span>
+        {excludeIds.length ? <span>から、<span className="text-rose-600">{excludeIds.map(titleById).join(" / ")}</span> に出ている単語を外す</span> : null}
         {selectedIds.length > 0 ? (
           <button type="button" onClick={() => setStates({})} className="ml-3 text-slate-400 underline">
             条件をクリア
@@ -347,7 +346,7 @@ export default function OverlapTool({
 
       {rows.length > 0 ? (
         <label className="mt-3 block rounded-2xl border bg-white p-3">
-          <span className="text-xs font-black text-slate-500">保存・印刷タイトル</span>
+          <span className="text-xs font-black text-slate-500">結果の単語帳名</span>
           <input
             value={saveTitle}
             onChange={(event) => setSaveTitle(event.target.value)}
@@ -360,24 +359,24 @@ export default function OverlapTool({
       <div className="mt-4">
         {includeIds.length === 0 ? (
           <p className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">
-            まず「ある」にする単語帳を1冊以上選んでください。
+            まず「使う」にする単語帳を1冊以上選んでください。
           </p>
         ) : !allLoaded ? (
           <p className="rounded-2xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-400">単語を読み込み中...</p>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-black text-slate-700">該当 {rows.length}語</p>
+              <p className="text-sm font-black text-slate-700">抽出結果 {rows.length}語</p>
               {rows.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={sendToPasteArea} className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100">
-                    貼り付け欄へ送る
+                    貼り付け欄に入れる
                   </button>
                   <button type="button" onClick={() => onUseWords?.(resultWords(), finalTitle)} className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
-                    印刷設定へ送る
+                    印刷設定で使う
                   </button>
                   <button type="button" onClick={saveToMyWordbook} disabled={saving} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:bg-slate-100 disabled:text-slate-400">
-                    {saving ? "保存中..." : "マイ単語帳に保存"}
+                    {saving ? "保存中..." : "マイ単語帳として保存"}
                   </button>
                   {isPaid ? (
                     <button type="button" onClick={printResult} disabled={printing} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:bg-slate-300">
@@ -395,7 +394,7 @@ export default function OverlapTool({
                     <th className="w-12 border-b p-2 text-center">#</th>
                     <th className="w-[24%] border-b p-2 text-left">単語</th>
                     <th className="border-b p-2 text-left">意味</th>
-                    <th className="hidden w-[32%] border-b p-2 text-left md:table-cell">見つかった単語帳</th>
+                    <th className="hidden w-[32%] border-b p-2 text-left md:table-cell">出ていた単語帳</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -416,7 +415,7 @@ export default function OverlapTool({
                     </tr>
                   ))}
                   {rows.length === 0 ? (
-                    <tr><td colSpan={4} className="p-6 text-center text-sm font-bold text-slate-400">該当する単語がありません。</td></tr>
+                    <tr><td colSpan={4} className="p-6 text-center text-sm font-bold text-slate-400">この条件に合う単語はありません。</td></tr>
                   ) : null}
                 </tbody>
               </table>
@@ -439,3 +438,4 @@ export default function OverlapTool({
     </div>
   );
 }
+
