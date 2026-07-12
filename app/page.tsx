@@ -988,6 +988,40 @@ export default function Home() {
     }
   }
 
+  function useOverlapWords(words: Word[], title: string) {
+    if (words.length === 0) return;
+    const normalizedWords = words.map((word, index) => ({
+      no: index + 1,
+      english: word.english,
+      japanese: word.japanese,
+    }));
+    const tsv = [
+      "number\tenglish\tjapanese",
+      ...normalizedWords.map((word) => `${word.no}\t${word.english}\t${word.japanese}`),
+    ].join("\n");
+    const overlapBook: WordBook = {
+      id: `overlap-${Date.now()}`,
+      title,
+      level: "かぶり調査",
+      premium: false,
+      requiredPlan: "free",
+      description: "かぶり調査の結果から作成した一時単語帳です。",
+      words: normalizedWords,
+      wordCount: normalizedWords.length,
+    };
+    setPasteText(tsv);
+    setBooks((prev) => [overlapBook, ...prev.filter((book) => !book.id.startsWith("overlap-"))]);
+    setBookId(overlapBook.id);
+    setStartNo(1);
+    setEndNo(normalizedWords.length);
+    setCount(Math.min(normalizedWords.length, 50));
+    setPdfTitle(title);
+    setPdfMessage("かぶり調査の結果を印刷設定と貼り付け欄に反映しました。必要なら単語帳として登録できます。");
+    if (typeof window !== "undefined") {
+      document.getElementById("pdf-builder")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   async function loadOverlapBooks(baseId: string, compareId: string) {
     const targets = [baseId, compareId].filter(Boolean);
     return Promise.all(targets.map((targetId) => ensureBookWords(targetId)));
@@ -2637,7 +2671,7 @@ export default function Home() {
           </p>
         </section>
 
-        <OverlapTool books={books} isPaid={plan !== "free"} />
+        <OverlapTool books={books} isPaid={plan !== "free"} onUseWords={useOverlapWords} />
 
         {false && (
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
