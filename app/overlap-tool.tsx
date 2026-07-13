@@ -40,7 +40,7 @@ export default function OverlapTool({
   books: OverlapBook[];
   isPaid: boolean;
   onUseWords?: (words: Word[], title: string) => void;
-  onSaveWords?: (words: Word[], title: string) => Promise<void> | void;
+  onSaveWords?: (words: Word[], title: string, description: string) => Promise<void> | void;
 }) {
   const [states, setStates] = useState<Record<string, BookState>>({});
   const [includeMode, setIncludeMode] = useState<IncludeMode>("all");
@@ -51,6 +51,8 @@ export default function OverlapTool({
   const [loadingIds, setLoadingIds] = useState<string[]>([]);
   const [printing, setPrinting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [savePanelOpen, setSavePanelOpen] = useState(false);
+  const [saveDescription, setSaveDescription] = useState("");
 
   const selectedIds = useMemo(() => Object.keys(states), [states]);
   const includeIds = useMemo(() => selectedIds.filter((id) => states[id] === "include"), [selectedIds, states]);
@@ -139,6 +141,15 @@ export default function OverlapTool({
   const exportRows = isPaid ? rows : rows.slice(0, FREE_VISIBLE_ROWS);
   const visibleRows = exportRows;
   const lockedCount = isPaid ? 0 : Math.max(0, rows.length - FREE_VISIBLE_ROWS);
+  const defaultSaveDescription = [
+    includeIds.length
+      ? `使う単語帳: ${includeIds.map(titleById).join("、")}`
+      : "使う単語帳: 未選択",
+    excludeIds.length ? `除外した単語帳: ${excludeIds.map(titleById).join("、")}` : "",
+    `抽出条件: ${includeMode === "all" ? "使う単語帳すべてに出ている単語" : "使う単語帳のどれかに出ている単語"}`,
+    `抽出結果: ${rows.length}語`,
+  ].filter(Boolean).join("\n");
+  const finalDescription = saveDescription.trim() || defaultSaveDescription;
 
   const filteredBooks = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -180,10 +191,18 @@ export default function OverlapTool({
     if (!onSaveWords || words.length === 0) return;
     setSaving(true);
     try {
-      await onSaveWords(words, finalTitle);
+      await onSaveWords(words, finalTitle, finalDescription);
+      setSavePanelOpen(false);
     } finally {
       setSaving(false);
     }
+  }
+
+  function openSavePanel() {
+    if (rows.length === 0) return;
+    if (!saveTitle.trim()) setSaveTitle(resultTitle);
+    setSaveDescription((current) => current || defaultSaveDescription);
+    setSavePanelOpen(true);
   }
 
   function printResult() {
@@ -407,8 +426,8 @@ export default function OverlapTool({
                   <button type="button" onClick={() => onUseWords?.(resultWords(), finalTitle)} className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">
                     印刷設定で使う
                   </button>
-                  <button type="button" onClick={saveToMyWordbook} disabled={saving} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:bg-slate-100 disabled:text-slate-400">
-                    {saving ? "保存中..." : "マイ単語帳として保存"}
+                  <button type="button" onClick={openSavePanel} className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100">
+                    マイ単語帳として保存
                   </button>
                   {isPaid ? (
                     <button type="button" onClick={printResult} disabled={printing} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:bg-slate-300">
@@ -418,6 +437,53 @@ export default function OverlapTool({
                 </div>
               ) : null}
             </div>
+
+            {savePanelOpen ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-black text-emerald-900">マイ単語帳に保存</p>
+                    <p className="mt-1 text-xs font-bold text-emerald-700">
+                      名前と説明は自動で入っています。必要なら直してから保存してください。
+                    </p>
+                  </div>
+                  <button type="button" onClick={() => setSavePanelOpen(false)} className="text-xs font-black text-emerald-700 underline">
+                    閉じる
+                  </button>
+                </div>
+                <label className="mt-3 block">
+                  <span className="text-xs font-black text-emerald-800">単語帳名</span>
+                  <input
+                    value={saveTitle}
+                    onChange={(event) => setSaveTitle(event.target.value)}
+                    placeholder={resultTitle}
+                    className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm"
+                  />
+                </label>
+                <label className="mt-3 block">
+                  <span className="text-xs font-black text-emerald-800">説明</span>
+                  <textarea
+                    value={saveDescription}
+                    onChange={(event) => setSaveDescription(event.target.value)}
+                    rows={4}
+                    className="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm leading-6"
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={saveToMyWordbook}
+                    disabled={saving}
+                    className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700 disabled:bg-slate-300"
+                  >
+                    {saving ? "保存中..." : "この内容で保存"}
+                  </button>
+                  <button type="button" onClick={() => setSavePanelOpen(false)} className="rounded-xl border bg-white px-4 py-2 text-xs font-black text-slate-600 hover:bg-slate-50">
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-2 max-h-80 overflow-auto rounded-2xl border select-none" onCopy={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
               <table className="w-full table-fixed border-collapse text-sm">

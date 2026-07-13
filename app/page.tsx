@@ -1022,7 +1022,7 @@ export default function Home() {
     }
   }
 
-  async function saveOverlapWords(words: Word[], title: string) {
+  async function saveOverlapWords(words: Word[], title: string, description: string) {
     if (!user) {
       alert("マイ単語帳の保存にはログインが必要です。");
       return;
@@ -1061,7 +1061,7 @@ export default function Home() {
       },
       body: JSON.stringify({
         title: title.trim() || "かぶり調査から作成",
-        description: "かぶり調査の結果から作成したマイ単語帳です。",
+        description: description.trim() || "かぶり調査の結果から作成したマイ単語帳です。",
         words: normalizedWords,
       }),
     });
@@ -1074,7 +1074,7 @@ export default function Home() {
     const savedBook: WordBook = {
       id: String(result.wordbook.id),
       title: result.wordbook.title ?? title,
-      description: result.wordbook.description ?? "かぶり調査の結果から作成したマイ単語帳です。",
+      description: result.wordbook.description ?? description,
       level: "自作",
       premium: false,
       requiredPlan: "free",
