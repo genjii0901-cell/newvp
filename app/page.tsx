@@ -2336,7 +2336,7 @@ export default function Home() {
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入り・1回50語（1ページ）まで印刷できます。透かしなしで、たくさんまとめて印刷するにはPersonalプランへ。
+                  無料版は「見本」の透かし入り・1回50語まで印刷できます。透かしなしで、全単語をまとめて印刷するにはPersonalプランへ。
                 </p>
                 <a
                   href="/pricing"
@@ -2918,11 +2918,11 @@ export default function Home() {
         )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <PlanCard title="Free" price="¥0" text="1日2回・1ページまで。Personal単語帳も体験できる無料プラン。" />
+          <PlanCard title="Free" price="¥0" text="1日2回・1回50語まで。Personal単語帳も体験できる無料プラン。" />
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="7日無料トライアル。履歴保存・単語帳保存対応。1回5ページ、月300回まで利用可能。"
+            text="7日無料トライアル。履歴保存・単語帳保存対応。語数制限なしで、月300回まで利用可能。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}

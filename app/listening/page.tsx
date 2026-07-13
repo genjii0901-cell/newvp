@@ -85,6 +85,7 @@ export default function ListeningPage() {
   const [studyMode, setStudyMode] = useState<StudyMode>("listen");
   const [showTestMeaning, setShowTestMeaning] = useState(true);
   const [isListening, setIsListening] = useState(false);
+  const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
   const speechRunRef = useRef({ stopped: false, id: 0 });
@@ -206,6 +207,7 @@ export default function ListeningPage() {
   const safeEnd = totalWords > 0 ? Math.min(Math.max(safeStart, Number(rangeEnd) || totalWords), totalWords) : 1;
   const words = totalWords > 0 ? allWords.slice(safeStart - 1, safeEnd) : [];
   const currentWord = words[listeningIndex] ?? null;
+  const currentWordKey = currentWord ? `${currentWord.no}-${currentWord.english}` : "";
   const displayCurrentMeaning = currentWord ? formatMeaning(currentWord.japanese, meaningMode) : "";
 
   useEffect(() => {
@@ -231,6 +233,16 @@ export default function ListeningPage() {
       window.clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+  }
+
+  function toggleMarked(word: Pick<Word, "no" | "english">) {
+    const key = `${word.no}-${word.english}`;
+    setMarkedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -548,30 +560,35 @@ export default function ListeningPage() {
                       <option value={3}>3回</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold">単語ごとの間隔</label>
-                    <select
+                  <div className="rounded-xl border bg-white px-3 py-2">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      単語ごとの間隔
+                      <span className="text-xs text-slate-500">{(listeningGapMs / 1000).toFixed(1)}秒</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={300}
+                      max={2500}
+                      step={100}
                       value={listeningGapMs}
                       onChange={(e) => setListeningGapMs(Number(e.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                    >
-                      <option value={900}>短め</option>
-                      <option value={1200}>標準</option>
-                      <option value={1800}>ゆっくり</option>
-                    </select>
+                      className="mt-2 w-full"
+                    />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold">読み上げ速度</label>
-                    <select
+                  <div className="rounded-xl border bg-white px-3 py-2">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      読み上げ速度
+                      <span className="text-xs text-slate-500">x{listeningSpeed.toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0.7}
+                      max={1.35}
+                      step={0.05}
                       value={listeningSpeed}
                       onChange={(e) => setListeningSpeed(Number(e.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                    >
-                      <option value={0.82}>ゆっくり</option>
-                      <option value={1}>ふつう</option>
-                      <option value={1.14}>少し速い</option>
-                      <option value={1.28}>速い</option>
-                    </select>
+                      className="mt-2 w-full"
+                    />
                   </div>
                 </div>
 
@@ -634,6 +651,15 @@ export default function ListeningPage() {
                     <p className="mt-3 break-words text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
                       {currentWord.english}
                     </p>
+                    <button
+                      type="button"
+                      onClick={() => toggleMarked(currentWord)}
+                      className={`mt-4 self-start rounded-full px-4 py-2 text-xs font-black ${
+                        markedKeys.has(currentWordKey) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {markedKeys.has(currentWordKey) ? "復習マーク済み" : "わからない単語にマーク"}
+                    </button>
                     <div className="mt-5 min-h-[72px]">
                       {studyMode === "test" && !showTestMeaning ? (
                         <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
@@ -652,6 +678,7 @@ export default function ListeningPage() {
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{studyMode === "test" ? "テスト再生" : "聞き流し"}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{modeLabel(listeningVoiceMode)}</span>
                     <span className="rounded-full bg-white px-3 py-1 font-bold">{meaningMode === "main" ? "意味: メイン" : "意味: 全部"}</span>
+                    {markedKeys.size > 0 ? <span className="rounded-full bg-amber-100 px-3 py-1 font-bold text-amber-800">復習 {markedKeys.size}語</span> : null}
                   </div>
                 </>
               ) : (
@@ -689,6 +716,16 @@ export default function ListeningPage() {
             >
               停止
             </button>
+            {currentWord ? (
+              <button
+                onClick={() => toggleMarked(currentWord)}
+                className={`rounded-xl border px-4 py-2 text-sm font-bold ${
+                  markedKeys.has(currentWordKey) ? "border-amber-300 bg-amber-100 text-amber-800" : "bg-white text-slate-700"
+                }`}
+              >
+                {markedKeys.has(currentWordKey) ? "復習から外す" : "わからない"}
+              </button>
+            ) : null}
             {activeBook && (
               <Link
                 href={`/?book=${encodeURIComponent(activeBook.id)}`}

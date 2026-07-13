@@ -18,9 +18,9 @@ function shuffle<T>(items: T[]): T[] {
 
 function compactMeaning(value: string) {
   const main = formatMeaning(value, "main")
-    .replace(/^[\s\d.、,;:：・-]+/, "")
+    .replace(/^[\s\d.;:・\-]+/, "")
     .replace(/^[\[({（【][^\])}）】]{1,14}[\])}）】]\s*/, "")
-    .split(/[;；、，,。／/]/)[0]
+    .split(/[;；、，・]/)[0]
     .trim();
   return main || value.trim();
 }
@@ -29,7 +29,15 @@ function uniqueChoices(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
-export default function QuizPanel({ words }: { words: QuizWord[] }) {
+export default function QuizPanel({
+  words,
+  markedKeys,
+  onToggleMark,
+}: {
+  words: QuizWord[];
+  markedKeys?: Set<string>;
+  onToggleMark?: (word: Pick<QuizWord, "no" | "english">) => void;
+}) {
   const [mode, setMode] = useState<Mode>("choice");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [started, setStarted] = useState(false);
@@ -44,6 +52,8 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
   const total = order.length;
   const current = order[index] ?? null;
   const canUseChoice = words.length >= 4;
+  const currentKey = current ? `${current.no}-${current.english}` : "";
+  const isMarked = Boolean(currentKey && markedKeys?.has(currentKey));
 
   const promptText = current ? (direction === "en-ja" ? current.english : compactMeaning(current.japanese)) : "";
   const answerText = current ? (direction === "en-ja" ? compactMeaning(current.japanese) : current.english) : "";
@@ -54,7 +64,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
       .map((word) => (direction === "en-ja" ? compactMeaning(word.japanese) : word.english))
       .filter((value) => value !== answerText);
     return shuffle([answerText, ...uniqueChoices(distractors).slice(0, 3)]);
-  }, [answerText, current, direction, index, mode, words]);
+  }, [answerText, current, direction, mode, words]);
 
   function begin(nextMode: Mode, sourceWords = words) {
     if (sourceWords.length === 0) return;
@@ -83,7 +93,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
   if (words.length === 0) {
     return (
       <div className="rounded-3xl border bg-white p-8 text-center text-sm font-bold text-slate-400 shadow-sm">
-        使う範囲を選ぶと、ここで単語チェックができます。
+        先に使う範囲を選ぶと、ここで単語チェックができます。
       </div>
     );
   }
@@ -95,7 +105,8 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
           <p className="text-sm font-black text-blue-100">単語チェック</p>
           <h2 className="mt-1 text-2xl font-black">その場で解いて覚える</h2>
           <p className="mt-2 text-sm leading-6 text-blue-50">
-            選択中の{words.length}語を使って、4択クイズやカードで練習できます。スマホでも片手で進めやすい形にしています。
+            選択中の{words.length}語を使って、4択クイズやカードで練習できます。
+            わからない単語には印を付けて、あとで復習できます。
           </p>
         </div>
 
@@ -103,8 +114,8 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
           <p className="text-xs font-black text-slate-500">出題方向</p>
           <div className="mt-2 grid grid-cols-2 gap-2">
             {([
-              ["en-ja", "英語 → 意味"],
-              ["ja-en", "意味 → 英語"],
+              ["en-ja", "英語 → 日本語"],
+              ["ja-en", "日本語 → 英語"],
             ] as Array<[Direction, string]>).map(([value, label]) => (
               <button
                 key={value}
@@ -201,7 +212,7 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
     <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black text-slate-500">
-          {mode === "choice" ? "4択チェック" : "フラッシュカード"}・{index + 1} / {total}
+          {mode === "choice" ? "4択チェック" : "フラッシュカード"} ・ {index + 1} / {total}
         </p>
         <button type="button" onClick={() => setStarted(false)} className="text-xs font-bold text-slate-400 hover:text-slate-600">
           やめる
@@ -215,6 +226,15 @@ export default function QuizPanel({ words }: { words: QuizWord[] }) {
       <div className="mt-5 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white p-6 text-center">
         {current ? <p className="text-xs font-black text-slate-400">No.{current.no}</p> : null}
         <p className="mt-2 break-words text-[clamp(2rem,9vw,4rem)] font-black leading-tight text-slate-950">{promptText}</p>
+        {current && onToggleMark ? (
+          <button
+            type="button"
+            onClick={() => onToggleMark(current)}
+            className={`mt-4 rounded-full px-4 py-2 text-xs font-black ${isMarked ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}
+          >
+            {isMarked ? "復習マーク済み" : "わからない単語にマーク"}
+          </button>
+        ) : null}
 
         {mode === "card" ? (
           <p className={`mt-5 min-h-[56px] text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>

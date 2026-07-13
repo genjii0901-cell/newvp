@@ -13,13 +13,13 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   free: {
     label: "Free",
     color: "bg-slate-100 text-slate-700",
-    limit: "1日2回、1回1ページまで。合計10回までお試しできます。",
+    limit: "1日2回、1回50語まで。合計10回までお試しできます。",
     price: "無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
-    limit: "1回5ページまで。履歴保存、自作単語帳、透かしなし印刷に対応します。",
+    limit: "語数制限なし。履歴保存、自作単語帳、透かしなし印刷に対応します。",
     price: "¥780 / 月",
   },
   teacher: {

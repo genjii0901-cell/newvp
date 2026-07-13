@@ -17,7 +17,7 @@ type TestType = "list" | "test" | "answer";
 type TestDirection = "en-ja" | "ja-en";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type MeaningMode = "main" | "all";
-type ListeningMode = "listen" | "test";
+type ListeningMode = "en-ja" | "ja-en" | "en-only" | "test";
 type DragTarget = "title" | "date" | "info" | "grid" | "pageNo";
 
 const PREVIEW_SCALE = 0.48;
@@ -285,7 +285,7 @@ export default function WordbookDetailPage() {
   const [userPlan, setUserPlan] = useState<Plan>("free");
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
-  const maxWords = isPaid ? 250 : FREE_WORD_LIMIT; // Personal/Teacher=最大5ページ, Free=1ページ
+  const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -331,6 +331,7 @@ export default function WordbookDetailPage() {
   const [listeningSpeed, setListeningSpeed] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(650);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const speechRunRef = useRef({ stopped: false, id: 0 });
 
   useEffect(() => {
@@ -378,7 +379,7 @@ export default function WordbookDetailPage() {
     });
   }, [lookupId]);
 
-  // ログインユーザーのプランを取得（無料は50語まで／それ以上はPersonal案内）
+  // ログインユーザーのプランを取得（無料は50語まで／Personal以上は制限なし）
   useEffect(() => {
     if (!supabase) return;
     let active = true;
@@ -418,7 +419,7 @@ export default function WordbookDetailPage() {
     return [...visibleWords].sort(() => Math.random() - 0.5);
   }, [randomOrder, visibleWords]);
 
-  // 問題数は「範囲の語数（プラン上限まで）」を既定にする
+  // 問題数は「範囲の語数（無料は50語まで）」を既定にする
   useEffect(() => {
     setCount(Math.min(Math.max(visibleWords.length, 1), maxWords));
   }, [visibleWords.length, maxWords]);
@@ -428,6 +429,8 @@ export default function WordbookDetailPage() {
   const effectiveCount = Math.max(1, Math.min(requestedCount, maxWords, testWords.length || 1));
 
   const listenWord = visibleWords[listenIndex] ?? null;
+  const listenWordKey = listenWord ? `${listenWord.no}-${listenWord.english}` : "";
+  const markedCount = markedKeys.size;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
   const printTitle = customTitle.trim() || (selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`);
   const printHtml = useMemo(() => {
@@ -633,22 +636,31 @@ export default function WordbookDetailPage() {
   async function speakWord(word: Word, signal = speechRunRef.current) {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
-    setShowMeaning(listeningMode === "listen");
+    setShowMeaning(listeningMode === "en-ja" || listeningMode === "ja-en");
     const japanesePair = isJapaneseOnlyText(word.english);
-    await speakText(word.english, {
+    const speakEnglish = () => speakText(word.english, {
       preferred: japanesePair ? "japanese" : "english",
       rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
       voiceHint: japanesePair ? "male" : undefined,
       signal,
     });
-    if (signal.stopped) return;
-    setShowMeaning(true);
-    await speakText(formatMeaning(word.japanese, meaningMode), {
+    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), {
       preferred: "japanese",
       rate: rateValue(listeningSpeed, 0.95),
       voiceHint: japanesePair ? "female" : undefined,
       signal,
     });
+    if (listeningMode === "ja-en") {
+      setShowMeaning(true);
+      await speakJapanese();
+      if (signal.stopped) return;
+      await speakEnglish();
+      return;
+    }
+    await speakEnglish();
+    if (signal.stopped || listeningMode === "en-only") return;
+    setShowMeaning(true);
+    await speakJapanese();
   }
 
   async function startAutoListening() {
@@ -660,7 +672,7 @@ export default function WordbookDetailPage() {
     for (let index = listenIndex; index < visibleWords.length; index += 1) {
       if (run.stopped || speechRunRef.current.id !== run.id) return;
       setListenIndex(index);
-      setShowMeaning(listeningMode === "listen");
+      setShowMeaning(listeningMode === "en-ja" || listeningMode === "ja-en");
       await speakWord(visibleWords[index], run);
       await new Promise((resolve) => window.setTimeout(resolve, Math.max(200, listeningGapMs)));
     }
@@ -672,6 +684,16 @@ export default function WordbookDetailPage() {
     stopListening();
     setShowMeaning(false);
     setListenIndex((current) => Math.min(Math.max(current + delta, 0), Math.max(visibleWords.length - 1, 0)));
+  }
+
+  function toggleMarked(word: Pick<Word, "no" | "english">) {
+    const key = `${word.no}-${word.english}`;
+    setMarkedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   }
 
   function LayoutSlider({
@@ -888,7 +910,7 @@ export default function WordbookDetailPage() {
             <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
               <p>{rangeStart || "-"}番から{rangeEnd || "-"}番まで / {visibleWords.length}語</p>
               <p className="mt-1 text-xs text-blue-700">
-                この設定では{requestedCount}語、{previewPageCount}ページ分を印刷します。
+                この設定では{requestedCount}語を印刷します。
               </p>
             </div>
 
@@ -922,7 +944,7 @@ export default function WordbookDetailPage() {
               </div>
 
               <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">表示の加工</span>
+                <span className="text-xs font-black text-slate-500">空欄・赤字の設定</span>
                 <select value={printStyle} onChange={(event) => setPrintStyle(event.target.value as PrintStyle)} className="mt-1 w-full bg-transparent text-sm font-bold">
                   <option value="standard">通常</option>
                   <option value="blank-english">英語を空欄</option>
@@ -965,7 +987,7 @@ export default function WordbookDetailPage() {
                   </label>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使います。1ページ50語。{isPaid ? "Personal以上は1回5ページまで印刷できます。" : "無料プランは50語まで印刷できます。"}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : `無料プランは1回${FREE_WORD_LIMIT}語まで印刷できます。`}
                 </p>
               </div>
 
@@ -1070,7 +1092,7 @@ export default function WordbookDetailPage() {
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入り・1回{FREE_WORD_LIMIT}語（1ページ）まで印刷できます。透かしなしで、たくさんまとめて印刷するにはPersonalプランへ。
+                  無料版は「見本」の透かし入り・1回{FREE_WORD_LIMIT}語まで印刷できます。透かしなしで、全単語をまとめて印刷するにはPersonalプランへ。
                 </p>
                 <Link
                   href="/pricing"
@@ -1194,7 +1216,7 @@ export default function WordbookDetailPage() {
                 </select>
               </label>
               <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">表示加工</span>
+                <span className="text-xs font-black text-slate-500">空欄・赤字の設定</span>
                 <select value={printStyle} onChange={(event) => setPrintStyle(event.target.value as PrintStyle)} className="mt-1 w-full bg-transparent text-sm font-bold">
                   <option value="standard">通常</option>
                   <option value="blank-english">英語を空欄</option>
@@ -1204,10 +1226,10 @@ export default function WordbookDetailPage() {
                 </select>
               </label>
               <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">作成ページ数</span>
+                <span className="text-xs font-black text-slate-500">印刷する量</span>
                 <select value={pageLimit} onChange={(event) => setPageLimit(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value={1}>1ページ</option>
-                  <option value={5}>最大5ページ</option>
+                  <option value={1}>少なめ</option>
+                  <option value={5}>多め</option>
                 </select>
               </label>
               <div className="grid gap-2 text-sm font-bold">
@@ -1321,7 +1343,7 @@ export default function WordbookDetailPage() {
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  無料プランは1回{FREE_WORD_LIMIT}語まで。選択中は{visibleWords.length}語なので、印刷は先頭{FREE_WORD_LIMIT}語＋「見本」の透かし入りになります。全範囲をまとめて印刷するにはPersonal（初月無料）へ。
+                  無料プランは1回{FREE_WORD_LIMIT}語までです。全範囲をまとめて印刷するにはPersonalの7日無料トライアルをご利用ください。
                 </p>
                 <Link
                   href="/pricing"
@@ -1392,6 +1414,8 @@ export default function WordbookDetailPage() {
                 english: word.english,
                 japanese: word.japanese,
               }))}
+              markedKeys={markedKeys}
+              onToggleMark={toggleMarked}
             />
           </div>
         </section>
@@ -1404,10 +1428,12 @@ export default function WordbookDetailPage() {
             <h2 className="mt-1 text-2xl font-black text-slate-950">再生設定</h2>
             <div className="mt-5 space-y-3">
               <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">モード</span>
+                <span className="text-xs font-black text-slate-500">聞き流しパターン</span>
                 <select value={listeningMode} onChange={(event) => setListeningMode(event.target.value as ListeningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="listen">聞き流し: 英語 → 日本語</option>
-                  <option value="test">テスト: 英語 → 答え表示</option>
+                  <option value="en-ja">英語 → 日本語</option>
+                  <option value="ja-en">日本語 → 英語</option>
+                  <option value="en-only">英語のみ</option>
+                  <option value="test">単語チェック風: 英語 → 少し待って答え</option>
                 </select>
               </label>
               <label className="block rounded-2xl border p-3">
@@ -1461,19 +1487,26 @@ export default function WordbookDetailPage() {
             <div className="rounded-3xl border bg-gradient-to-br from-blue-50 to-white p-5 text-center">
               {listenWord ? (
                 <>
-                  <p className="text-xs font-black text-slate-400">
-                    {listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}
-                  </p>
+                  <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black text-slate-400">
+                    <span>{listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}</span>
+                    {markedCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">復習 {markedCount}語</span> : null}
+                  </div>
                   <div className="mt-5 min-h-[220px] rounded-3xl bg-white p-5 shadow-sm">
                     <p className="break-words text-[clamp(2.2rem,9vw,4.5rem)] font-black leading-tight text-slate-950">{listenWord.english}</p>
                     <p className={`mt-5 min-h-[72px] text-2xl font-black text-blue-700 transition ${showMeaning ? "opacity-100" : "opacity-0"}`}>
                       {displayMeaning}
                     </p>
                   </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-5">
+                  <div className="mt-5 grid gap-2 sm:grid-cols-6">
                     <button onClick={() => goListen(-1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">前へ</button>
                     <button onClick={() => setShowMeaning((value) => !value)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">答え表示</button>
                     <button onClick={() => speakWord(listenWord)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">1語再生</button>
+                    <button
+                      onClick={() => toggleMarked(listenWord)}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-black ${markedKeys.has(listenWordKey) ? "border-amber-300 bg-amber-100 text-amber-800" : "bg-white text-slate-700"}`}
+                    >
+                      {markedKeys.has(listenWordKey) ? "復習から外す" : "わからない"}
+                    </button>
                     {isPlaying ? (
                       <button onClick={stopListening} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">停止</button>
                     ) : (
