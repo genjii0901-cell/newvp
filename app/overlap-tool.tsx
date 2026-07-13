@@ -155,6 +155,15 @@ export default function OverlapTool({
     });
   }
 
+  function toggleCandidate(id: string) {
+    setStates((prev) => {
+      const next = { ...prev };
+      if (next[id]) delete next[id];
+      else next[id] = "include";
+      return next;
+    });
+  }
+
   function resultWords() {
     return exportRows.map(({ english, japanese }, index) => ({ no: index + 1, english, japanese }));
   }
@@ -231,9 +240,9 @@ export default function OverlapTool({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-black text-blue-700">かぶり調査</p>
-          <h3 className="text-lg font-black text-slate-900">単語帳を組み合わせて、必要な単語だけ取り出す</h3>
+          <h3 className="text-lg font-black text-slate-900">単語帳を選んで、必要な単語だけ取り出す</h3>
           <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-500">
-            「この単語帳に出ている語を使う」「この単語帳に出ている語は外す」を選べます。
+            まず比べたい単語帳を選びます。次に「使う」「外す」を決めると、条件に合う単語だけを抽出できます。
             例: ターゲットに出ている語から、シス単にも出ている語を除外できます。
           </p>
         </div>
@@ -247,29 +256,18 @@ export default function OverlapTool({
           className="flex items-center justify-between rounded-2xl border bg-slate-50 px-4 py-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
         >
           <span>
-            単語帳を選ぶ
+            1. 比べる単語帳を選ぶ
             <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-blue-700">
-              使う {includeIds.length} / 外す {excludeIds.length}
+              選択中 {selectedIds.length}冊
             </span>
           </span>
           <span className="text-xs text-slate-400">{selectorOpen ? "閉じる" : "開く"}</span>
         </button>
-        <div className="rounded-2xl bg-slate-50 p-1 text-xs font-black">
-          <button
-            type="button"
-            onClick={() => setIncludeMode("all")}
-            className={`rounded-xl px-3 py-2 ${includeMode === "all" ? "bg-blue-600 text-white" : "text-slate-600"}`}
-          >
-            使う単語帳すべてに出る語
+        {selectedIds.length > 0 ? (
+          <button type="button" onClick={() => setStates({})} className="rounded-2xl border bg-white px-4 py-3 text-xs font-black text-slate-500 hover:bg-slate-50">
+            選択をリセット
           </button>
-          <button
-            type="button"
-            onClick={() => setIncludeMode("any")}
-            className={`rounded-xl px-3 py-2 ${includeMode === "any" ? "bg-blue-600 text-white" : "text-slate-600"}`}
-          >
-            使う単語帳のどれかに出る語
-          </button>
-        </div>
+        ) : null}
       </div>
 
       {selectorOpen ? (
@@ -282,34 +280,19 @@ export default function OverlapTool({
           />
           <div className="max-h-72 overflow-auto rounded-xl border bg-white">
             {filteredBooks.map((book) => {
-              const state = states[book.id] ?? "ignore";
+              const selected = Boolean(states[book.id]);
               return (
-                <div key={book.id} className="grid gap-2 border-b p-2 last:border-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                  <p className="truncate text-sm font-bold text-slate-800">{book.title}</p>
-                  <div className="grid grid-cols-3 rounded-xl bg-slate-100 p-1 text-xs font-black">
-                    <button
-                      type="button"
-                      onClick={() => setBookState(book.id, "include")}
-                      className={`rounded-lg px-3 py-1.5 ${state === "include" ? "bg-blue-600 text-white" : "text-slate-500"}`}
-                    >
-                      使う
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookState(book.id, "exclude")}
-                      className={`rounded-lg px-3 py-1.5 ${state === "exclude" ? "bg-rose-500 text-white" : "text-slate-500"}`}
-                    >
-                      外す
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setBookState(book.id, "ignore")}
-                      className={`rounded-lg px-3 py-1.5 ${state === "ignore" ? "bg-white text-slate-700 shadow-sm" : "text-slate-500"}`}
-                    >
-                      対象外
-                    </button>
-                  </div>
-                </div>
+                <button
+                  key={book.id}
+                  type="button"
+                  onClick={() => toggleCandidate(book.id)}
+                  className={`flex w-full items-center justify-between gap-3 border-b p-3 text-left last:border-0 hover:bg-blue-50 ${selected ? "bg-blue-50" : "bg-white"}`}
+                >
+                  <span className="min-w-0 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                  <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                    {selected ? "選択中" : "選ぶ"}
+                  </span>
+                </button>
               );
             })}
             {filteredBooks.length === 0 ? (
@@ -317,18 +300,67 @@ export default function OverlapTool({
             ) : null}
           </div>
         </div>
-      ) : selectedIds.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {includeIds.map((id) => (
-            <span key={`include-${id}`} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">
-              使う: {titleById(id)}
-            </span>
-          ))}
-          {excludeIds.map((id) => (
-            <span key={`exclude-${id}`} className="rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">
-              外す: {titleById(id)}
-            </span>
-          ))}
+      ) : null}
+
+      {selectedIds.length > 0 ? (
+        <div className="mt-4 rounded-2xl border bg-white p-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div>
+              <p className="text-sm font-black text-slate-900">2. 抽出条件を決める</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                「使う」は結果に含める単語帳、「外す」は結果から除外する単語帳です。
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 p-1 text-xs font-black">
+              <button
+                type="button"
+                onClick={() => setIncludeMode("all")}
+                className={`rounded-xl px-3 py-2 ${includeMode === "all" ? "bg-blue-600 text-white" : "text-slate-600"}`}
+              >
+                使う単語帳すべてに出る語
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludeMode("any")}
+                className={`rounded-xl px-3 py-2 ${includeMode === "any" ? "bg-blue-600 text-white" : "text-slate-600"}`}
+              >
+                使う単語帳のどれかに出る語
+              </button>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {selectedIds.map((id) => {
+              const state = states[id];
+              return (
+                <div key={id} className="grid gap-2 rounded-2xl bg-slate-50 p-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <p className="truncate text-sm font-bold text-slate-800">{titleById(id)}</p>
+                  <div className="grid grid-cols-3 rounded-xl bg-white p-1 text-xs font-black">
+                    <button
+                      type="button"
+                      onClick={() => setBookState(id, "include")}
+                      className={`rounded-lg px-3 py-1.5 ${state === "include" ? "bg-blue-600 text-white" : "text-slate-500"}`}
+                    >
+                      使う
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookState(id, "exclude")}
+                      className={`rounded-lg px-3 py-1.5 ${state === "exclude" ? "bg-rose-500 text-white" : "text-slate-500"}`}
+                    >
+                      外す
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBookState(id, "ignore")}
+                      className="rounded-lg px-3 py-1.5 text-slate-500 hover:bg-slate-100"
+                    >
+                      選択解除
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ) : null}
 
