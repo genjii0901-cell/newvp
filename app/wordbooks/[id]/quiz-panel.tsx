@@ -223,18 +223,21 @@ export default function QuizPanel({
         <div className="h-full rounded-full bg-blue-500 transition-all" style={{ width: `${((index + 1) / Math.max(total, 1)) * 100}%` }} />
       </div>
 
-      <div className="mt-5 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white p-6 text-center">
-        {current ? <p className="text-xs font-black text-slate-400">No.{current.no}</p> : null}
-        <p className="mt-2 break-words text-[clamp(2rem,9vw,4rem)] font-black leading-tight text-slate-950">{promptText}</p>
+      <div className="relative mt-5 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white p-6 text-center">
         {current && onToggleMark ? (
           <button
             type="button"
             onClick={() => onToggleMark(current)}
-            className={`mt-4 rounded-full px-4 py-2 text-xs font-black ${isMarked ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}
+            className={`absolute right-4 top-4 rounded-full px-3 py-2 text-2xl leading-none transition ${
+              isMarked ? "bg-amber-100 text-amber-500" : "bg-slate-100 text-slate-300 hover:text-amber-400"
+            }`}
+            aria-label={isMarked ? "復習マークを外す" : "復習マークを付ける"}
           >
-            {isMarked ? "復習マーク済み" : "わからない単語にマーク"}
+            {isMarked ? "★" : "☆"}
           </button>
         ) : null}
+        {current ? <p className="text-xs font-black text-slate-400">No.{current.no}</p> : null}
+        <p className="mt-2 break-words text-[clamp(2rem,9vw,4rem)] font-black leading-tight text-slate-950">{promptText}</p>
 
         {mode === "card" ? (
           <p className={`mt-5 min-h-[56px] text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>

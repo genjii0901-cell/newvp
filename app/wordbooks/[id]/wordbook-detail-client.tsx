@@ -332,7 +332,9 @@ export default function WordbookDetailPage() {
   const [listeningGapMs, setListeningGapMs] = useState(650);
   const [isPlaying, setIsPlaying] = useState(false);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
+  const [savingToMyBook, setSavingToMyBook] = useState(false);
   const speechRunRef = useRef({ stopped: false, id: 0 });
+  const markStorageKey = book ? `vpp-word-marks:${book.id}` : "";
 
   useEffect(() => {
     primeSpeechVoices();
@@ -340,6 +342,26 @@ export default function WordbookDetailPage() {
     if (tab === "test" || tab === "quiz" || tab === "listen") setActiveTab(tab);
     if (tab === "words") setActiveTab("overview");
   }, []);
+
+  useEffect(() => {
+    if (!markStorageKey || typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(markStorageKey);
+    if (!saved) {
+      setMarkedKeys(new Set());
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved);
+      setMarkedKeys(new Set(Array.isArray(parsed) ? parsed.map(String) : []));
+    } catch {
+      setMarkedKeys(new Set());
+    }
+  }, [markStorageKey]);
+
+  useEffect(() => {
+    if (!markStorageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(markStorageKey, JSON.stringify(Array.from(markedKeys)));
+  }, [markStorageKey, markedKeys]);
 
   useEffect(() => {
     async function loadBook() {
@@ -627,6 +649,49 @@ export default function WordbookDetailPage() {
     window.location.href = "/listening?import=1";
   }
 
+  async function saveOfficialToMyWordbooks() {
+    if (!book || book.words.length === 0) return;
+    if (!supabase) {
+      window.alert("ログイン機能の設定が必要です。");
+      return;
+    }
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) {
+      window.alert("マイ単語帳に追加するにはログインしてください。");
+      return;
+    }
+
+    setSavingToMyBook(true);
+    try {
+      const response = await fetch("/api/me/wordbooks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: book.title,
+          description: `${book.title}をマイ単語帳に追加しました。元の説明: ${book.description || "説明なし"}`,
+          words: book.words.map((word) => ({
+            no: word.no,
+            english: word.english,
+            japanese: word.japanese,
+            unit: word.unit,
+          })),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        window.alert(result.error ?? "マイ単語帳への追加に失敗しました。");
+        return;
+      }
+      window.alert("マイ単語帳に追加しました。");
+    } finally {
+      setSavingToMyBook(false);
+    }
+  }
+
   function stopListening() {
     speechRunRef.current.stopped = true;
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
@@ -787,6 +852,19 @@ export default function WordbookDetailPage() {
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-3 py-1">{units.length}ユニット</span> : null}
               <span className="rounded-full bg-slate-100 px-3 py-1">作成者: {book.creator ?? "Vocab Print Pro"}</span>
             </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={saveOfficialToMyWordbooks}
+                disabled={savingToMyBook}
+                className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                {savingToMyBook ? "追加中..." : "マイ単語帳に追加"}
+              </button>
+              <Link href="/my-wordbooks" className="rounded-2xl border bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50">
+                マイ単語帳を見る
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -875,6 +953,7 @@ export default function WordbookDetailPage() {
             <table className="w-full min-w-[620px] table-fixed border-collapse text-sm">
               <thead className="sticky top-0 bg-white text-slate-500">
                 <tr>
+                  <th className="w-14 border-b p-3 text-center">復習</th>
                   <th className="w-16 border-b p-3 text-center">番号</th>
                   <th className="w-28 border-b p-3 text-left">Unit</th>
                   <th className="w-1/3 border-b p-3 text-left">単語</th>
@@ -882,14 +961,28 @@ export default function WordbookDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {visibleWords.slice(0, 500).map((word) => (
-                  <tr key={`${word.no}-${word.english}`} className="border-b last:border-0">
+                {visibleWords.slice(0, 500).map((word) => {
+                  const key = `${word.no}-${word.english}`;
+                  const marked = markedKeys.has(key);
+                  return (
+                  <tr key={key} className={`border-b last:border-0 ${marked ? "bg-amber-50/60" : ""}`}>
+                    <td className="p-3 text-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleMarked(word)}
+                        className={`text-lg leading-none ${marked ? "text-amber-500" : "text-slate-300 hover:text-amber-400"}`}
+                        aria-label={marked ? "復習マークを外す" : "復習マークを付ける"}
+                      >
+                        {marked ? "★" : "☆"}
+                      </button>
+                    </td>
                     <td className="p-3 text-center font-bold text-slate-400">{word.no}</td>
                     <td className="p-3 text-slate-500">{word.unit ?? "-"}</td>
                     <td className="p-3 font-bold text-slate-900">{word.english}</td>
                     <td className="p-3 text-slate-600">{word.japanese}</td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
             {visibleWords.length > 500 ? (
@@ -1443,10 +1536,10 @@ export default function WordbookDetailPage() {
                   <option value="all">意味を全部表示</option>
                 </select>
               </label>
-              <label className="block rounded-2xl border p-3">
+              <label className="block rounded-2xl border bg-white p-4">
                 <span className="flex items-center justify-between text-xs font-black text-slate-500">
                   読み上げ速度
-                  <span>x{listeningSpeed.toFixed(2)}</span>
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">x{listeningSpeed.toFixed(2)}</span>
                 </span>
                 <input
                   type="range"
@@ -1455,13 +1548,17 @@ export default function WordbookDetailPage() {
                   step={0.05}
                   value={listeningSpeed}
                   onChange={(event) => setListeningSpeed(Number(event.target.value))}
-                  className="mt-3 w-full"
+                  className="mt-3 w-full accent-blue-600"
                 />
+                <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                  <span>ゆっくり</span>
+                  <span>速い</span>
+                </div>
               </label>
-              <label className="block rounded-2xl border p-3">
+              <label className="block rounded-2xl border bg-white p-4">
                 <span className="flex items-center justify-between text-xs font-black text-slate-500">
                   単語の間隔
-                  <span>{(listeningGapMs / 1000).toFixed(1)}秒</span>
+                  <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
                 </span>
                 <input
                   type="range"
@@ -1470,8 +1567,12 @@ export default function WordbookDetailPage() {
                   step={100}
                   value={listeningGapMs}
                   onChange={(event) => setListeningGapMs(Number(event.target.value))}
-                  className="mt-3 w-full"
+                  className="mt-3 w-full accent-blue-600"
                 />
+                <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                  <span>短い</span>
+                  <span>ゆっくり</span>
+                </div>
               </label>
               <button
                 onClick={openInListening}
@@ -1491,22 +1592,26 @@ export default function WordbookDetailPage() {
                     <span>{listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}</span>
                     {markedCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">復習 {markedCount}語</span> : null}
                   </div>
-                  <div className="mt-5 min-h-[220px] rounded-3xl bg-white p-5 shadow-sm">
+                  <div className="relative mt-5 min-h-[220px] rounded-3xl bg-white p-5 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleMarked(listenWord)}
+                      className={`absolute right-4 top-4 rounded-full px-3 py-2 text-2xl leading-none transition ${
+                        markedKeys.has(listenWordKey) ? "bg-amber-100 text-amber-500" : "bg-slate-100 text-slate-300 hover:text-amber-400"
+                      }`}
+                      aria-label={markedKeys.has(listenWordKey) ? "復習マークを外す" : "復習マークを付ける"}
+                    >
+                      {markedKeys.has(listenWordKey) ? "★" : "☆"}
+                    </button>
                     <p className="break-words text-[clamp(2.2rem,9vw,4.5rem)] font-black leading-tight text-slate-950">{listenWord.english}</p>
                     <p className={`mt-5 min-h-[72px] text-2xl font-black text-blue-700 transition ${showMeaning ? "opacity-100" : "opacity-0"}`}>
                       {displayMeaning}
                     </p>
                   </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-6">
+                  <div className="mt-5 grid gap-2 sm:grid-cols-5">
                     <button onClick={() => goListen(-1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">前へ</button>
                     <button onClick={() => setShowMeaning((value) => !value)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">答え表示</button>
                     <button onClick={() => speakWord(listenWord)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">1語再生</button>
-                    <button
-                      onClick={() => toggleMarked(listenWord)}
-                      className={`rounded-2xl border px-4 py-3 text-sm font-black ${markedKeys.has(listenWordKey) ? "border-amber-300 bg-amber-100 text-amber-800" : "bg-white text-slate-700"}`}
-                    >
-                      {markedKeys.has(listenWordKey) ? "復習から外す" : "わからない"}
-                    </button>
                     {isPlaying ? (
                       <button onClick={stopListening} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">停止</button>
                     ) : (

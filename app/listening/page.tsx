@@ -86,6 +86,7 @@ export default function ListeningPage() {
   const [showTestMeaning, setShowTestMeaning] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
+  const [loadingWordsId, setLoadingWordsId] = useState("");
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
   const speechRunRef = useRef({ stopped: false, id: 0 });
@@ -136,7 +137,7 @@ export default function ListeningPage() {
 
   useEffect(() => {
     async function loadOfficial() {
-      const response = await fetch("/api/wordbooks/official?includeWords=1");
+      const response = await fetch("/api/wordbooks/official");
       const result = await response.json().catch(() => ({}));
       if (!response.ok) return;
       const books = Array.isArray(result.wordbooks) ? result.wordbooks : [];
@@ -160,6 +161,44 @@ export default function ListeningPage() {
 
     loadOfficial();
   }, []);
+
+  useEffect(() => {
+    async function loadSelectedOfficialWords() {
+      if (tab !== "official" || !officialId) return;
+      const current = officialBooks.find((book) => book.id === officialId);
+      if (!current || current.words.length > 0 || loadingWordsId === officialId) return;
+
+      setLoadingWordsId(officialId);
+      try {
+        const response = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(officialId)}&includeWords=1`);
+        const result = await response.json().catch(() => ({}));
+        const rawBook = Array.isArray(result.wordbooks)
+          ? result.wordbooks.find((book: { id?: string | number }) => String(book.id) === officialId)
+          : null;
+        const words = Array.isArray(rawBook?.words)
+          ? rawBook.words
+              .filter((word: { english?: string; japanese?: string }) => word.english && word.japanese)
+              .map((word: { no?: number; english?: string; japanese?: string; unit?: string | null }, index: number) => ({
+                no: Number(word.no) || index + 1,
+                english: word.english ?? "",
+                japanese: word.japanese ?? "",
+                unit: word.unit ?? null,
+              }))
+          : [];
+        setOfficialBooks((prev) =>
+          prev.map((book) =>
+            book.id === officialId
+              ? { ...book, words, wordCount: typeof rawBook?.wordCount === "number" ? rawBook.wordCount : words.length }
+              : book,
+          ),
+        );
+      } finally {
+        setLoadingWordsId((current) => (current === officialId ? "" : current));
+      }
+    }
+
+    loadSelectedOfficialWords();
+  }, [officialBooks, officialId, loadingWordsId, tab]);
 
   useEffect(() => {
     async function loadMine() {
@@ -209,6 +248,7 @@ export default function ListeningPage() {
   const currentWord = words[listeningIndex] ?? null;
   const currentWordKey = currentWord ? `${currentWord.no}-${currentWord.english}` : "";
   const displayCurrentMeaning = currentWord ? formatMeaning(currentWord.japanese, meaningMode) : "";
+  const markStorageKey = activeBook ? `vpp-word-marks:${activeBook.id}` : "";
 
   useEffect(() => {
     const total = Math.max(1, allWords.length);
@@ -221,6 +261,26 @@ export default function ListeningPage() {
     stopListening();
     setListeningIndex(0);
   }, [tab, officialId, myBookId, pasteText, safeStart, safeEnd]);
+
+  useEffect(() => {
+    if (!markStorageKey || typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(markStorageKey);
+    if (!saved) {
+      setMarkedKeys(new Set());
+      return;
+    }
+    try {
+      const parsed = JSON.parse(saved);
+      setMarkedKeys(new Set(Array.isArray(parsed) ? parsed.map(String) : []));
+    } catch {
+      setMarkedKeys(new Set());
+    }
+  }, [markStorageKey]);
+
+  useEffect(() => {
+    if (!markStorageKey || typeof window === "undefined") return;
+    window.localStorage.setItem(markStorageKey, JSON.stringify(Array.from(markedKeys)));
+  }, [markStorageKey, markedKeys]);
 
   function stopListening() {
     setIsListening(false);
@@ -560,10 +620,10 @@ export default function ListeningPage() {
                       <option value={3}>3回</option>
                     </select>
                   </div>
-                  <div className="rounded-xl border bg-white px-3 py-2">
+                  <div className="rounded-2xl border bg-white p-4">
                     <label className="flex items-center justify-between text-sm font-bold">
                       単語ごとの間隔
-                      <span className="text-xs text-slate-500">{(listeningGapMs / 1000).toFixed(1)}秒</span>
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
                     </label>
                     <input
                       type="range"
@@ -572,13 +632,17 @@ export default function ListeningPage() {
                       step={100}
                       value={listeningGapMs}
                       onChange={(e) => setListeningGapMs(Number(e.target.value))}
-                      className="mt-2 w-full"
+                      className="mt-3 w-full accent-blue-600"
                     />
+                    <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                      <span>短い</span>
+                      <span>ゆっくり</span>
+                    </div>
                   </div>
-                  <div className="rounded-xl border bg-white px-3 py-2">
+                  <div className="rounded-2xl border bg-white p-4">
                     <label className="flex items-center justify-between text-sm font-bold">
                       読み上げ速度
-                      <span className="text-xs text-slate-500">x{listeningSpeed.toFixed(2)}</span>
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">x{listeningSpeed.toFixed(2)}</span>
                     </label>
                     <input
                       type="range"
@@ -587,8 +651,12 @@ export default function ListeningPage() {
                       step={0.05}
                       value={listeningSpeed}
                       onChange={(e) => setListeningSpeed(Number(e.target.value))}
-                      className="mt-2 w-full"
+                      className="mt-3 w-full accent-blue-600"
                     />
+                    <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                      <span>ゆっくり</span>
+                      <span>速い</span>
+                    </div>
                   </div>
                 </div>
 
@@ -644,22 +712,23 @@ export default function ListeningPage() {
 
               {currentWord ? (
                 <>
-                  <div className="mt-4 flex min-h-[220px] flex-col justify-center rounded-2xl bg-white p-5 shadow-sm">
+                  <div className="relative mt-4 flex min-h-[220px] flex-col justify-center rounded-2xl bg-white p-5 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={() => toggleMarked(currentWord)}
+                      className={`absolute right-4 top-4 rounded-full px-3 py-2 text-2xl leading-none transition ${
+                        markedKeys.has(currentWordKey) ? "bg-amber-100 text-amber-500" : "bg-slate-100 text-slate-300 hover:text-amber-400"
+                      }`}
+                      aria-label={markedKeys.has(currentWordKey) ? "復習マークを外す" : "復習マークを付ける"}
+                    >
+                      {markedKeys.has(currentWordKey) ? "★" : "☆"}
+                    </button>
                     <p className="text-xs font-black tracking-[0.18em] text-blue-600">
                       {studyMode === "test" && !showTestMeaning ? "QUESTION" : "ANSWER"}
                     </p>
                     <p className="mt-3 break-words text-4xl font-black leading-tight text-slate-950 sm:text-5xl">
                       {currentWord.english}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => toggleMarked(currentWord)}
-                      className={`mt-4 self-start rounded-full px-4 py-2 text-xs font-black ${
-                        markedKeys.has(currentWordKey) ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {markedKeys.has(currentWordKey) ? "復習マーク済み" : "わからない単語にマーク"}
-                    </button>
                     <div className="mt-5 min-h-[72px]">
                       {studyMode === "test" && !showTestMeaning ? (
                         <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-500">
@@ -716,16 +785,6 @@ export default function ListeningPage() {
             >
               停止
             </button>
-            {currentWord ? (
-              <button
-                onClick={() => toggleMarked(currentWord)}
-                className={`rounded-xl border px-4 py-2 text-sm font-bold ${
-                  markedKeys.has(currentWordKey) ? "border-amber-300 bg-amber-100 text-amber-800" : "bg-white text-slate-700"
-                }`}
-              >
-                {markedKeys.has(currentWordKey) ? "復習から外す" : "わからない"}
-              </button>
-            ) : null}
             {activeBook && (
               <Link
                 href={`/?book=${encodeURIComponent(activeBook.id)}`}
