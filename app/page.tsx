@@ -1680,8 +1680,16 @@ export default function Home() {
     const previewBody = bodyHtml.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
-      body{padding:12px;overflow:auto;overscroll-behavior:contain;}
+      body{padding:16px 12px;overflow:auto;overscroll-behavior:contain;}
+      #home-preview-frame{
+        position:relative;
+        width:calc(794px * var(--preview-scale));
+        margin:0 auto;
+      }
       #home-preview-scale{
+        position:absolute;
+        left:0;
+        top:0;
         width:794px;
         transform:scale(var(--preview-scale));
         transform-origin:top left;
@@ -1692,13 +1700,16 @@ export default function Home() {
         border-radius:10px;
         box-shadow:0 12px 30px rgba(15,23,42,.18)!important;
       }
-    </style></head><body><div id="home-preview-scale">${previewBody}</div><script>
+    </style></head><body><div id="home-preview-frame"><div id="home-preview-scale">${previewBody}</div></div><script>
       function fitPreview(){
         var scaleRoot=document.getElementById('home-preview-scale');
+        var frame=document.getElementById('home-preview-frame');
         if(!scaleRoot)return;
-        var scale=Math.min(1,(window.innerWidth-24)/794);
+        var scale=Math.min(1,(window.innerWidth-32)/794);
         document.documentElement.style.setProperty('--preview-scale',String(scale));
-        document.body.style.minHeight=Math.ceil(scaleRoot.scrollHeight*scale+24)+'px';
+        var height=Math.ceil(scaleRoot.scrollHeight*scale);
+        if(frame) frame.style.height=height+'px';
+        document.body.style.minHeight=(height+32)+'px';
       }
       window.addEventListener('resize',fitPreview);
       window.addEventListener('load',fitPreview);
@@ -2418,8 +2429,8 @@ export default function Home() {
                 <iframe
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
-                  className="w-full rounded-xl border-0"
-                  style={{ aspectRatio: "1 / 1.5" }}
+                  className="w-full rounded-xl border-0 bg-slate-100"
+                  style={{ aspectRatio: "1 / 1.38" }}
                 />
               </div>
             </div>
