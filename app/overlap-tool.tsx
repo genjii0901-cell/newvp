@@ -6,7 +6,7 @@ import {
   makeQuestion as makeSharedQuestion,
 } from "@/lib/print/full-builder";
 
-type OverlapBook = { id: string; title: string };
+type OverlapBook = { id: string; title: string; wordCount?: number };
 type Word = { no: number; english: string; japanese: string };
 type BookState = "include" | "exclude";
 type IncludeMode = "all" | "any";
@@ -18,7 +18,15 @@ type ResultRow = Word & {
 const FREE_VISIBLE_ROWS = 8;
 
 function normalizeKey(value: string) {
-  return value.trim().toLowerCase().replace(/\s+/g, " ");
+  return value
+    .normalize("NFKC")
+    .trim()
+    .toLowerCase()
+    .replace(/^[\s\d.．、,・:：;；\-ー]+/, "")
+    .replace(/[\[(（【「『][^\])）】」』]{1,24}[\])）】」』]/g, "")
+    .replace(/(?:\s|[-_])+(?:[a-z]|[0-9]|[①②③④⑤⑥⑦⑧⑨⑩]|[ⅠⅡⅢⅣⅤ])$/i, "")
+    .replace(/[①②③④⑤⑥⑦⑧⑨⑩ⅠⅡⅢⅣⅤ]$/i, "")
+    .replace(/[\s　'’"“”`´・,，.．。:：;；!?！？/／\\|｜()[\]{}（）【】「」『』<>＜＞\-‐‑‒–—―_＝=＋+＊*#＃~〜]/g, "");
 }
 function toTsv(words: Word[]) {
   return [
@@ -60,7 +68,7 @@ export default function OverlapTool({
   const allLoaded = selectedIds.every((id) => wordsById[id]);
 
   const titleById = (id: string) => books.find((book) => book.id === id)?.title ?? id;
-  const resultTitle = `かぶり調査（${includeMode === "all" ? "選んだ全てに出る" : "選んだどれかに出る"}: ${includeIds.map(titleById).join("・") || "-"}${excludeIds.length ? ` / 除外: ${excludeIds.map(titleById).join("・")}` : ""}）`;
+  const resultTitle = `かぶり調査（${includeMode === "all" ? "共通する語" : "どれかに出る語"}: ${includeIds.map(titleById).join("・") || "-"}${excludeIds.length ? ` / 除外: ${excludeIds.map(titleById).join("・")}` : ""}）`;
   const finalTitle = saveTitle.trim() || resultTitle;
 
   useEffect(() => {
@@ -146,7 +154,7 @@ export default function OverlapTool({
       ? `使う単語帳: ${includeIds.map(titleById).join("、")}`
       : "使う単語帳: 未選択",
     excludeIds.length ? `除外した単語帳: ${excludeIds.map(titleById).join("、")}` : "",
-    `抽出条件: ${includeMode === "all" ? "使う単語帳すべてに出ている単語" : "使う単語帳のどれかに出ている単語"}`,
+    `抽出条件: ${includeMode === "all" ? "使う単語帳すべてに共通する語" : "使う単語帳のどれかに出ている語"}`,
     `抽出結果: ${rows.length}語`,
   ].filter(Boolean).join("\n");
   const finalDescription = saveDescription.trim() || defaultSaveDescription;
@@ -307,7 +315,14 @@ export default function OverlapTool({
                   onClick={() => toggleCandidate(book.id)}
                   className={`flex w-full items-center justify-between gap-3 border-b p-3 text-left last:border-0 hover:bg-blue-50 ${selected ? "bg-blue-50" : "bg-white"}`}
                 >
-                  <span className="min-w-0 truncate text-sm font-bold text-slate-800">{book.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="truncate text-sm font-bold text-slate-800">{book.title}</span>
+                    {typeof book.wordCount === "number" ? (
+                      <span className="ml-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-500">
+                        {book.wordCount}語
+                      </span>
+                    ) : null}
+                  </span>
                   <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-black ${selected ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
                     {selected ? "選択中" : "選ぶ"}
                   </span>
@@ -336,7 +351,7 @@ export default function OverlapTool({
                 onClick={() => setIncludeMode("all")}
                 className={`rounded-xl px-3 py-2 ${includeMode === "all" ? "bg-blue-600 text-white" : "text-slate-600"}`}
               >
-                使う単語帳すべてに出る語
+                使う単語帳すべてに共通する語
               </button>
               <button
                 type="button"
@@ -386,7 +401,7 @@ export default function OverlapTool({
       <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold leading-6 text-slate-600">
         <span className="font-black text-slate-800">抽出条件:</span>{" "}
         <span className="text-blue-700">{includeIds.length ? includeIds.map(titleById).join(" / ") : "使う単語帳を選択"}</span>
-        <span> {includeMode === "all" ? "すべてに出ている単語" : "のどれかに出ている単語"}</span>
+        <span> {includeMode === "all" ? "すべてに共通する語" : "のどれかに出ている語"}</span>
         {excludeIds.length ? <span>から、<span className="text-rose-600">{excludeIds.map(titleById).join(" / ")}</span> に出ている単語を外す</span> : null}
         {selectedIds.length > 0 ? (
           <button type="button" onClick={() => setStates({})} className="ml-3 text-slate-400 underline">

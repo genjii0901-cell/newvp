@@ -2556,42 +2556,59 @@ export default function Home() {
                       <option value="ja-en">日本語 → 英語</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold">英単語の繰り返し回数</label>
+                  <div className="rounded-2xl border bg-white p-4">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      英単語の繰り返し回数
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{listeningRepeat}回</span>
+                    </label>
                     <select
                       value={listeningRepeat}
                       onChange={(event) => setListeningRepeat(Number(event.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                      className="mt-3 w-full rounded-xl border bg-white px-3 py-2 text-sm font-bold"
                     >
                       <option value={1}>1回</option>
                       <option value={2}>2回</option>
                       <option value={3}>3回</option>
                     </select>
+                    <p className="mt-2 text-[11px] font-bold text-slate-400">英語だけを何回読むか</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold">単語の間隔</label>
-                    <select
+                  <div className="rounded-2xl border bg-white p-4">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      単語の間隔
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={300}
+                      max={2500}
+                      step={100}
                       value={listeningGapMs}
                       onChange={(event) => setListeningGapMs(Number(event.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                    >
-                      <option value={900}>短め</option>
-                      <option value={1200}>標準</option>
-                      <option value={1800}>ゆっくり</option>
-                    </select>
+                      className="mt-3 w-full accent-blue-600"
+                    />
+                    <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                      <span>短い</span>
+                      <span>ゆっくり</span>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold">読み上げ速度</label>
-                    <select
+                  <div className="rounded-2xl border bg-white p-4">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      読み上げ速度
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">x{listeningSpeed.toFixed(2)}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min={0.7}
+                      max={1.35}
+                      step={0.05}
                       value={listeningSpeed}
                       onChange={(event) => setListeningSpeed(Number(event.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
-                    >
-                      <option value={0.82}>ゆっくり</option>
-                      <option value={1}>ふつう</option>
-                      <option value={1.14}>少し速い</option>
-                      <option value={1.28}>速い</option>
-                    </select>
+                      className="mt-3 w-full accent-blue-600"
+                    />
+                    <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
+                      <span>ゆっくり</span>
+                      <span>速い</span>
+                    </div>
                   </div>
                 </div>
 

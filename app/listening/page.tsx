@@ -608,17 +608,21 @@ export default function ListeningPage() {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div>
-                    <label className="block text-sm font-bold">英語の反復回数</label>
+                  <div className="rounded-2xl border bg-white p-4">
+                    <label className="flex items-center justify-between text-sm font-bold">
+                      英語の反復回数
+                      <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{listeningRepeat}回</span>
+                    </label>
                     <select
                       value={listeningRepeat}
                       onChange={(e) => setListeningRepeat(Number(e.target.value))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                      className="mt-3 w-full rounded-xl border bg-white px-3 py-2 text-sm font-bold"
                     >
                       <option value={1}>1回</option>
                       <option value={2}>2回</option>
                       <option value={3}>3回</option>
                     </select>
+                    <p className="mt-2 text-[11px] font-bold text-slate-400">英語だけを何回読むか</p>
                   </div>
                   <div className="rounded-2xl border bg-white p-4">
                     <label className="flex items-center justify-between text-sm font-bold">
