@@ -1678,6 +1678,21 @@ export default function Home() {
       pageNoOffsetY: pageNoOffset.y,
     });
     const previewBody = bodyHtml.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
+    const homePreviewOverrides = `
+      <style>
+        html,body{background:#eef2f7!important;}
+        .print-page{
+          width:210mm!important;
+          height:297mm!important;
+          margin:0 0 18px 0!important;
+          padding:9mm 9mm 8mm!important;
+          border-radius:10px;
+          box-sizing:border-box!important;
+          background:#fff!important;
+          outline:1px solid rgba(148,163,184,.45);
+          box-shadow:0 14px 34px rgba(15,23,42,.22)!important;
+        }
+      </style>`;
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
       body{padding:16px 12px;overflow:auto;overscroll-behavior:contain;}
@@ -1695,12 +1710,7 @@ export default function Home() {
         transform-origin:top left;
         will-change:transform;
       }
-      .print-page{
-        margin:0 0 18px 0!important;
-        border-radius:10px;
-        box-shadow:0 12px 30px rgba(15,23,42,.18)!important;
-      }
-    </style></head><body><div id="home-preview-frame"><div id="home-preview-scale">${previewBody}</div></div><script>
+    </style></head><body><div id="home-preview-frame"><div id="home-preview-scale">${previewBody}${homePreviewOverrides}</div></div><script>
       function fitPreview(){
         var scaleRoot=document.getElementById('home-preview-scale');
         var frame=document.getElementById('home-preview-frame');
