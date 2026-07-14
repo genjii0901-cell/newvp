@@ -1695,7 +1695,7 @@ export default function Home() {
       </style>`;
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
-      body{padding:16px 12px;overflow:auto;overscroll-behavior:contain;}
+      body{padding:16px 12px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;}
       #home-preview-frame{
         position:relative;
         width:calc(794px * var(--preview-scale));
@@ -2451,7 +2451,7 @@ export default function Home() {
                 onClick={() => setShowPreview(true)}
                 className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700"
               >
-                プレビューを大きく開く
+                レイアウトを見る
               </button>
               {selectedBook ? (
                 <Link href={buildWordbookPath(selectedBook.id, selectedBook.title)} className="rounded-xl border bg-white px-4 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">
