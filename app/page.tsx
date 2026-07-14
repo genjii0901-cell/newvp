@@ -1680,18 +1680,28 @@ export default function Home() {
     const previewBody = bodyHtml.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
-      body{padding:12px;overflow:auto;}
-      #home-preview-scale{width:794px;transform:scale(var(--preview-scale));transform-origin:top left;}
-      .print-page{margin:0 0 16px 0!important;box-shadow:0 10px 28px rgba(15,23,42,.18)!important;}
+      body{padding:12px;overflow:auto;overscroll-behavior:contain;}
+      #home-preview-scale{
+        width:794px;
+        transform:scale(var(--preview-scale));
+        transform-origin:top left;
+        will-change:transform;
+      }
+      .print-page{
+        margin:0 0 18px 0!important;
+        border-radius:10px;
+        box-shadow:0 12px 30px rgba(15,23,42,.18)!important;
+      }
     </style></head><body><div id="home-preview-scale">${previewBody}</div><script>
       function fitPreview(){
         var scaleRoot=document.getElementById('home-preview-scale');
         if(!scaleRoot)return;
         var scale=Math.min(1,(window.innerWidth-24)/794);
         document.documentElement.style.setProperty('--preview-scale',String(scale));
-        document.body.style.minHeight=(scaleRoot.scrollHeight*scale+24)+'px';
+        document.body.style.minHeight=Math.ceil(scaleRoot.scrollHeight*scale+24)+'px';
       }
       window.addEventListener('resize',fitPreview);
+      window.addEventListener('load',fitPreview);
       fitPreview();
     <\/script></body></html>`;
   }
@@ -2391,6 +2401,9 @@ export default function Home() {
                   {selectedBook?.title ?? "単語帳"} / {outputWords.length}語
                   {selectedBook && loadingBookWordsId === selectedBook.id ? " ・ 読み込み中..." : ""}
                 </p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  1ページ全体を表示。2ページ目以降はプレビュー内をスクロールできます。
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
@@ -2401,11 +2414,12 @@ export default function Home() {
             </summary>
 
             <div className="mt-4 rounded-2xl border bg-slate-100 p-3">
-              <div className="mx-auto max-w-[430px] rounded-xl bg-white shadow-sm">
+              <div className="mx-auto max-w-[440px] rounded-2xl bg-white p-2 shadow-sm">
                 <iframe
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
-                  className="h-[640px] max-h-[72vh] w-full rounded-xl border-0"
+                  className="w-full rounded-xl border-0"
+                  style={{ aspectRatio: "1 / 1.5" }}
                 />
               </div>
             </div>
