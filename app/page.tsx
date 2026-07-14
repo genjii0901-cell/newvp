@@ -1681,6 +1681,7 @@ export default function Home() {
     const homePreviewOverrides = `
       <style>
         html,body{background:#eef2f7!important;}
+        body{overflow-y:auto!important;overflow-x:hidden!important;}
         .print-page{
           width:210mm!important;
           height:297mm!important;
@@ -2439,6 +2440,7 @@ export default function Home() {
                 <iframe
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
+                  scrolling="yes"
                   className="w-full rounded-xl border-0 bg-slate-100"
                   style={{ aspectRatio: "1 / 1.38" }}
                 />
