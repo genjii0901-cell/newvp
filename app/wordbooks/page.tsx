@@ -60,6 +60,7 @@ export default function WordbooksPage() {
   const [editorDescription, setEditorDescription] = useState("");
   const [editorRows, setEditorRows] = useState<EditableRow[]>(emptyRows());
   const [saving, setSaving] = useState(false);
+  const [savingOfficialId, setSavingOfficialId] = useState("");
   const [myMessage, setMyMessage] = useState("");
 
   useEffect(() => {
@@ -243,6 +244,68 @@ export default function WordbooksPage() {
     setSaving(false);
   }
 
+  async function addOfficialToMyWordbooks(book: OfficialWordbook) {
+    if (!supabase) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData.session?.access_token;
+    if (!token) {
+      setTab("my");
+      setMyMessage("みんなの単語帳をマイ単語帳に追加するにはログインしてください。");
+      return;
+    }
+
+    setSavingOfficialId(book.id);
+    setMyMessage("");
+    try {
+      const detailResponse = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(book.id)}&includeWords=1`);
+      const detailResult = await detailResponse.json().catch(() => ({}));
+      const detailBook = Array.isArray(detailResult.wordbooks)
+        ? detailResult.wordbooks.find((item: { id?: string | number }) => String(item.id) === String(book.id))
+        : null;
+      const words = Array.isArray(detailBook?.words)
+        ? detailBook.words
+            .filter((word: { english?: string; japanese?: string }) => word.english && word.japanese)
+            .map((word: { no?: number; english?: string; japanese?: string; unit?: string | null }, index: number) => ({
+              no: Number(word.no) || index + 1,
+              english: word.english ?? "",
+              japanese: word.japanese ?? "",
+              unit: word.unit ?? "",
+            }))
+        : [];
+
+      if (words.length === 0) {
+        setMyMessage("追加できる単語が見つかりませんでした。");
+        return;
+      }
+
+      const response = await fetch("/api/me/wordbooks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: book.title,
+          description: `${book.title}をみんなの単語帳から追加しました。`,
+          words,
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.wordbook) {
+        setMyMessage(result.error ?? "マイ単語帳への追加に失敗しました。");
+        return;
+      }
+
+      setTab("my");
+      setSelectedMyBookId(String(result.wordbook.id));
+      setMyMessage("マイ単語帳に追加しました。");
+      await loadMyBooks();
+    } finally {
+      setSavingOfficialId("");
+    }
+  }
+
   async function deleteMyBook() {
     if (!supabase || !selectedMyBookId) return;
     if (!window.confirm("このマイ単語帳を削除しますか？")) return;
@@ -392,15 +455,19 @@ export default function WordbooksPage() {
                           onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
-                          開く
+                          単語帳ページへ
                         </Link>
-                        <Link
-                          href={`${detailPath}?tab=listen`}
-                          onClick={(event) => event.stopPropagation()}
-                          className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void addOfficialToMyWordbooks(book);
+                          }}
+                          disabled={savingOfficialId === book.id}
+                          className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
-                          聞き流し
-                        </Link>
+                          {savingOfficialId === book.id ? "追加中..." : "マイ追加"}
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -410,12 +477,12 @@ export default function WordbooksPage() {
           )}
         </>
       ) : (
-        <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="mt-6 grid gap-6">
           <section className="rounded-3xl border bg-white p-5 shadow-sm">
             {!loggedIn ? (
               <div className="text-sm text-slate-500">
                 <p className="font-bold text-slate-700">ログインするとマイ単語帳を保存できます。</p>
-                <p className="mt-2">無料でも1ページ分の印刷は試せます。保存したい場合はログインしてください。</p>
+                <p className="mt-2">無料でも1回50語まで印刷を試せます。保存したい場合はログインしてください。</p>
                 <Link href="/#auth" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 font-bold text-white">
                   ログインする
                 </Link>
@@ -434,19 +501,55 @@ export default function WordbooksPage() {
                     新規作成
                   </button>
                 </div>
-                <div className="mt-4 space-y-2">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {myBooks.map((book) => (
-                    <button
+                    <article
                       key={book.id}
-                      type="button"
                       onClick={() => setSelectedMyBookId(book.id)}
-                      className={`w-full rounded-2xl border px-4 py-3 text-left ${
-                        selectedMyBookId === book.id ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
+                      className={`cursor-pointer overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                        selectedMyBookId === book.id ? "border-blue-400 ring-2 ring-blue-100" : ""
                       }`}
                     >
-                      <p className="font-bold text-slate-900">{book.title}</p>
-                      <p className="mt-1 text-xs text-slate-500">{book.wordCount}語</p>
-                    </button>
+                      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-3xl font-black text-blue-600">
+                        My
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">マイ単語帳</span>
+                          <span className="text-xs font-bold text-slate-400">{book.wordCount}語</span>
+                        </div>
+                        <h2 className="mt-3 line-clamp-2 text-lg font-black text-slate-900">{book.title}</h2>
+                        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                          {book.description || "自分で保存した単語帳です。"}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedMyBookId(book.id);
+                            }}
+                            className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700"
+                          >
+                            編集
+                          </button>
+                          <Link
+                            href={`/?book=${encodeURIComponent(book.id)}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                          >
+                            印刷作成
+                          </Link>
+                          <Link
+                            href={`/listening?source=my&id=${encodeURIComponent(book.id)}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                          >
+                            聞き流し
+                          </Link>
+                        </div>
+                      </div>
+                    </article>
                   ))}
                   {myBooks.length === 0 && <p className="text-sm text-slate-500">まだマイ単語帳はありません。</p>}
                 </div>
