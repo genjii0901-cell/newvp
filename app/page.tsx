@@ -1678,7 +1678,22 @@ export default function Home() {
       pageNoOffsetY: pageNoOffset.y,
     });
     const previewBody = bodyHtml.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
-    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"></head><body style="margin:0">${previewBody}</body></html>`;
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
+      html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
+      body{padding:12px;overflow:auto;}
+      #home-preview-scale{width:794px;transform:scale(var(--preview-scale));transform-origin:top left;}
+      .print-page{margin:0 0 16px 0!important;box-shadow:0 10px 28px rgba(15,23,42,.18)!important;}
+    </style></head><body><div id="home-preview-scale">${previewBody}</div><script>
+      function fitPreview(){
+        var scaleRoot=document.getElementById('home-preview-scale');
+        if(!scaleRoot)return;
+        var scale=Math.min(1,(window.innerWidth-24)/794);
+        document.documentElement.style.setProperty('--preview-scale',String(scale));
+        document.body.style.minHeight=(scaleRoot.scrollHeight*scale+24)+'px';
+      }
+      window.addEventListener('resize',fitPreview);
+      fitPreview();
+    <\/script></body></html>`;
   }
 
   useEffect(() => {
@@ -2385,13 +2400,12 @@ export default function Home() {
               </div>
             </summary>
 
-            <div className="mt-4 overflow-hidden rounded-2xl border bg-slate-100 p-3">
-              <div className="mx-auto max-w-[420px] rounded-xl bg-white shadow-sm">
+            <div className="mt-4 rounded-2xl border bg-slate-100 p-3">
+              <div className="mx-auto max-w-[430px] rounded-xl bg-white shadow-sm">
                 <iframe
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
-                  className="h-[520px] w-full rounded-xl border-0"
-                  style={{ pointerEvents: "none" }}
+                  className="h-[640px] max-h-[72vh] w-full rounded-xl border-0"
                 />
               </div>
             </div>
