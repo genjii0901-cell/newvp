@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "typecheck": "tsc --noEmit",
+    "test:admin-auth": "node --test --experimental-strip-types tests/admin-auth-core.test.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"

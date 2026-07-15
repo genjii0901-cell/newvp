@@ -45,6 +45,14 @@
 - [ ] NEXT_PUBLIC_APP_URL（独自ドメイン）
 - [ ] ADMIN_PASSWORD
 
+### 管理者認証セキュリティ（必須）
+
+- [ ] `docs/migrations/harden-admin-auth.sql` を Supabase SQL Editor で実行
+- [ ] 32バイト以上のランダムな `ADMIN_SESSION_SECRET` を本番環境に設定
+- [ ] 管理者2FAを登録し、誤った6桁コードが401、正しいコードが200になることを確認
+- [ ] 同じ認証コードの再利用が拒否されることを確認
+- [ ] ログアウト後に `/api/admin/*` が401になることを確認
+
 ### 6. 最終確認
 - [ ] 本番URLで新規登録 → ログイン
 - [ ] 無料プランで印刷（1ページ制限）を確認

@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-
-function normalizeNextPath(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/";
-  return value;
-}
+import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
 
 function buildStatusUrl(request: NextRequest, message: string, next: string) {
   const url = new URL("/auth/callback", request.url);
@@ -21,7 +17,7 @@ function shouldTreatAsConfirmed(message: string) {
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = normalizeNextPath(requestUrl.searchParams.get("next"));
+  const next = normalizeLocalRedirectPath(requestUrl.searchParams.get("next"));
 
   if (!code) {
     return NextResponse.redirect(

@@ -63,4 +63,20 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ADMIN_PASSWORD=
 ```
 
+## 管理者認証（2026-07 セキュリティ更新）
+
+| 変数名 | 種別 | 説明 |
+|---|---|---|
+| `ADMIN_SESSION_SECRET` | **秘密** | 管理者セッション署名とDB保存TOTPの暗号化に使う、32バイト以上のランダム値。新規環境では必ず設定してください。 |
+| `ADMIN_TOTP_SECRET` | **秘密・任意** | UIではなく環境変数でTOTPを固定管理する場合のBase32シークレット。 |
+
+`ADMIN_SESSION_SECRET` が未設定の既存環境では、互換性のため `ADMIN_PASSWORD`、次に
+`SUPABASE_SERVICE_ROLE_KEY` を署名・暗号化キーとして使います。運用時は用途を分離した
+`ADMIN_SESSION_SECRET` の設定を推奨します。値を変更すると既存の管理者セッションは失効し、
+DB保存のTOTPシークレットを復号できなくなるため、無計画にローテーションしないでください。
+
+この更新をデプロイする前に、Supabase SQL Editor で
+`docs/migrations/harden-admin-auth.sql` を実行してください。未適用の場合は試行回数制限や
+認証コード再利用防止を保証できないため、管理者ログインは安全側に失敗します。
+
 値は空欄のままにしてあります。**このテンプレートをそのままコミットしても安全です。**

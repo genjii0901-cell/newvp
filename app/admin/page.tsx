@@ -599,14 +599,10 @@ export default function AdminPage() {
   const supabase = useMemo(() => createClient(), []);
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [authRole, setAuthRole] = useState<"user" | "admin">("user");
-  const [unlocked, setUnlocked] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return sessionStorage.getItem("vpp-admin-unlocked") === "1";
-  });
-  const [password, setPassword] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return sessionStorage.getItem("vpp-admin-pw") ?? "";
-  });
+  // The server-side HttpOnly session is authoritative. Client storage must never
+  // be able to unlock the admin UI on its own.
+  const [unlocked, setUnlocked] = useState(false);
+  const [password, setPassword] = useState("");
   const [authCode, setAuthCode] = useState("");
   const [authMsg, setAuthMsg] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -697,14 +693,28 @@ export default function AdminPage() {
   const [metricsMsg, setMetricsMsg] = useState("");
 
   async function getAdminHeaders(): Promise<Record<string, string>> {
-    const token = sessionStorage.getItem("vpp-admin-pw");
-    if (token) {
-      return { "x-admin-password": token };
-    }
     if (!supabase) return {};
     const { data } = await supabase.auth.getSession();
     const accessToken = data.session?.access_token;
     return accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  }
+
+  async function restoreAdminSession(accessToken?: string) {
+    const headers = accessToken
+      ? { Authorization: `Bearer ${accessToken}` }
+      : await getAdminHeaders();
+    const response = await fetch("/api/admin/auth/check", {
+      headers,
+      cache: "no-store",
+    }).catch(() => null);
+    const result = await response?.json().catch(() => ({}));
+    if (response?.ok && result?.ok) {
+      setUnlocked(true);
+      setAuthMsg("");
+      return true;
+    }
+    setUnlocked(false);
+    return false;
   }
 
   async function loadSupabaseAdminSession() {
@@ -732,9 +742,9 @@ export default function AdminPage() {
     const nextRole = result?.profile?.role === "admin" ? "admin" : "user";
     setAuthRole(nextRole);
     if (nextRole === "admin") {
-      sessionStorage.setItem("vpp-admin-unlocked", "1");
-      setUnlocked(true);
-      setAuthMsg("");
+      // A Supabase admin session is only the first factor. The server decides
+      // whether an existing MFA session can be restored.
+      await restoreAdminSession(accessToken);
     }
   }
 
@@ -799,6 +809,10 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
+    // Remove credentials left by older builds. New sessions are HttpOnly cookies.
+    sessionStorage.removeItem("vpp-admin-unlocked");
+    sessionStorage.removeItem("vpp-admin-pw");
+    void restoreAdminSession();
     void loadSupabaseAdminSession();
     if (!supabase) return;
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
@@ -829,20 +843,16 @@ export default function AdminPage() {
   async function unlock() {
     if (authLoading) return;
     setAuthMsg("");
-    if (!password.trim()) {
-      if (authUser && authRole === "admin") {
-        sessionStorage.setItem("vpp-admin-unlocked", "1");
-        setUnlocked(true);
-        return;
-      }
-      setAuthMsg("管理者パスワードを入力してください。管理者アカウントでログイン済みなら、そのまま入れる場合があります。");
+    if (!password.trim() && (!authUser || authRole !== "admin")) {
+      setAuthMsg("管理者パスワードを入力するか、管理者アカウントでログインしてください。");
       return;
     }
     setAuthLoading(true);
     try {
+      const adminHeaders = await getAdminHeaders();
       const res = await fetch("/api/admin/auth/check", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...adminHeaders },
         body: JSON.stringify({ password, code: authCode }),
       });
       const result = await res.json().catch(() => ({}));
@@ -850,11 +860,9 @@ export default function AdminPage() {
         setAuthMsg(result.message ?? "認証に失敗しました。");
         return;
       }
-      // 以降のAPIはトークンで認証する（x-admin-passwordヘッダーにトークンを入れる）
-      const token = typeof result.token === "string" ? result.token : password;
-      sessionStorage.setItem("vpp-admin-unlocked", "1");
-      sessionStorage.setItem("vpp-admin-pw", token);
-      setPassword(token);
+      // The API stores the signed session in an HttpOnly, SameSite=Strict cookie.
+      // Passwords and admin tokens are never persisted in Web Storage.
+      setPassword("");
       setAuthCode("");
       setUnlocked(true);
     } catch {
@@ -864,11 +872,11 @@ export default function AdminPage() {
     }
   }
 
-  function lockAdmin() {
-    sessionStorage.removeItem("vpp-admin-unlocked");
-    sessionStorage.removeItem("vpp-admin-pw");
+  async function lockAdmin() {
+    await fetch("/api/admin/auth/check", { method: "DELETE" }).catch(() => null);
     setUnlocked(false);
     setPassword("");
+    setAuthCode("");
   }
 
   async function loadTwoFaStatus() {
@@ -922,7 +930,11 @@ export default function AdminPage() {
     setTwoFaEnabled(true);
     setTwoFaSecret(""); setTwoFaQr(""); setTwoFaCode("");
     setTwoFaOk(true);
-    setTwoFaMsg("✅ 2FAを有効化しました。次回ログインから認証コードが必要です。");
+    setTwoFaMsg("✅ 2FAを有効化しました。認証コードを使って再ログインしてください。");
+    setAuthMsg("2FAを有効化しました。認証アプリの6桁コードを使って再ログインしてください。");
+    setUnlocked(false);
+    setPassword("");
+    setAuthCode("");
   }
 
   /* 笏笏 create 笏笏 */
@@ -1399,7 +1411,7 @@ export default function AdminPage() {
               placeholder="認証コード（6桁）"
               className="mt-3 w-full rounded-xl border px-4 py-3 text-center text-lg tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-            <p className="mt-2 text-xs text-slate-400">認証アプリ（Google Authenticator等）の6桁コード。未設定の場合は空欄でログインできます。</p>
+            <p className="mt-2 text-xs text-slate-400">認証アプリ（Google Authenticator等）の6桁コード。2段階認証が未設定の場合は必ず空欄にし、ログイン後に設定を完了してください。未設定の状態では任意のコードを受け付けません。</p>
             <button
               onClick={unlock}
               disabled={authLoading}
