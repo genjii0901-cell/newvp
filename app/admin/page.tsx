@@ -71,6 +71,8 @@ type AdminMetrics = {
     freeCount: number;
     personalCount: number;
     teacherCount: number;
+    profilePersonalCount?: number;
+    profileTeacherCount?: number;
     adminCount: number;
     signup7d: number;
     signup30d: number;
@@ -111,6 +113,10 @@ type AdminMetrics = {
     created_at: string | null;
     role: string;
     plan: string;
+    profilePlan?: string;
+    subscriptionPlan?: string;
+    planSource?: "stripe" | "profile";
+    stripeCustomerId?: string | null;
     hasProfile: boolean;
     subscriptionStatus: string | null;
     currentPeriodEnd: string | null;
@@ -1564,9 +1570,10 @@ export default function AdminPage() {
                     </p>
                   </div>
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">有料プラン</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">有料プラン利用者</p>
                     <p className="mt-2 text-3xl font-black text-blue-700">{metrics.overview.personalCount + metrics.overview.teacherCount}</p>
-                    <p className="mt-2 text-xs text-slate-500">Personal {metrics.overview.personalCount} / Teacher {metrics.overview.teacherCount}</p>
+                    <p className="mt-2 text-xs text-slate-500">有効な購読を優先して集計</p>
+                    <p className="mt-1 text-xs text-slate-400">Personal {metrics.overview.personalCount} / Teacher {metrics.overview.teacherCount}</p>
                   </div>
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">アクティブ購読</p>
@@ -1596,6 +1603,10 @@ export default function AdminPage() {
                         </div>
                       ))}
                     </div>
+                    <p className="mt-3 text-xs leading-6 text-slate-400">
+                      ※Personal / Teacherは、Stripeで有効な購読がある場合は購読情報を優先します。
+                      profiles上の有料設定は Personal {metrics.overview.profilePersonalCount ?? 0} / Teacher {metrics.overview.profileTeacherCount ?? 0} です。
+                    </p>
                   </div>
 
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
@@ -1809,7 +1820,8 @@ export default function AdminPage() {
                         <thead>
                           <tr className="border-b text-xs font-bold uppercase tracking-wide text-slate-400">
                             <th className="px-3 py-2">メール</th>
-                            <th className="px-3 py-2">プラン</th>
+                            <th className="px-3 py-2">実効プラン</th>
+                            <th className="px-3 py-2">元データ</th>
                             <th className="px-3 py-2">購読</th>
                             <th className="px-3 py-2">role</th>
                             <th className="px-3 py-2">profiles</th>
@@ -1831,11 +1843,21 @@ export default function AdminPage() {
                                 </span>
                               </td>
                               <td className="px-3 py-3">
+                                <div className="min-w-[150px] text-xs text-slate-500">
+                                  <p>profiles: {account.profilePlan ?? "-"}</p>
+                                  <p>Stripe: {account.subscriptionPlan ?? "-"}</p>
+                                  <p className="font-bold text-slate-700">判定: {account.planSource === "stripe" ? "Stripe優先" : "profiles"}</p>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3">
                                 <div className="min-w-[120px]">
                                   <p className="font-bold text-slate-700">{account.subscriptionStatus ?? "-"}</p>
                                   <p className="mt-1 text-xs text-slate-400">
                                     {account.currentPeriodEnd ? formatAdminDate(account.currentPeriodEnd) : ""}
                                   </p>
+                                  {account.stripeCustomerId ? (
+                                    <p className="mt-1 font-mono text-[10px] text-slate-400">{account.stripeCustomerId}</p>
+                                  ) : null}
                                 </div>
                               </td>
                               <td className="px-3 py-3 text-slate-600">{account.role}</td>

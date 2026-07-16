@@ -12,8 +12,10 @@ const TEACHER_PRICE_JPY = 2980;
 
 type ProfileRow = {
   id: string;
+  email?: string | null;
   plan: string | null;
   role: string | null;
+  stripe_customer_id?: string | null;
   created_at?: string | null;
 };
 
@@ -98,6 +100,15 @@ function toPublicReferrerLabel(referrer: string) {
   }
 }
 
+function isActiveSubscription(subscription: SubscriptionRow | null | undefined) {
+  return subscription?.status === "active" || subscription?.status === "trialing";
+}
+
+function normalizePlan(value: string | null | undefined) {
+  if (value === "personal" || value === "teacher") return value;
+  return "free";
+}
+
 async function listAuthUsers() {
   const supabase = getSupabaseAdmin();
   const users: AuthUserSummary[] = [];
@@ -160,7 +171,7 @@ export async function GET(request: Request) {
     const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
       listAuthUsers(),
       safeSelect<ProfileRow>(() =>
-        supabase.from("profiles").select("id,plan,role,created_at").limit(5000)
+        supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000)
       ),
       safeSelect<SubscriptionRow>(() =>
         supabase
@@ -202,25 +213,68 @@ export async function GET(request: Request) {
     const settings = settingsResult.data;
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
+    const latestSubscriptionByUserId = new Map<string, SubscriptionRow>();
+    const latestSubscriptionByCustomerId = new Map<string, SubscriptionRow>();
+    for (const subscription of subscriptions) {
+      const keys = [
+        subscription.user_id ? `user:${subscription.user_id}` : "",
+        subscription.stripe_customer_id ? `customer:${subscription.stripe_customer_id}` : "",
+      ].filter(Boolean);
+      for (const key of keys) {
+        const [, id] = key.split(":");
+        const targetMap = key.startsWith("user:")
+          ? latestSubscriptionByUserId
+          : latestSubscriptionByCustomerId;
+        const current = targetMap.get(id);
+        const currentTime = current?.created_at ? new Date(current.created_at).getTime() : 0;
+        const nextTime = subscription.created_at ? new Date(subscription.created_at).getTime() : 0;
+        if (!current || nextTime >= currentTime) {
+          targetMap.set(id, subscription);
+        }
+      }
+    }
+    const subscriptionForAccount = (userId: string, profile: ProfileRow | null) => {
+      return latestSubscriptionByUserId.get(userId) ??
+        (profile?.stripe_customer_id ? latestSubscriptionByCustomerId.get(profile.stripe_customer_id) : undefined) ??
+        null;
+    };
     const missingProfileCount = authUsers.filter((user) => !profilesById.has(user.id)).length;
     const usersForCounts =
       authUsers.length > 0
         ? authUsers
         : profiles.map((profile) => ({
             id: profile.id,
-            email: null,
+            email: profile.email ?? null,
             created_at: profile.created_at ?? null,
           }));
 
-    const freeCount = profiles.filter((profile) => (profile.plan ?? "free") === "free").length;
-    const personalCount = profiles.filter((profile) => profile.plan === "personal").length;
-    const teacherCount = profiles.filter((profile) => profile.plan === "teacher").length;
+    const effectiveAccountPlans = usersForCounts.map((user) => {
+      const profile = profilesById.get(user.id) ?? null;
+      const subscription = subscriptionForAccount(user.id, profile);
+      const subscriptionPlan = normalizePlan(subscription?.plan);
+      const profilePlan = normalizePlan(profile?.plan);
+      const effectivePlan = isActiveSubscription(subscription) && subscriptionPlan !== "free"
+        ? subscriptionPlan
+        : profilePlan;
+      return {
+        userId: user.id,
+        effectivePlan,
+        profilePlan,
+        subscription,
+      };
+    });
+
+    const freeCount = effectiveAccountPlans.filter((account) => account.effectivePlan === "free").length;
+    const personalCount = effectiveAccountPlans.filter((account) => account.effectivePlan === "personal").length;
+    const teacherCount = effectiveAccountPlans.filter((account) => account.effectivePlan === "teacher").length;
+    const profilePersonalCount = profiles.filter((profile) => profile.plan === "personal").length;
+    const profileTeacherCount = profiles.filter((profile) => profile.plan === "teacher").length;
     const adminCount = profiles.filter((profile) => profile.role === "admin").length;
     const signup7d = usersForCounts.filter((user) => isRecent(user.created_at, 7)).length;
     const signup30d = usersForCounts.filter((user) => isRecent(user.created_at, 30)).length;
 
     const activeSubscriptions = subscriptions.filter(
-      (subscription) => subscription.status === "active" || subscription.status === "trialing"
+      (subscription) => isActiveSubscription(subscription)
     ).length;
     const trialingSubscriptions = subscriptions.filter(
       (subscription) => subscription.status === "trialing"
@@ -425,27 +479,25 @@ export async function GET(request: Request) {
     const currentBrowserSummary =
       recentVisitors.find((item) => item.stableVisitorHash === currentStableVisitorHash) ?? null;
 
-    const latestSubscriptionByUserId = new Map<string, SubscriptionRow>();
-    for (const subscription of subscriptions) {
-      if (!subscription.user_id) continue;
-      const current = latestSubscriptionByUserId.get(subscription.user_id);
-      const currentTime = current?.created_at ? new Date(current.created_at).getTime() : 0;
-      const nextTime = subscription.created_at ? new Date(subscription.created_at).getTime() : 0;
-      if (!current || nextTime >= currentTime) {
-        latestSubscriptionByUserId.set(subscription.user_id, subscription);
-      }
-    }
-
     const accountList = usersForCounts
       .map((authUser) => {
         const profile = profilesById.get(authUser.id) ?? null;
-        const subscription = latestSubscriptionByUserId.get(authUser.id) ?? null;
+        const subscription = subscriptionForAccount(authUser.id, profile);
+        const subscriptionPlan = normalizePlan(subscription?.plan);
+        const profilePlan = normalizePlan(profile?.plan);
+        const effectivePlan = isActiveSubscription(subscription) && subscriptionPlan !== "free"
+          ? subscriptionPlan
+          : profilePlan;
         return {
           id: authUser.id,
-          email: authUser.email ?? null,
+          email: authUser.email ?? profile?.email ?? null,
           created_at: authUser.created_at ?? profile?.created_at ?? null,
           role: profile?.role ?? "user",
-          plan: profile?.plan ?? "free",
+          plan: effectivePlan,
+          profilePlan,
+          subscriptionPlan,
+          planSource: isActiveSubscription(subscription) && subscriptionPlan !== "free" ? "stripe" : "profile",
+          stripeCustomerId: profile?.stripe_customer_id ?? subscription?.stripe_customer_id ?? null,
           hasProfile: Boolean(profile),
           subscriptionStatus: subscription?.status ?? null,
           currentPeriodEnd: subscription?.current_period_end ?? null,
@@ -467,7 +519,7 @@ export async function GET(request: Request) {
           message:
             settings.length > 0
               ? "サイト表示時に自動で閲覧数を記録しています。"
-              : "まだ閲覧データがありません。数回ページ表示するとここに集計が出ます。",
+              : "まだ閲覧データがありません。数回ページを表示するとここに集計が出ます。",
           viewsToday,
           views7d,
           views30d,
@@ -493,6 +545,8 @@ export async function GET(request: Request) {
           freeCount,
           personalCount,
           teacherCount,
+          profilePersonalCount,
+          profileTeacherCount,
           adminCount,
           signup7d,
           signup30d,
