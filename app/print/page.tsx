@@ -363,9 +363,11 @@ const printJobCss = `
   }
 
   @media print {
+    /* iOS Safari は @page の margin をほぼ無視するため margin:0 にして、
+       用紙の余白は .print-page 側の padding で作る（1ページ=A4 1枚を保証）。 */
     @page {
       size: A4 portrait;
-      margin: 9mm 9mm 8mm 9mm;
+      margin: 0;
     }
 
     html,
@@ -409,13 +411,20 @@ const printJobCss = `
     .paper-preview-shell {
       width: auto !important;
       height: auto !important;
+      min-height: 0 !important;
       transform: none !important;
     }
 
+    .paper-preview {
+      width: 100% !important;
+    }
+
     .paper-preview .print-page {
-      width: 192mm !important;
-      height: 280mm !important;
-      margin: 0 !important;
+      width: 210mm !important;
+      height: 296mm !important;
+      padding: 9mm 9mm 8mm !important;
+      box-sizing: border-box !important;
+      margin: 0 auto !important;
       border: 0 !important;
       box-shadow: none !important;
       page-break-inside: avoid !important;
