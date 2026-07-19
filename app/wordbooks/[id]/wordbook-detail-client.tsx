@@ -287,24 +287,17 @@ export default function WordbookDetailPage() {
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
   const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
-  // 登録誘導ゲート: 出題方向・出力形式・単語チェック・聞き流しは無料登録で解放、番号変更は有料で解放
+  // 登録誘導ゲート:
+  //  未登録   -> 出題方向・出力形式・番号すべてロック（一覧1〜50の見本のみ）
+  //  無料登録 -> 形式・方向・番号を自由に変更可（印刷は50語まで、超過分は有料案内）
+  //  有料     -> 語数無制限
   const controlsLocked = !isLoggedIn;
-  const numbersLocked = !isLoggedIn || !isPaid;
+  const numbersLocked = !isLoggedIn;
 
   function guideToRegister(reason: string) {
     if (isLoggedIn || typeof window === "undefined") return;
     alert(`${reason}\n\nメールアドレスだけで完全無料の会員登録をすると、すぐに使えます。ログイン画面へ移動します。`);
     window.location.href = "/#auth";
-  }
-
-  function guideToUpgrade(reason: string) {
-    if (typeof window === "undefined") return;
-    if (!isLoggedIn) {
-      guideToRegister(reason);
-      return;
-    }
-    const ok = window.confirm(`${reason}\n\nPersonalは7日間無料で試せます。プラン画面へ進みますか？`);
-    if (ok) window.location.href = "/pricing";
   }
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
@@ -466,6 +459,11 @@ export default function WordbookDetailPage() {
   useEffect(() => {
     setCount(Math.min(Math.max(visibleWords.length, 1), maxWords));
   }, [visibleWords.length, maxWords]);
+
+  // 未登録は「一覧」形式のみ（無料登録すると問題・解答も選べる）
+  useEffect(() => {
+    if (controlsLocked && testType !== "list") setTestType("list");
+  }, [controlsLocked, testType]);
 
   const requestedCount = Math.max(1, Math.min(Number(count) || 1, testWords.length || 1));
   const freePrintBlocked = !isPaid && requestedCount > FREE_WORD_LIMIT;
@@ -960,7 +958,7 @@ export default function WordbookDetailPage() {
               value={rangeStart}
               readOnly={numbersLocked}
               onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
-              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
               type="number"
               className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
@@ -973,7 +971,7 @@ export default function WordbookDetailPage() {
               value={rangeEnd}
               readOnly={numbersLocked}
               onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
-              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
               type="number"
               className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
@@ -982,11 +980,11 @@ export default function WordbookDetailPage() {
         {numbersLocked ? (
           <button
             type="button"
-            onClick={() => guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")}
+            onClick={() => guideToRegister("無料会員登録をすると、問題・解答プリントなど色々なテスト形式や、自由な範囲・問題数で作れます。")}
             className="mt-3 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
           >
-            🔒 範囲・問題数の変更は有料プラン限定です。無料版は先頭50語のサンプルで印刷できます。
-            <span className="ml-auto whitespace-nowrap font-black text-amber-700">7日間無料 ›</span>
+            🔒 いまは「一覧・1〜50語」の見本のみ。無料登録すると、問題／解答など色々な形式と自由な番号で作れます。
+            <span className="ml-auto whitespace-nowrap font-black text-amber-700">無料登録 ›</span>
           </button>
         ) : null}
       </section>
@@ -1109,7 +1107,7 @@ export default function WordbookDetailPage() {
 
               <div className={`rounded-2xl border p-3 ${numbersLocked ? "border-amber-200 bg-amber-50/60" : ""}`}>
                 <p className="text-xs font-black text-slate-500">
-                  使う範囲と問題数{numbersLocked ? <span className="ml-1 text-amber-600">🔒 有料プランで変更</span> : null}
+                  使う範囲と問題数{numbersLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}
                 </p>
                 <div className="mt-2 grid grid-cols-3 gap-2">
                   <label className="block">
@@ -1118,7 +1116,7 @@ export default function WordbookDetailPage() {
                       value={rangeStart}
                       readOnly={numbersLocked}
                       onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
                       type="number"
                       className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
@@ -1129,7 +1127,7 @@ export default function WordbookDetailPage() {
                       value={rangeEnd}
                       readOnly={numbersLocked}
                       onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
                       type="number"
                       className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
@@ -1142,13 +1140,13 @@ export default function WordbookDetailPage() {
                       value={count}
                       readOnly={numbersLocked}
                       onChange={(event) => { if (!numbersLocked) setCount(Math.max(1, Number(event.target.value) || 1)); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
                       className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
                   </label>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : `無料プランは先頭${FREE_WORD_LIMIT}語のサンプルを印刷できます。範囲・問題数の変更は有料プランで。`}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : controlsLocked ? `いまは一覧・先頭${FREE_WORD_LIMIT}語の見本のみ。無料登録すると形式や番号を自由に選べます（印刷は${FREE_WORD_LIMIT}語まで）。` : `無料プランは1回${FREE_WORD_LIMIT}語まで印刷できます。${FREE_WORD_LIMIT}語を超えるにはPersonalの7日間無料トライアルへ。`}
                 </p>
               </div>
 

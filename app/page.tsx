@@ -917,9 +917,12 @@ export default function Home() {
     return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
 
-  // 登録誘導ゲート: 出題方向・出力形式・チェック/聞き流しは無料登録で解放、番号変更は有料で解放
+  // 登録誘導ゲート:
+  //  未登録   -> 出題方向・出力形式・番号すべてロック（一覧1〜50の見本のみ印刷可）
+  //  無料登録 -> 形式・方向・番号を自由に変更可（印刷は50語まで、超過分は有料案内）
+  //  有料     -> 語数無制限
   const controlsLocked = !user;
-  const numbersLocked = !user || plan === "free";
+  const numbersLocked = !user;
 
   const currentListeningWord = outputWords[listeningIndex] ?? null;
   const currentListeningMeaning = currentListeningWord
@@ -2213,18 +2216,18 @@ export default function Home() {
             )}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
-              <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
-              <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
+              <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
+              <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
+              <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
             </div>
             {numbersLocked ? (
               <button
                 type="button"
-                onClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")}
+                onClick={() => guideToRegister("無料会員登録をすると、問題・解答プリントなど色々なテスト形式や、自由な範囲・問題数で作れます。")}
                 className="mt-2 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
               >
-                🔒 範囲・問題数の変更は有料プラン限定です。無料版は先頭50語のサンプルで印刷できます。
-                <span className="ml-auto whitespace-nowrap font-black text-amber-700">7日間無料 ›</span>
+                🔒 いまは「一覧・1〜50語」の見本のみ。無料登録すると、問題／解答など色々な形式と自由な番号で作れます。
+                <span className="ml-auto whitespace-nowrap font-black text-amber-700">無料登録 ›</span>
               </button>
             ) : null}
 

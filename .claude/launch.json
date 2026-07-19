@@ -9,6 +9,13 @@
       "autoPort": false
     },
     {
+      "name": "vpp-dev-3400",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3400"],
+      "port": 3400,
+      "autoPort": false
+    },
+    {
       "name": "Next.js Production Preview",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "start"],
