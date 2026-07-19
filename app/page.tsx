@@ -1938,7 +1938,43 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:mt-5 sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {/* スマホ: ABCeed風の横スクロール本棚（表紙中心） */}
+          <div className="mt-4 -mx-4 sm:hidden">
+            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {featuredBooks.map((book, index) => (
+                <a
+                  key={book.id}
+                  href={buildWordbookPath(book.id, book.title)}
+                  className={`flex w-[132px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-white shadow-sm active:scale-[0.98] ${
+                    book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
+                  }`}
+                >
+                  <div className="relative h-44 w-full bg-slate-100">
+                    <img
+                      src={getBookCover(book, index)}
+                      alt={book.title}
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                    />
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black text-slate-800">
+                      {planLabel(book.requiredPlan)}
+                    </span>
+                    <span className="absolute bottom-1.5 right-1.5 rounded-full bg-blue-600/90 px-2 py-0.5 text-[10px] font-black text-white">
+                      {getBookWordCount(book)}語
+                    </span>
+                  </div>
+                  <div className="flex flex-1 flex-col p-2">
+                    <h4 className="line-clamp-2 text-xs font-black leading-snug text-slate-900">{book.title}</h4>
+                    <p className="mt-1 truncate text-[11px] font-bold text-blue-700">{book.level}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+            <p className="mt-1 px-4 text-[11px] font-bold text-slate-400">← 横にスワイプして単語帳を探す →</p>
+          </div>
+
+          {/* PC: グリッド表示 */}
+          <div className="mt-4 hidden gap-2 sm:mt-5 sm:grid sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {featuredBooks.map((book, index) => (
               <div
                 key={book.id}
