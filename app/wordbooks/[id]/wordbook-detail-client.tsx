@@ -283,9 +283,29 @@ export default function WordbookDetailPage() {
 
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
   const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
+  // 登録誘導ゲート: 出題方向・出力形式・単語チェック・聞き流しは無料登録で解放、番号変更は有料で解放
+  const controlsLocked = !isLoggedIn;
+  const numbersLocked = !isLoggedIn || !isPaid;
+
+  function guideToRegister(reason: string) {
+    if (isLoggedIn || typeof window === "undefined") return;
+    alert(`${reason}\n\nメールアドレスだけで完全無料の会員登録をすると、すぐに使えます。ログイン画面へ移動します。`);
+    window.location.href = "/#auth";
+  }
+
+  function guideToUpgrade(reason: string) {
+    if (typeof window === "undefined") return;
+    if (!isLoggedIn) {
+      guideToRegister(reason);
+      return;
+    }
+    const ok = window.confirm(`${reason}\n\nPersonalは7日間無料で試せます。プラン画面へ進みますか？`);
+    if (ok) window.location.href = "/pricing";
+  }
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
   const [loading, setLoading] = useState(true);
@@ -407,6 +427,7 @@ export default function WordbookDetailPage() {
     let active = true;
     supabase.auth.getSession().then(async ({ data }) => {
       const token = data.session?.access_token;
+      if (active) setIsLoggedIn(Boolean(token));
       if (!token) return;
       const response = await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
       if (!response) return;
@@ -871,23 +892,34 @@ export default function WordbookDetailPage() {
 
       <section className="sticky top-0 z-10 mt-4 border-y bg-slate-50/95 py-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:py-0">
         <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
-          {tabs.map((tab) => (
+          {tabs.map((tab) => {
+            const tabLocked = controlsLocked && (tab.key === "quiz" || tab.key === "listen");
+            return (
             <button
               key={tab.key}
               type="button"
-              onClick={() => setActiveTab(tab.key)}
+              onClick={() => {
+                if (tabLocked) {
+                  guideToRegister(`「${tab.label}」機能は無料会員登録をすると使えます。`);
+                  return;
+                }
+                setActiveTab(tab.key);
+              }}
               className={`min-w-[116px] rounded-2xl border px-3 py-2 text-left transition ${
                 activeTab === tab.key
                   ? "border-blue-500 bg-blue-600 text-white shadow-sm"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  : tabLocked
+                    ? "border-amber-200 bg-amber-50 text-slate-500 hover:bg-amber-100"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span className="block text-sm font-black">{tab.label}</span>
-              <span className={`block text-[11px] font-bold ${activeTab === tab.key ? "text-blue-100" : "text-slate-400"}`}>
-                {tab.hint}
+              <span className="block text-sm font-black">{tab.label}{tabLocked ? " 🔒" : ""}</span>
+              <span className={`block text-[11px] font-bold ${activeTab === tab.key ? "text-blue-100" : tabLocked ? "text-amber-600" : "text-slate-400"}`}>
+                {tabLocked ? "無料登録で解放" : tab.hint}
               </span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -904,7 +936,7 @@ export default function WordbookDetailPage() {
           </p>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-3 gap-3">
           <div>
             <label className="text-sm font-bold">ユニット</label>
             <select
@@ -921,24 +953,42 @@ export default function WordbookDetailPage() {
             </select>
           </div>
           <div>
-            <label className="text-sm font-bold">開始番号</label>
+            <label className="text-sm font-bold">
+              開始番号{numbersLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}
+            </label>
             <input
               value={rangeStart}
-              onChange={(event) => setRangeStart(event.target.value)}
+              readOnly={numbersLocked}
+              onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
+              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
               type="number"
-              className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
           </div>
           <div>
-            <label className="text-sm font-bold">終了番号</label>
+            <label className="text-sm font-bold">
+              終了番号{numbersLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}
+            </label>
             <input
               value={rangeEnd}
-              onChange={(event) => setRangeEnd(event.target.value)}
+              readOnly={numbersLocked}
+              onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
+              onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
               type="number"
-              className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
           </div>
         </div>
+        {numbersLocked ? (
+          <button
+            type="button"
+            onClick={() => guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")}
+            className="mt-3 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
+          >
+            🔒 範囲・問題数の変更は有料プラン限定です。無料版は先頭50語のサンプルで印刷できます。
+            <span className="ml-auto whitespace-nowrap font-black text-amber-700">7日間無料 ›</span>
+          </button>
+        ) : null}
       </section>
 
       {activeTab === "overview" && (
@@ -1019,17 +1069,27 @@ export default function WordbookDetailPage() {
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <label className="block rounded-2xl border p-3">
-                  <span className="text-xs font-black text-slate-500">出力形式</span>
-                  <select value={testType} onChange={(event) => setTestType(event.target.value as TestType)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                <label className={`block rounded-2xl border p-3 ${controlsLocked ? "border-amber-200 bg-amber-50" : ""}`}>
+                  <span className="text-xs font-black text-slate-500">出力形式{controlsLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}</span>
+                  <select
+                    value={testType}
+                    onChange={(event) => { if (!controlsLocked) setTestType(event.target.value as TestType); }}
+                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出力形式（問題・解答・一覧）の切り替えには無料会員登録が必要です。"); } : undefined}
+                    className={`mt-1 w-full bg-transparent text-sm font-bold ${controlsLocked ? "cursor-pointer text-slate-400" : ""}`}
+                  >
                     <option value="test">問題プリント</option>
                     <option value="answer">解答プリント</option>
                     <option value="list">単語一覧</option>
                   </select>
                 </label>
-                <label className="block rounded-2xl border p-3">
-                  <span className="text-xs font-black text-slate-500">出題方向</span>
-                  <select value={testDirection} onChange={(event) => setTestDirection(event.target.value as TestDirection)} className="mt-1 w-full bg-transparent text-sm font-bold">
+                <label className={`block rounded-2xl border p-3 ${controlsLocked ? "border-amber-200 bg-amber-50" : ""}`}>
+                  <span className="text-xs font-black text-slate-500">出題方向{controlsLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}</span>
+                  <select
+                    value={testDirection}
+                    onChange={(event) => { if (!controlsLocked) setTestDirection(event.target.value as TestDirection); }}
+                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出題方向（英→日・日→英）の切り替えには無料会員登録が必要です。"); } : undefined}
+                    className={`mt-1 w-full bg-transparent text-sm font-bold ${controlsLocked ? "cursor-pointer text-slate-400" : ""}`}
+                  >
                     <option value="en-ja">英語 → 日本語</option>
                     <option value="ja-en">日本語 → 英語</option>
                   </select>
@@ -1047,25 +1107,31 @@ export default function WordbookDetailPage() {
                 </select>
               </label>
 
-              <div className="rounded-2xl border p-3">
-                <p className="text-xs font-black text-slate-500">使う範囲と問題数</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <div className={`rounded-2xl border p-3 ${numbersLocked ? "border-amber-200 bg-amber-50/60" : ""}`}>
+                <p className="text-xs font-black text-slate-500">
+                  使う範囲と問題数{numbersLocked ? <span className="ml-1 text-amber-600">🔒 有料プランで変更</span> : null}
+                </p>
+                <div className="mt-2 grid grid-cols-3 gap-2">
                   <label className="block">
                     <span className="text-[11px] font-black text-slate-400">開始</span>
                     <input
                       value={rangeStart}
-                      onChange={(event) => setRangeStart(event.target.value)}
+                      readOnly={numbersLocked}
+                      onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
                       type="number"
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
                   </label>
                   <label className="block">
                     <span className="text-[11px] font-black text-slate-400">終了</span>
                     <input
                       value={rangeEnd}
-                      onChange={(event) => setRangeEnd(event.target.value)}
+                      readOnly={numbersLocked}
+                      onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
                       type="number"
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
                   </label>
                   <label className="block">
@@ -1074,13 +1140,15 @@ export default function WordbookDetailPage() {
                       type="number"
                       min={1}
                       value={count}
-                      onChange={(event) => setCount(Math.max(1, Number(event.target.value) || 1))}
-                      className="mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none"
+                      readOnly={numbersLocked}
+                      onChange={(event) => { if (!numbersLocked) setCount(Math.max(1, Number(event.target.value) || 1)); }}
+                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToUpgrade("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。"); } : undefined}
+                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
                   </label>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : `無料プランは1回${FREE_WORD_LIMIT}語まで印刷できます。`}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : `無料プランは先頭${FREE_WORD_LIMIT}語のサンプルを印刷できます。範囲・問題数の変更は有料プランで。`}
                 </p>
               </div>
 

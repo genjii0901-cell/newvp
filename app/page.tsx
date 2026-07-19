@@ -917,6 +917,10 @@ export default function Home() {
     return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
 
+  // 登録誘導ゲート: 出題方向・出力形式・チェック/聞き流しは無料登録で解放、番号変更は有料で解放
+  const controlsLocked = !user;
+  const numbersLocked = !user || plan === "free";
+
   const currentListeningWord = outputWords[listeningIndex] ?? null;
   const currentListeningMeaning = currentListeningWord
     ? formatMeaning(currentListeningWord.japanese, listeningMeaningMode)
@@ -1792,6 +1796,14 @@ export default function Home() {
     }
   }
 
+  function guideToRegister(reason: string) {
+    if (user) return;
+    setAuthMode("signup");
+    setMessageTone("info");
+    setMessage(`${reason} メールアドレスだけで完全無料の会員登録をすると、すぐに使えます。`);
+    document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   async function guideToPersonal(reason: string) {
     if (!user) {
       setAuthMode("signup");
@@ -2201,27 +2213,51 @@ export default function Home() {
             )}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <NumberInput label="開始" value={startNo} onChange={setStartNo} />
-              <NumberInput label="終了" value={endNo} onChange={setEndNo} />
-              <NumberInput label="問題数" value={count} onChange={setCount} />
+              <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
+              <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
+              <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")} />
             </div>
+            {numbersLocked ? (
+              <button
+                type="button"
+                onClick={() => guideToPersonal("範囲（開始・終了）や問題数の変更は、Personalなどの有料プランでできます。")}
+                className="mt-2 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
+              >
+                🔒 範囲・問題数の変更は有料プラン限定です。無料版は先頭50語のサンプルで印刷できます。
+                <span className="ml-auto whitespace-nowrap font-black text-amber-700">7日間無料 ›</span>
+              </button>
+            ) : null}
 
-            <label className="mt-4 block text-sm font-bold">出力形式</label>
+            <label className="mt-4 block text-sm font-bold">
+              出力形式
+              {controlsLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒 無料登録で変更</span> : null}
+            </label>
             <select
               value={type}
-              onChange={(event) => setType(event.target.value as PdfType)}
-              className="mt-1 w-full rounded-xl border px-3 py-2"
+              onChange={(event) => {
+                if (controlsLocked) return;
+                setType(event.target.value as PdfType);
+              }}
+              onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出力形式（一覧・問題・解答）の切り替えには無料会員登録が必要です。"); } : undefined}
+              className={`mt-1 w-full rounded-xl border px-3 py-2 ${controlsLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             >
               <option value="list">一覧PDF</option>
               <option value="test">問題PDF</option>
               <option value="answer">解答PDF</option>
             </select>
 
-            <label className="mt-4 block text-sm font-bold">出題方向</label>
+            <label className="mt-4 block text-sm font-bold">
+              出題方向
+              {controlsLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒 無料登録で変更</span> : null}
+            </label>
             <select
               value={direction}
-              onChange={(event) => setDirection(event.target.value as Direction)}
-              className="mt-1 w-full rounded-xl border px-3 py-2"
+              onChange={(event) => {
+                if (controlsLocked) return;
+                setDirection(event.target.value as Direction);
+              }}
+              onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出題方向（英→日・日→英・スペル）の切り替えには無料会員登録が必要です。"); } : undefined}
+              className={`mt-1 w-full rounded-xl border px-3 py-2 ${controlsLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             >
               <option value="en-ja">英語 → 日本語</option>
               <option value="ja-en">日本語 → 英語</option>
@@ -2974,19 +3010,32 @@ function NumberInput({
   label,
   value,
   onChange,
+  locked = false,
+  onLockedClick,
 }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  locked?: boolean;
+  onLockedClick?: () => void;
 }) {
   return (
     <div>
-      <label className="text-sm font-bold">{label}</label>
+      <label className="text-sm font-bold">
+        {label}
+        {locked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}
+      </label>
       <input
         value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
+        readOnly={locked}
+        onChange={(event) => {
+          if (locked) return;
+          onChange(Number(event.target.value));
+        }}
+        onMouseDown={locked ? (event) => { event.preventDefault(); onLockedClick?.(); } : undefined}
+        onFocus={locked ? () => onLockedClick?.() : undefined}
         type="number"
-        className="mt-1 w-full rounded-xl border px-3 py-2"
+        className={`mt-1 w-full rounded-xl border px-3 py-2 ${locked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
       />
     </div>
   );
