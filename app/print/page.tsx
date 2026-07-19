@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type PrintJob = {
   html: string;
@@ -82,6 +82,9 @@ const printJobCss = `
     background: #fff;
     box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 
   .paper-preview {
@@ -393,6 +396,7 @@ const printJobCss = `
       box-shadow: none;
       overflow: visible;
       padding: 0;
+      display: block;
     }
 
     .paper-preview {
@@ -430,7 +434,8 @@ const printJobCss = `
 export default function PrintPage() {
   const router = useRouter();
   const [job, setJob] = useState<PrintJob | null>(null);
-  const [viewportWidth, setViewportWidth] = useState(1100);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [availableWidth, setAvailableWidth] = useState(1060);
 
   function goBack() {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -469,16 +474,25 @@ export default function PrintPage() {
     };
   }, [job?.title]);
 
+  // プレビューを囲む .paper-wrap の実際の内寸（padding を除いた幅）を測ってから縮尺を決める。
+  // window.innerWidth ベースだと sheet / paper-wrap の余白ぶんはみ出して margin:auto が効かず、
+  // iPad などで左寄せになってしまうため。
   useEffect(() => {
-    const update = () => setViewportWidth(window.innerWidth);
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
+    const measure = () => {
+      const el = wrapRef.current;
+      if (!el) return;
+      const cs = window.getComputedStyle(el);
+      const pad = parseFloat(cs.paddingLeft || "0") + parseFloat(cs.paddingRight || "0");
+      setAvailableWidth(Math.max(200, el.clientWidth - pad));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [job]);
 
   const previewNaturalWidth = 794;
   const previewNaturalHeight = 1123;
-  const previewScale = Math.min(1, Math.max(0.28, (viewportWidth - 40) / previewNaturalWidth));
+  const previewScale = Math.min(1, Math.max(0.28, availableWidth / previewNaturalWidth));
   const previewPageCount = Math.max(1, job?.html.match(/class=["']print-page/g)?.length ?? 1);
 
   return (
@@ -510,7 +524,7 @@ export default function PrintPage() {
           </p>
         </div>
       ) : (
-        <div className="paper-wrap">
+        <div className="paper-wrap" ref={wrapRef}>
           <div
             className="paper-preview-shell"
             style={{
