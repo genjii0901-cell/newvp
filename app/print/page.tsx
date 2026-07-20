@@ -441,24 +441,23 @@ const printJobCss = `
       break-after: auto !important;
     }
 
-    /* グリッドがページ内を埋めてフッターを下へ。上詰まり・下の大きな余白を防ぐ。 */
+    /* グリッドは内容ぶんの高さ（潰れない・強制的に伸ばさない）。min-heightで無理に埋めると
+       端末の印刷可能領域を超えてフッター(created by)が2枚目に押し出されるため、自然高さにする。 */
     .paper-preview .print-grid {
-      flex: 1 1 auto !important;
+      flex: 0 0 auto !important;
       min-height: 0 !important;
     }
 
-    /* 端末で印刷可能領域が違うので、iOSは安全側、Android/PCはページいっぱいに調整。 */
-    .plat-ios .paper-preview .print-page { min-height: 262mm !important; }
+    /* min-heightでの強制フィルはしない。端末差は行の高さだけで調整（溢れ防止を最優先）。 */
     .plat-ios .paper-preview .print-table td { height: 9mm !important; max-height: 9mm !important; }
     .plat-ios .paper-preview .print-table th { height: 8mm !important; max-height: 8mm !important; }
-    .plat-ios .paper-preview .has-info .print-table td { height: 8.5mm !important; max-height: 8.5mm !important; }
+    .plat-ios .paper-preview .has-info .print-table td { height: 8.4mm !important; max-height: 8.4mm !important; }
     .plat-ios .paper-preview .has-info .print-table th { height: 7.6mm !important; max-height: 7.6mm !important; }
 
-    .plat-wide .paper-preview .print-page { min-height: 286mm !important; }
-    .plat-wide .paper-preview .print-table td { height: 9.9mm !important; max-height: 9.9mm !important; }
-    .plat-wide .paper-preview .print-table th { height: 8.6mm !important; max-height: 8.6mm !important; }
-    .plat-wide .paper-preview .has-info .print-table td { height: 9.4mm !important; max-height: 9.4mm !important; }
-    .plat-wide .paper-preview .has-info .print-table th { height: 8mm !important; max-height: 8mm !important; }
+    .plat-wide .paper-preview .print-table td { height: 9.5mm !important; max-height: 9.5mm !important; }
+    .plat-wide .paper-preview .print-table th { height: 8.5mm !important; max-height: 8.5mm !important; }
+    .plat-wide .paper-preview .has-info .print-table td { height: 9mm !important; max-height: 9mm !important; }
+    .plat-wide .paper-preview .has-info .print-table th { height: 7.8mm !important; max-height: 7.8mm !important; }
   }
 `;
 
