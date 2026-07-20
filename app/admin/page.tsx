@@ -35,6 +35,7 @@ type OfficialBook = {
 };
 
 type AdminMetrics = {
+  warnings?: string[];
   visitorMetrics?: {
     available?: boolean;
     message?: string;
@@ -696,6 +697,7 @@ export default function AdminPage() {
   const [diagLoading, setDiagLoading] = useState(false);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricsUpdatedAt, setMetricsUpdatedAt] = useState<Date | null>(null);
   const [metricsMsg, setMetricsMsg] = useState("");
 
   async function getAdminHeaders(): Promise<Record<string, string>> {
@@ -785,6 +787,7 @@ export default function AdminPage() {
       return null;
     }
     setMetrics(data as AdminMetrics);
+    setMetricsUpdatedAt(new Date());
     setMetricsLoading(false);
     return data as AdminMetrics;
   }
@@ -1541,16 +1544,38 @@ export default function AdminPage() {
                 <h2 className="text-xl font-black text-slate-900">運営ダッシュボード</h2>
                 <p className="text-sm text-slate-500">登録者数・プラン・PDF利用状況を管理者画面でまとめて確認できます。</p>
               </div>
-              <button
-                onClick={() => fetchMetrics()}
-                className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50"
-              >
-                🔄 集計を更新
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                <button
+                  onClick={() => fetchMetrics()}
+                  disabled={metricsLoading}
+                  className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {metricsLoading ? "⏳ 集計中..." : "🔄 集計を更新"}
+                </button>
+                {metricsUpdatedAt && (
+                  <span className="text-[11px] font-bold text-slate-400">
+                    最終更新: {metricsUpdatedAt.toLocaleTimeString("ja-JP")}
+                  </span>
+                )}
+              </div>
             </div>
 
             {metricsMsg && (
               <div className="rounded-2xl bg-amber-50 p-4 text-sm font-bold text-amber-800">{metricsMsg}</div>
+            )}
+
+            {metrics?.warnings && metrics.warnings.length > 0 && (
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-black">⚠️ 一部のデータを集計できませんでした（テーブル未作成・カラム不足の可能性）</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs font-bold">
+                  {metrics.warnings.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-xs text-amber-700">
+                  この場合、該当の数値（購読・PDF利用など）が0のままになります。Supabaseで対象テーブルを確認してください。
+                </p>
+              </div>
             )}
 
             {!metrics && metricsLoading && (
@@ -1858,7 +1883,15 @@ export default function AdminPage() {
                                     {account.currentPeriodEnd ? formatAdminDate(account.currentPeriodEnd) : ""}
                                   </p>
                                   {account.stripeCustomerId ? (
-                                    <p className="mt-1 font-mono text-[10px] text-slate-400">{account.stripeCustomerId}</p>
+                                    <a
+                                      href={`https://dashboard.stripe.com/customers/${account.stripeCustomerId}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="mt-1 block font-mono text-[10px] text-blue-500 underline hover:text-blue-700"
+                                      title="Stripeダッシュボードで購読の詳細を見る"
+                                    >
+                                      {account.stripeCustomerId} ↗
+                                    </a>
                                   ) : null}
                                 </div>
                               </td>

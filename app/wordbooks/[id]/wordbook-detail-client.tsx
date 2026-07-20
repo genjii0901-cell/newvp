@@ -613,7 +613,31 @@ export default function WordbookDetailPage() {
     window.location.href = "/?import=1";
   }
 
-  function openPrintPage() {
+  // 印刷時にサーバーへ利用記録（管理ダッシュボードの集計用）。ログイン時のみ。
+  async function recordPdfUsage() {
+    if (!supabase || !isLoggedIn) return;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const bookIdStr = book ? String(book.id) : "";
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookIdStr);
+      await fetch("/api/usage/record", {
+        method: "POST",
+        keepalive: true,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: testType,
+          wordCount: effectiveCount,
+          wordbookId: isUuid ? bookIdStr : null,
+        }),
+      });
+    } catch {
+      // ベストエフォート。記録に失敗しても印刷は続行。
+    }
+  }
+
+  async function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
     if (freePrintBlocked) {
       window.alert(
@@ -621,6 +645,8 @@ export default function WordbookDetailPage() {
       );
       return;
     }
+    // モバイルはこの後すぐ /print へ遷移するため、記録の送信完了を待ってから進む。
+    await recordPdfUsage();
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
