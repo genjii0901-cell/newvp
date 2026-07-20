@@ -441,6 +441,30 @@ const printJobCss = `
       page-break-after: auto !important;
       break-after: auto !important;
     }
+
+    /* 高さautoにするとグリッド(flex:1)が潰れて上に詰まるので、内容ぶんの高さで表示する。 */
+    .paper-preview .print-grid {
+      flex: 0 0 auto !important;
+      min-height: 0 !important;
+    }
+
+    /* 50語でも1ページに収まるよう、印刷時だけ行高をわずかに詰める（画面プレビューは従来どおり）。 */
+    .paper-preview .print-table td {
+      height: 8.8mm !important;
+      max-height: 8.8mm !important;
+    }
+    .paper-preview .print-table th {
+      height: 8mm !important;
+      max-height: 8mm !important;
+    }
+    .paper-preview .has-info .print-table td {
+      height: 8.4mm !important;
+      max-height: 8.4mm !important;
+    }
+    .paper-preview .has-info .print-table th {
+      height: 7.6mm !important;
+      max-height: 7.6mm !important;
+    }
   }
 `;
 
