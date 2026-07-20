@@ -39,6 +39,10 @@ export interface BuildPrintHtmlOptions {
   type: PdfType;
   showPageNo: boolean;
   makeQuestion: (word: PrintWord) => { question: string; answer: string };
+  /** 出題方向。列は常に[番号|単語(英)|意味(日)]固定で、方向で空欄/ヒント側を決める。 */
+  direction?: Direction;
+  /** 赤シート対応: 答えを空欄にせず赤字で印刷する。 */
+  redSheet?: boolean;
   plan: PrintPlan;
   printStyle: PrintStyle;
   includeWatermark: boolean;
@@ -73,7 +77,8 @@ export function buildPrintHtml({
   words,
   type,
   showPageNo,
-  makeQuestion,
+  direction = "en-ja",
+  redSheet = false,
   plan,
   printStyle,
   includeWatermark,
@@ -151,24 +156,41 @@ export function buildPrintHtml({
       const left = pageWords.slice(0, 25);
       const right = pageWords.slice(25, 50);
 
+      // 列は常に[番号|単語(英)|意味(日)]。出題方向で「答え側」を決め、問題PDFではそこを空欄/ヒント/赤字にする。
+      const answerSide: "english" | "japanese" = direction === "en-ja" ? "japanese" : "english";
+      const isSpelling = direction === "spelling";
+      const renderColumn = (word: PrintWord, side: "english" | "japanese") => {
+        const text = side === "english" ? word.english : word.japanese;
+        const isAnswer = side === answerSide;
+        // 赤シート対応: 答え側を赤字で印刷（一覧・問題・解答すべてで有効）。赤シートを重ねると隠せる。
+        if (redSheet && isAnswer) {
+          return `<span class="p-red">${escapeHtml(text)}</span>`;
+        }
+        if (type === "list") return formatStyledText(text, side);
+        if (!isAnswer) return escapeHtml(text);
+        // ここから下は「答え側 かつ 赤シートOFF」
+        if (type === "answer") return escapeHtml(text);
+        // type === "test"（問題PDF）: 答え側は空欄（スペルは先頭1文字だけ表示）
+        if (isSpelling && side === "english") {
+          const first = (text.trim().charAt(0) || "");
+          return `<span class="p-hint">${escapeHtml(first)}</span>`;
+        }
+        return `<span class="p-blank"></span>`;
+      };
+
       const table = (items: PrintWord[]) => `
         <table class="print-table">
           <thead>
             <tr>
               <th class="p-no">番号</th>
-              <th class="p-word">${type === "list" ? "単語" : "問題"}</th>
-              <th class="p-meaning">${type === "test" ? "解答欄" : type === "answer" ? "答え" : "意味"}</th>
+              <th class="p-word">単語</th>
+              <th class="p-meaning">意味</th>
             </tr>
           </thead>
           <tbody>
             ${items.map((word) => {
-              const qa = makeQuestion(word);
-              const leftText = type === "list" ? formatStyledText(word.english, "english") : formatStyledText(qa.question, directionLanguage(qa.question, word));
-              const rightText = type === "list"
-                ? formatStyledText(word.japanese, "japanese")
-                : type === "answer"
-                  ? formatStyledText(qa.answer, directionLanguage(qa.answer, word))
-                  : "";
+              const leftText = renderColumn(word, "english");
+              const rightText = renderColumn(word, "japanese");
               return `<tr>
                 <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.no))}</span></div></td>
                 <td class="p-word"><div class="p-fit"><span class="p-text two">${leftText}</span></div></td>
@@ -278,6 +300,7 @@ export const printCss = `
   .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
   .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
   .p-red { color:#dc2626; font-weight:800; }
+  .p-hint { font-weight:800; letter-spacing:.02em; }
 
   /* 記入欄: クラス(小)・番号(小)・氏名(大) */
   .print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
@@ -341,6 +364,7 @@ body { margin:0; background:white; overflow:hidden; }
 .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
 .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
 .p-red { color:#dc2626; font-weight:800; }
+.p-hint { font-weight:800; letter-spacing:.02em; }
 .print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
 .print-info-fields { display:flex; gap:3mm; align-items:flex-end; }
 .pif { display:flex; align-items:baseline; gap:1.5mm; border-bottom:.75pt solid #111; padding-bottom:1mm; padding-top:.5mm; }

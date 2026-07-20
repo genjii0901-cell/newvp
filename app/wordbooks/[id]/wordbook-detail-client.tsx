@@ -14,7 +14,7 @@ import QuizPanel from "./quiz-panel";
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen";
 type TestType = "list" | "test" | "answer";
-type TestDirection = "en-ja" | "ja-en";
+type TestDirection = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type MeaningMode = "main" | "all";
 type ListeningMode = "en-ja" | "ja-en" | "en-only" | "test";
@@ -309,6 +309,7 @@ export default function WordbookDetailPage() {
   const [activeTab, setActiveTab] = useState<DetailTab>("overview");
   const [testType, setTestType] = useState<TestType>("test");
   const [testDirection, setTestDirection] = useState<TestDirection>("en-ja");
+  const [redSheet, setRedSheet] = useState(false);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [pageLimit, setPageLimit] = useState(1);
   const [count, setCount] = useState(50);
@@ -483,6 +484,8 @@ export default function WordbookDetailPage() {
       type: testType,
       showPageNo,
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
+      direction: testDirection,
+      redSheet,
       plan: isPaid ? userPlan : "free",
       printStyle,
       includeWatermark,
@@ -522,6 +525,7 @@ export default function WordbookDetailPage() {
     pageNoOffsetY,
     printStyle,
     printTitle,
+    redSheet,
     showClassField,
     showNameField,
     showNumberField,
@@ -1085,24 +1089,29 @@ export default function WordbookDetailPage() {
                   <select
                     value={testDirection}
                     onChange={(event) => { if (!controlsLocked) setTestDirection(event.target.value as TestDirection); }}
-                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出題方向（英→日・日→英）の切り替えには無料会員登録が必要です。"); } : undefined}
+                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出題方向（英→日・日→英・スペル）の切り替えには無料会員登録が必要です。"); } : undefined}
                     className={`mt-1 w-full bg-transparent text-sm font-bold ${controlsLocked ? "cursor-pointer text-slate-400" : ""}`}
                   >
-                    <option value="en-ja">英語 → 日本語</option>
-                    <option value="ja-en">日本語 → 英語</option>
+                    <option value="en-ja">英語 → 日本語（意味を空欄）</option>
+                    <option value="ja-en">日本語 → 英語（単語を空欄）</option>
+                    <option value="spelling">スペルテスト（単語の頭文字だけ）</option>
                   </select>
                 </label>
               </div>
 
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">空欄・赤字の設定</span>
-                <select value={printStyle} onChange={(event) => setPrintStyle(event.target.value as PrintStyle)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="standard">通常</option>
-                  <option value="blank-english">英語を空欄</option>
-                  <option value="blank-japanese">日本語を空欄</option>
-                  <option value="red-english">英語を赤字</option>
-                  <option value="red-japanese">日本語を赤字</option>
-                </select>
+              <label className="flex items-center justify-between rounded-2xl border p-3">
+                <span className="min-w-0 pr-2">
+                  <span className="block text-xs font-black text-slate-700">赤シート対応（答えを赤字で印刷）</span>
+                  <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                    赤シートを重ねると答えが隠れます。空欄ではなく赤字で出したいときに。
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={redSheet}
+                  onChange={(event) => setRedSheet(event.target.checked)}
+                  className="h-5 w-5 shrink-0"
+                />
               </label>
 
               <div className={`rounded-2xl border p-3 ${numbersLocked ? "border-amber-200 bg-amber-50/60" : ""}`}>
