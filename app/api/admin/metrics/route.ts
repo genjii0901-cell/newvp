@@ -34,14 +34,14 @@ type PdfGenerationRow = {
   type: string | null;
   word_count: number | null;
   user_id: string | null;
-  wordbook_id: string | null;
+  wordbook_id?: string | null;
   created_at?: string | null;
 };
 
 type WordbookRow = {
   id: string | number;
   title: string | null;
-  visibility: string | null;
+  visibility?: string | null;
   is_official?: boolean | null;
 };
 
@@ -132,15 +132,25 @@ async function listAuthUsers() {
   return users;
 }
 
-async function safeSelect<T>(
-  run: () => Promise<{ data: T[] | null; error: { message?: string } | null }>
-) {
+type SelectRunner<T> = () => PromiseLike<{ data: T[] | null; error: { message?: string } | null }>;
+
+// カラム欠け等でクエリが失敗しても、フォールバック（最低限のカラム）で集計を続けられるようにする。
+async function safeSelect<T>(run: SelectRunner<T>, fallbackRun?: SelectRunner<T>) {
   const result = await run();
   if (!result.error) {
     return { data: (result.data ?? []) as T[], warning: null };
   }
   const message = result.error.message ?? "Unknown error";
   if (looksMissingTableOrColumn(message)) {
+    if (fallbackRun) {
+      const fallback = await fallbackRun();
+      if (!fallback.error) {
+        return {
+          data: (fallback.data ?? []) as T[],
+          warning: `${message}（一部の列が無いため簡易集計に切り替えました）`,
+        };
+      }
+    }
     return { data: [] as T[], warning: message };
   }
   throw result.error;
@@ -170,24 +180,30 @@ export async function GET(request: Request) {
 
     const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
       listAuthUsers(),
-      safeSelect<ProfileRow>(() =>
-        supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000)
+      safeSelect<ProfileRow>(
+        () => supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000),
+        () => supabase.from("profiles").select("id,plan,role").limit(5000),
       ),
-      safeSelect<SubscriptionRow>(() =>
-        supabase
-          .from("subscriptions")
-          .select("user_id,stripe_customer_id,stripe_subscription_id,plan,status,created_at,current_period_end")
-          .limit(5000)
+      safeSelect<SubscriptionRow>(
+        () =>
+          supabase
+            .from("subscriptions")
+            .select("user_id,stripe_customer_id,stripe_subscription_id,plan,status,created_at,current_period_end")
+            .limit(5000),
+        () => supabase.from("subscriptions").select("user_id,plan,status").limit(5000),
       ),
-      safeSelect<PdfGenerationRow>(() =>
-        supabase
-          .from("pdf_generations")
-          .select("id,type,word_count,user_id,wordbook_id,created_at")
-          .order("created_at", { ascending: false })
-          .limit(5000)
+      safeSelect<PdfGenerationRow>(
+        () =>
+          supabase
+            .from("pdf_generations")
+            .select("id,type,word_count,user_id,wordbook_id,created_at")
+            .order("created_at", { ascending: false })
+            .limit(5000),
+        () => supabase.from("pdf_generations").select("id,type,word_count,user_id").limit(5000),
       ),
-      safeSelect<WordbookRow>(() =>
-        supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000)
+      safeSelect<WordbookRow>(
+        () => supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000),
+        () => supabase.from("wordbooks").select("id,title").limit(5000),
       ),
       safeSelect<AppSettingRow>(() =>
         supabase
@@ -203,11 +219,11 @@ export async function GET(request: Request) {
     const pdfGenerations = pdfResult.data;
     const wordbooks = wordbooksResult.data;
     const warnings = [
-      profilesResult.warning,
-      subscriptionsResult.warning,
-      pdfResult.warning,
-      wordbooksResult.warning,
-      settingsResult.warning,
+      profilesResult.warning ? `profiles: ${profilesResult.warning}` : null,
+      subscriptionsResult.warning ? `subscriptions: ${subscriptionsResult.warning}` : null,
+      pdfResult.warning ? `pdf_generations: ${pdfResult.warning}` : null,
+      wordbooksResult.warning ? `wordbooks: ${wordbooksResult.warning}` : null,
+      settingsResult.warning ? `app_settings: ${settingsResult.warning}` : null,
     ].filter((value): value is string => Boolean(value));
 
     const settings = settingsResult.data;
