@@ -168,14 +168,14 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
   if (typeof rule.maxPages === "number" && pageCount > rule.maxPages) {
     return {
       ok: false,
-      message: `${planLabel(plan)} plan allows up to ${rule.maxPages} pages per export.`,
+      message: `${planLabel(plan)}プランは1回あたり最大${rule.maxPages}ページまでです。`,
     };
   }
 
   if (typeof rule.maxWords === "number" && wordCount > rule.maxWords) {
     return {
       ok: false,
-      message: `${planLabel(plan)} plan allows up to ${rule.maxWords} words per export.`,
+      message: `${planLabel(plan)}プランは1回あたり最大${rule.maxWords}語までです。`,
     };
   }
 
@@ -185,7 +185,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
     if (used >= rule.maxGenerations) {
       return {
         ok: false,
-        message: `${planLabel(plan)} plan has reached today's export limit.`,
+        message: `本日の印刷（作成）回数の上限に達しました。`,
       };
     }
     if (typeof rule.maxTotalGenerations === "number") {
@@ -194,7 +194,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
       if (totalUsed >= rule.maxTotalGenerations) {
         return {
           ok: false,
-          message: `${planLabel(plan)} plan has reached the total export limit (${rule.maxTotalGenerations}).`,
+          message: `お試しで印刷できる回数（通算${rule.maxTotalGenerations}回）の上限に達しました。`,
         };
       }
     }
@@ -1816,7 +1816,7 @@ export default function Home() {
     if (!user) {
       setAuthMode("signup");
       setMessageTone("info");
-      setMessage(`${reason} まず無料会員登録をすると、利用状況を保存してPersonalの7日無料トライアルにも進めます。`);
+      setMessage(`${reason} 無料会員登録（メールアドレスだけ・完全無料）をすると、印刷回数がリセットされて、また印刷できます。さらにPersonalの7日間無料トライアルにも進めます。`);
       document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }

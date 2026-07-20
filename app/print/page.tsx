@@ -363,16 +363,14 @@ const printJobCss = `
   }
 
   @media print {
-    /* iOS Safari は @page の margin をほぼ無視するため margin:0 にして、
-       用紙の余白は .print-page 側の padding で作る（1ページ=A4 1枚を保証）。 */
     @page {
       size: A4 portrait;
-      margin: 0;
+      margin: 5mm;
     }
 
     html,
     body {
-      width: 210mm;
+      width: auto;
       min-height: 0;
       height: auto;
       background: white;
@@ -420,17 +418,18 @@ const printJobCss = `
     }
 
     .paper-preview .print-page {
-      width: 210mm !important;
-      /* 高さは内容に合わせる（固定280/296mmだと iOS の余白で溢れて2枚目が出るため）。 */
+      width: auto !important;
+      /* 高さは内容＋min-heightで用紙いっぱいに。固定280/296mmだと端末の余白で溢れて2枚目が出るため。 */
       height: auto !important;
-      min-height: 0 !important;
       max-height: none !important;
       overflow: hidden !important;
-      padding: 6mm 6mm 6mm !important;
+      padding: 0 !important;
       box-sizing: border-box !important;
       margin: 0 auto !important;
       border: 0 !important;
       box-shadow: none !important;
+      display: flex !important;
+      flex-direction: column !important;
       page-break-inside: avoid !important;
       break-inside: avoid !important;
       page-break-after: always !important;
@@ -442,29 +441,24 @@ const printJobCss = `
       break-after: auto !important;
     }
 
-    /* 高さautoにするとグリッド(flex:1)が潰れて上に詰まるので、内容ぶんの高さで表示する。 */
+    /* グリッドがページ内を埋めてフッターを下へ。上詰まり・下の大きな余白を防ぐ。 */
     .paper-preview .print-grid {
-      flex: 0 0 auto !important;
+      flex: 1 1 auto !important;
       min-height: 0 !important;
     }
 
-    /* 50語でも1ページに収まるよう、印刷時だけ行高をわずかに詰める（画面プレビューは従来どおり）。 */
-    .paper-preview .print-table td {
-      height: 8.8mm !important;
-      max-height: 8.8mm !important;
-    }
-    .paper-preview .print-table th {
-      height: 8mm !important;
-      max-height: 8mm !important;
-    }
-    .paper-preview .has-info .print-table td {
-      height: 8.4mm !important;
-      max-height: 8.4mm !important;
-    }
-    .paper-preview .has-info .print-table th {
-      height: 7.6mm !important;
-      max-height: 7.6mm !important;
-    }
+    /* 端末で印刷可能領域が違うので、iOSは安全側、Android/PCはページいっぱいに調整。 */
+    .plat-ios .paper-preview .print-page { min-height: 262mm !important; }
+    .plat-ios .paper-preview .print-table td { height: 9mm !important; max-height: 9mm !important; }
+    .plat-ios .paper-preview .print-table th { height: 8mm !important; max-height: 8mm !important; }
+    .plat-ios .paper-preview .has-info .print-table td { height: 8.5mm !important; max-height: 8.5mm !important; }
+    .plat-ios .paper-preview .has-info .print-table th { height: 7.6mm !important; max-height: 7.6mm !important; }
+
+    .plat-wide .paper-preview .print-page { min-height: 286mm !important; }
+    .plat-wide .paper-preview .print-table td { height: 9.9mm !important; max-height: 9.9mm !important; }
+    .plat-wide .paper-preview .print-table th { height: 8.6mm !important; max-height: 8.6mm !important; }
+    .plat-wide .paper-preview .has-info .print-table td { height: 9.4mm !important; max-height: 9.4mm !important; }
+    .plat-wide .paper-preview .has-info .print-table th { height: 8mm !important; max-height: 8mm !important; }
   }
 `;
 
@@ -473,6 +467,15 @@ export default function PrintPage() {
   const [job, setJob] = useState<PrintJob | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [availableWidth, setAvailableWidth] = useState(1060);
+  // iOS(Safari)は印刷可能領域が狭く、Android/PCは広い。端末で用紙いっぱいの高さを変える。
+  const [isIOS, setIsIOS] = useState(false);
+
+  useEffect(() => {
+    const ua = window.navigator.userAgent;
+    const iOSLike = /iPad|iPhone|iPod/.test(ua) ||
+      (window.navigator.platform === "MacIntel" && window.navigator.maxTouchPoints > 1);
+    setIsIOS(iOSLike);
+  }, []);
 
   function goBack() {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -533,7 +536,7 @@ export default function PrintPage() {
   const previewPageCount = Math.max(1, job?.html.match(/class=["']print-page/g)?.length ?? 1);
 
   return (
-    <main className="sheet">
+    <main className={`sheet ${isIOS ? "plat-ios" : "plat-wide"}`}>
       <style jsx global>{printJobCss}</style>
 
       <div className="toolbar">
