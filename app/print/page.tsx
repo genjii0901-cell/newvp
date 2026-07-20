@@ -134,7 +134,7 @@ const printJobCss = `
 
   .paper-preview .print-page-header h1 {
     margin: 0;
-    font-size: 12pt;
+    font-size: 13pt;
     font-weight: 900;
     letter-spacing: .04em;
   }
@@ -200,7 +200,7 @@ const printJobCss = `
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    font-size: 8.4pt;
+    font-size: 9.4pt;
     line-height: 1.2;
   }
 
@@ -222,7 +222,7 @@ const printJobCss = `
   }
 
   .paper-preview .has-info .print-table {
-    font-size: 7.8pt;
+    font-size: 8.6pt;
   }
 
   .paper-preview .has-info .print-table td {
@@ -421,8 +421,12 @@ const printJobCss = `
 
     .paper-preview .print-page {
       width: 210mm !important;
-      height: 296mm !important;
-      padding: 9mm 9mm 8mm !important;
+      /* 高さは内容に合わせる（固定280/296mmだと iOS の余白で溢れて2枚目が出るため）。 */
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      overflow: hidden !important;
+      padding: 6mm 6mm 6mm !important;
       box-sizing: border-box !important;
       margin: 0 auto !important;
       border: 0 !important;
