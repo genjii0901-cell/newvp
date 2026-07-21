@@ -14,7 +14,7 @@ type ProfileRow = {
   id: string;
   email?: string | null;
   plan: string | null;
-  role: string | null;
+  role?: string | null;
   stripe_customer_id?: string | null;
   created_at?: string | null;
 };
@@ -182,7 +182,8 @@ export async function GET(request: Request) {
       listAuthUsers(),
       safeSelect<ProfileRow>(
         () => supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000),
-        () => supabase.from("profiles").select("id,plan,role").limit(5000),
+        // role / created_at / stripe_customer_id が無い環境でもプラン数だけは集計できるよう id,plan に絞る
+        () => supabase.from("profiles").select("id,plan").limit(5000),
       ),
       safeSelect<SubscriptionRow>(
         () =>

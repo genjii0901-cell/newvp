@@ -6,12 +6,6 @@ import {
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
-
 export async function POST(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
@@ -24,8 +18,12 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const type = typeof body.type === "string" ? body.type : "pdf";
     const wordCount = Number(body.wordCount ?? 0);
-    const wordbookId =
-      typeof body.wordbookId === "string" && isUuid(body.wordbookId) ? body.wordbookId : null;
+    // 公式単語帳は整数ID、マイ単語帳はUUID。どちらも記録できるよう文字列としてそのまま保存する。
+    const rawWordbookId =
+      typeof body.wordbookId === "string" || typeof body.wordbookId === "number"
+        ? String(body.wordbookId).trim()
+        : "";
+    const wordbookId = rawWordbookId && rawWordbookId.length <= 64 ? rawWordbookId : null;
 
     const supabase = getSupabaseAdmin();
     const { error } = await supabase.from("pdf_generations").insert({

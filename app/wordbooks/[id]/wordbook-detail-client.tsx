@@ -284,6 +284,7 @@ export default function WordbookDetailPage() {
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [registerPrompt, setRegisterPrompt] = useState<string | null>(null);
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
   const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
@@ -296,8 +297,7 @@ export default function WordbookDetailPage() {
 
   function guideToRegister(reason: string) {
     if (isLoggedIn || typeof window === "undefined") return;
-    alert(`${reason}\n\nメールアドレスだけで完全無料の会員登録をすると、すぐに使えます。ログイン画面へ移動します。`);
-    window.location.href = "/#auth";
+    setRegisterPrompt(reason);
   }
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
@@ -620,8 +620,6 @@ export default function WordbookDetailPage() {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
       if (!token) return;
-      const bookIdStr = book ? String(book.id) : "";
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(bookIdStr);
       await fetch("/api/usage/record", {
         method: "POST",
         keepalive: true,
@@ -629,7 +627,7 @@ export default function WordbookDetailPage() {
         body: JSON.stringify({
           type: testType,
           wordCount: effectiveCount,
-          wordbookId: isUuid ? bookIdStr : null,
+          wordbookId: book ? String(book.id) : null,
         }),
       });
     } catch {
@@ -1819,6 +1817,43 @@ export default function WordbookDetailPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {registerPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setRegisterPrompt(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-xs font-black text-blue-700">無料会員限定の機能です</p>
+            <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{registerPrompt}</h3>
+            <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
+              メールアドレスだけで登録でき、<span className="text-slate-900">料金は一切かかりません</span>。
+              登録すると出題形式・出題方向・番号の変更、単語チェック・聞き流しがすぐ使えます。
+            </p>
+            <div className="mt-5 space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = "/#auth";
+                }}
+                className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+              >
+                無料登録する（0円）
+              </button>
+              <button
+                type="button"
+                onClick={() => setRegisterPrompt(null)}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50"
+              >
+                戻る
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
   );

@@ -125,6 +125,24 @@ type AdminMetrics = {
 };
 
 /* 笏笏笏 Image presets 笏笏笏 */
+/* 集計元データ（Supabase / Stripe）へのリンク。数値の裏付けを確認するために使う。 */
+const SUPABASE_DASHBOARD = (() => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+  const match = url.match(/^https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  return match ? `https://supabase.com/dashboard/project/${match[1]}` : "";
+})();
+
+const SOURCE_LINKS: Array<{ label: string; href: string; hint: string }> = [
+  ...(SUPABASE_DASHBOARD
+    ? [
+        { label: "👤 登録ユーザー", href: `${SUPABASE_DASHBOARD}/auth/users`, hint: "人数の元データ (Supabase Auth)" },
+        { label: "🗂 profiles / subscriptions", href: `${SUPABASE_DASHBOARD}/editor`, hint: "プラン・購読の元データ" },
+        { label: "🧪 SQLエディタ", href: `${SUPABASE_DASHBOARD}/sql/new`, hint: "テーブル作成・修正はここ" },
+      ]
+    : []),
+  { label: "💳 Stripe 購読一覧", href: "https://dashboard.stripe.com/subscriptions", hint: "課金の元データ" },
+];
+
 const IMAGE_PRESETS = [
   { label: "Library", url: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=900&q=80" },
   { label: "Notebook", url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80" },
@@ -1557,6 +1575,24 @@ export default function AdminPage() {
                     最終更新: {metricsUpdatedAt.toLocaleTimeString("ja-JP")}
                   </span>
                 )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+              <p className="text-xs font-black text-slate-500">集計元データを開く（数値の裏付け確認用）</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SOURCE_LINKS.map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={link.hint}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    {link.label} ↗
+                  </a>
+                ))}
               </div>
             </div>
 
