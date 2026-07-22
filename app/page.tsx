@@ -390,7 +390,8 @@ export default function Home() {
 
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>("user");
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  // 印刷には登録が必要なので、初期表示は「新規登録」を主導線にする。
+  const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
@@ -1346,6 +1347,12 @@ export default function Home() {
   }
 
   async function printWords(words: Word[], sourceTitle: string, sourceLabel: string) {
+    // 印刷は会員登録（無料）から。ここが登録への入口になる。
+    if (!user) {
+      guideToRegister("印刷するには会員登録が必要です。");
+      return;
+    }
+
     const activePlan = user ? plan : "free";
     const usageUserId = user?.id ?? "guest";
     const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
@@ -2141,9 +2148,11 @@ export default function Home() {
 
         {!user && (
           <section id="auth" className="mt-6 scroll-mt-24 rounded-3xl border bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-black">ログイン / 会員登録</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              ログインすると作成履歴の保存や、有料プランの利用ができます。
+            <p className="text-xs font-black text-blue-700">印刷には会員登録が必要です</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">登録して印刷する</h3>
+            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
+              無料プランならメールアドレスだけで登録でき、そのまま印刷できます。
+              たくさん印刷したい・透かしを消したいときは、Personalを<span className="text-slate-900">7日間0円</span>で試せます。
             </p>
             <p className="mt-2 text-xs text-slate-400">
               新規登録後は確認メールが届きます。メール内のリンクを開くと、このサイトに戻って認証が完了します。
@@ -2418,8 +2427,8 @@ export default function Home() {
                 onClick={() => guideToRegister("無料会員登録をすると、問題・解答プリントなど色々なテスト形式や、自由な範囲・問題数で作れます。")}
                 className="mt-2 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
               >
-                🔒 いまは「一覧・1〜50語」の見本のみ。無料登録すると、問題／解答など色々な形式と自由な番号で作れます。
-                <span className="ml-auto whitespace-nowrap font-black text-amber-700">無料登録 ›</span>
+                🔒 印刷には会員登録が必要です。登録すると問題／解答など色々な形式と、自由な番号で作れます。
+                <span className="ml-auto whitespace-nowrap font-black text-amber-700">登録して印刷 ›</span>
               </button>
             ) : null}
 

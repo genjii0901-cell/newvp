@@ -637,6 +637,11 @@ export default function WordbookDetailPage() {
 
   async function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
+    // 印刷は会員登録（無料）から。ここが登録への入口になる。
+    if (!isLoggedIn) {
+      setRegisterPrompt("印刷するには会員登録が必要です。");
+      return;
+    }
     if (freePrintBlocked) {
       window.alert(
         `無料プランで印刷できるのは1回${FREE_WORD_LIMIT}語までです。問題数を${FREE_WORD_LIMIT}語以内にするか、Personalの7日無料トライアルをご利用ください。`
@@ -1014,8 +1019,8 @@ export default function WordbookDetailPage() {
             onClick={() => guideToRegister("無料会員登録をすると、問題・解答プリントなど色々なテスト形式や、自由な範囲・問題数で作れます。")}
             className="mt-3 flex w-full items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs font-bold text-amber-800"
           >
-            🔒 いまは「一覧・1〜50語」の見本のみ。無料登録すると、問題／解答など色々な形式と自由な番号で作れます。
-            <span className="ml-auto whitespace-nowrap font-black text-amber-700">無料登録 ›</span>
+            🔒 印刷には会員登録が必要です。登録すると問題／解答など色々な形式と、自由な番号で作れます。
+            <span className="ml-auto whitespace-nowrap font-black text-amber-700">登録して印刷 ›</span>
           </button>
         ) : null}
       </section>
@@ -1831,11 +1836,24 @@ export default function WordbookDetailPage() {
             className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            <p className="text-xs font-black text-blue-700">無料会員限定の機能です</p>
+            <p className="text-xs font-black text-blue-700">会員登録が必要です</p>
             <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{registerPrompt}</h3>
-            <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-              メールアドレスだけで登録でき、<span className="text-slate-900">料金は一切かかりません</span>。
-              登録すると出題形式・出題方向・番号の変更、単語チェック・聞き流しがすぐ使えます。
+            <div className="mt-3 space-y-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-black text-slate-700">無料プラン（0円）</p>
+                <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-500">
+                  メールアドレスだけで登録。1回50語まで・「見本」の透かし入りで印刷できます。
+                </p>
+              </div>
+              <div className="rounded-2xl border-2 border-blue-500 bg-blue-50 p-3">
+                <p className="text-xs font-black text-blue-700">Personal（7日間 0円）</p>
+                <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-600">
+                  語数制限なし・透かしなし・範囲や問題数も自由。その後は月額780円、いつでも解約OK。
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-xs font-bold text-slate-500">
+              次の画面でどちらか選べます。
             </p>
             <div className="mt-5 space-y-2">
               <button
@@ -1845,7 +1863,7 @@ export default function WordbookDetailPage() {
                 }}
                 className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
               >
-                無料登録する（0円）
+                登録して印刷する
               </button>
               <button
                 type="button"
