@@ -412,6 +412,8 @@ export default function Home() {
   const [redSheet, setRedSheet] = useState(false);
   // 新規登録時に選ぶプラン。Personalは7日間無料で始められるので既定でおすすめ表示にする。
   const [signupPlan, setSignupPlan] = useState<"free" | "personal">("personal");
+  // Personalを選んで登録した人に、ログイン後トライアル開始バナーを出すためのフラグ
+  const [pendingTrial, setPendingTrial] = useState(false);
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
@@ -927,27 +929,28 @@ export default function Home() {
   const controlsLocked = !user;
   const numbersLocked = !user;
 
-  // 「Personalで登録」を選んだ人が、メール認証後にログインしてきたらトライアル手続きへ案内する。
+  // 「Personalで登録」を選んだ人には、ログイン後にトライアル開始バナーを出し続ける。
+  // （Stripe設定の読み込み待ちで案内を取りこぼさないよう、意思の記録は本人が操作するまで消さない）
   useEffect(() => {
-    if (!user || plan !== "free") return;
-    let intent = "";
-    try {
-      intent = window.localStorage.getItem("vpp-signup-intent") ?? "";
-    } catch {
+    if (!user) {
+      setPendingTrial(false);
       return;
     }
-    if (intent !== "personal") return;
+    try {
+      setPendingTrial(window.localStorage.getItem("vpp-signup-intent") === "personal");
+    } catch {
+      setPendingTrial(false);
+    }
+  }, [user]);
+
+  function clearTrialIntent() {
     try {
       window.localStorage.removeItem("vpp-signup-intent");
     } catch {
-      // 消せなくても案内は一度だけで良い
+      // 消せなくてもバナーは閉じる
     }
-    if (!configuredPlans.personal) return;
-    const ok = window.confirm(
-      "Personalの7日間無料トライアルを開始しますか？\n\n7日間は0円で、その後は月額780円です。いつでも解約できます。"
-    );
-    if (ok) void startCheckout("personal");
-  }, [user, plan, configuredPlans.personal]);
+    setPendingTrial(false);
+  }
 
   const currentListeningWord = outputWords[listeningIndex] ?? null;
   const currentListeningMeaning = currentListeningWord
@@ -1187,6 +1190,18 @@ export default function Home() {
         else window.localStorage.removeItem("vpp-signup-intent");
       } catch {
         // localStorageが使えない環境では通常の無料登録として扱う
+      }
+
+      // 確認メールが不要な設定では、この時点で既にログイン済みになる。
+      if (data.session) {
+        setPendingTrial(signupPlan === "personal");
+        setMessageTone("success");
+        setMessage(
+          signupPlan === "personal"
+            ? "登録が完了しました。続けて、Personalの7日間無料トライアルを開始してください。"
+            : "登録が完了しました。無料プランですぐに使えます。"
+        );
+        return;
       }
 
       setMessageTone("success");
@@ -1970,6 +1985,38 @@ export default function Home() {
             単語データを貼り付けて、一覧・問題・解答の3種類のA4 PDFを即作成。英検・受験・資格試験対応。
           </p>
         </div>
+
+        {user && plan === "free" && pendingTrial && (
+          <div className="mt-4 rounded-3xl border-2 border-blue-500 bg-blue-50 p-5 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black text-blue-700">あと1ステップで完了です</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">
+                  Personalの7日間無料トライアルを開始しましょう
+                </h3>
+                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
+                  7日間は0円。その後は月額780円で、語数制限なし・透かしなし・範囲や問題数も自由になります。いつでも解約できます。
+                </p>
+              </div>
+              <div className="flex flex-none gap-2">
+                <button
+                  type="button"
+                  onClick={() => startCheckout("personal")}
+                  className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+                >
+                  7日間無料で始める
+                </button>
+                <button
+                  type="button"
+                  onClick={clearTrialIntent}
+                  className="rounded-2xl border bg-white px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50"
+                >
+                  あとで
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <section className="mt-5 rounded-3xl border bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
