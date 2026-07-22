@@ -75,6 +75,38 @@ const printJobCss = `
     border-color: #2563eb;
   }
 
+  .btn.big {
+    padding: 14px 24px;
+    font-size: 16px;
+    font-weight: 900;
+    box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3);
+  }
+
+  /* スマホ(特にAndroid)は自動で印刷ダイアログが開かないため、常に押せるボタンを画面下に固定する。 */
+  .print-fab {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 50;
+    display: none;
+    border: none;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 900;
+    padding: 14px 28px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.28);
+    cursor: pointer;
+  }
+
+  @media (max-width: 767px) {
+    .print-fab { display: block; }
+    .actions { width: 100%; }
+    .btn.big { flex: 1 1 auto; }
+  }
+
   .paper-wrap {
     overflow: auto;
     border: 1px solid #e2e8f0;
@@ -387,8 +419,9 @@ const printJobCss = `
       padding: 0;
     }
 
-    .toolbar {
-      display: none;
+    .toolbar,
+    .print-fab {
+      display: none !important;
     }
 
     .paper-wrap {
@@ -556,12 +589,12 @@ export default function PrintPage() {
         <div>
           <h1 className="title">単語テスト</h1>
           <p className="sub">
-            ここから印刷ダイアログを開けます。
+            自動で印刷画面が開かないときは「🖨 印刷する」を押してください。
           </p>
         </div>
         <div className="actions">
-          <button type="button" onClick={openPrintDialog} className="btn primary">
-            印刷ダイアログを開く
+          <button type="button" onClick={openPrintDialog} className="btn primary big">
+            🖨 印刷する
           </button>
           <button type="button" onClick={goBack} className="btn">
             戻る
@@ -599,6 +632,12 @@ export default function PrintPage() {
             />
           </div>
         </div>
+      )}
+
+      {job && (
+        <button type="button" className="print-fab" onClick={openPrintDialog}>
+          🖨 印刷する
+        </button>
       )}
     </main>
   );

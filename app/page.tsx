@@ -410,6 +410,8 @@ export default function Home() {
   const [type, setType] = useState<PdfType>("list");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
+  // 新規登録時に選ぶプラン。Personalは7日間無料で始められるので既定でおすすめ表示にする。
+  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("personal");
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
@@ -925,6 +927,28 @@ export default function Home() {
   const controlsLocked = !user;
   const numbersLocked = !user;
 
+  // 「Personalで登録」を選んだ人が、メール認証後にログインしてきたらトライアル手続きへ案内する。
+  useEffect(() => {
+    if (!user || plan !== "free") return;
+    let intent = "";
+    try {
+      intent = window.localStorage.getItem("vpp-signup-intent") ?? "";
+    } catch {
+      return;
+    }
+    if (intent !== "personal") return;
+    try {
+      window.localStorage.removeItem("vpp-signup-intent");
+    } catch {
+      // 消せなくても案内は一度だけで良い
+    }
+    if (!configuredPlans.personal) return;
+    const ok = window.confirm(
+      "Personalの7日間無料トライアルを開始しますか？\n\n7日間は0円で、その後は月額780円です。いつでも解約できます。"
+    );
+    if (ok) void startCheckout("personal");
+  }, [user, plan, configuredPlans.personal]);
+
   const currentListeningWord = outputWords[listeningIndex] ?? null;
   const currentListeningMeaning = currentListeningWord
     ? formatMeaning(currentListeningWord.japanese, listeningMeaningMode)
@@ -1157,8 +1181,20 @@ export default function Home() {
         setRole("user");
       }
 
+      // Personalを選んで登録した人は、メール認証後のログイン時にトライアル手続きへ案内する。
+      try {
+        if (signupPlan === "personal") window.localStorage.setItem("vpp-signup-intent", "personal");
+        else window.localStorage.removeItem("vpp-signup-intent");
+      } catch {
+        // localStorageが使えない環境では通常の無料登録として扱う
+      }
+
       setMessageTone("success");
-      setMessage("確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。");
+      setMessage(
+        signupPlan === "personal"
+          ? "確認メールを送信しました。メール内のリンクを開いて認証すると、Personalの7日間無料トライアルの手続きに進めます。"
+          : "確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。"
+      );
       return;
     }
 
@@ -1425,7 +1461,13 @@ export default function Home() {
     ]);
 
     recordLocalUsage(usageUserId, activePlan);
-    if (user) await savePdfHistory();
+    // 利用記録は最大600msだけ待つ。記録APIが遅い/失敗しても印刷ページへの遷移を止めない。
+    if (user) {
+      await Promise.race([
+        savePdfHistory(),
+        new Promise((resolve) => window.setTimeout(resolve, 600)),
+      ]);
+    }
 
     if (usePrintPage) {
       window.location.href = "/print";
@@ -2068,6 +2110,58 @@ export default function Home() {
                 新規登録
               </button>
             </div>
+
+            {authMode === "signup" && (
+              <div className="mt-4">
+                <p className="text-sm font-black text-slate-700">どちらで始めますか？</p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => setSignupPlan("personal")}
+                    className={`relative rounded-2xl border-2 p-4 text-left transition ${
+                      signupPlan === "personal"
+                        ? "border-blue-600 bg-blue-50 shadow-md"
+                        : "border-slate-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <span className="absolute right-3 top-3 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
+                      おすすめ
+                    </span>
+                    <span className="block text-xs font-black text-blue-700">Personal</span>
+                    <span className="mt-1 block text-xl font-black text-slate-950">7日間 0円</span>
+                    <span className="mt-1 block text-[11px] font-bold text-slate-500">
+                      その後は月額780円 / いつでも解約OK
+                    </span>
+                    <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
+                      語数制限なし・透かしなし・範囲や問題数も自由・単語帳の保存
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSignupPlan("free")}
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
+                      signupPlan === "free"
+                        ? "border-blue-600 bg-blue-50 shadow-md"
+                        : "border-slate-200 bg-white hover:border-blue-300"
+                    }`}
+                  >
+                    <span className="block text-xs font-black text-slate-500">Free</span>
+                    <span className="mt-1 block text-xl font-black text-slate-950">ずっと 0円</span>
+                    <span className="mt-1 block text-[11px] font-bold text-slate-500">
+                      カード登録は不要です
+                    </span>
+                    <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
+                      1回50語まで・「見本」の透かし入り・1ページまで
+                    </span>
+                  </button>
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-slate-400">
+                  {signupPlan === "personal"
+                    ? "メール認証のあと、お支払い手続きの画面へご案内します。7日以内に解約すれば料金はかかりません。"
+                    : "無料のまま使えます。あとからPersonalの7日間無料も試せます。"}
+                </p>
+              </div>
+            )}
 
             <div className="mt-4 grid gap-2">
               <button

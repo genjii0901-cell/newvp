@@ -643,8 +643,11 @@ export default function WordbookDetailPage() {
       );
       return;
     }
-    // モバイルはこの後すぐ /print へ遷移するため、記録の送信完了を待ってから進む。
-    await recordPdfUsage();
+    // 記録は最大600msだけ待つ。記録APIが遅い/失敗しても印刷ページへの遷移を止めない。
+    await Promise.race([
+      recordPdfUsage(),
+      new Promise((resolve) => window.setTimeout(resolve, 600)),
+    ]);
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
