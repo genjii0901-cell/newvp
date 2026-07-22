@@ -1235,6 +1235,16 @@ export default function Home() {
       return;
     }
 
+    // Google/LINEでも「Personalで登録」を選んでいたら記録しておく。
+    // OAuthは外部サイトへ遷移して戻ってくるため、localStorageに残しておかないと選択が失われる。
+    try {
+      if (authMode === "signup" && signupPlan === "personal") {
+        window.localStorage.setItem("vpp-signup-intent", "personal");
+      }
+    } catch {
+      // localStorageが使えない環境では通常のログインとして扱う
+    }
+
     const supabaseProvider = provider === "line" ? "custom:line" : provider;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: supabaseProvider,
