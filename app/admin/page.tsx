@@ -143,6 +143,15 @@ const SOURCE_LINKS: Array<{ label: string; href: string; hint: string }> = [
   { label: "💳 Stripe 購読一覧", href: "https://dashboard.stripe.com/subscriptions", hint: "課金の元データ" },
 ];
 
+/* 単語帳をタイトル/説明/作成者/IDで絞り込む（管理画面の検索用） */
+function bookMatchesQuery(book: { title?: string | null; description?: string | null; creator?: string | null; id?: string | number }, query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [book.title, book.description, book.creator, book.id]
+    .filter((v) => v !== null && v !== undefined)
+    .some((v) => String(v).toLowerCase().includes(q));
+}
+
 const IMAGE_PRESETS = [
   { label: "Library", url: "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=900&q=80" },
   { label: "Notebook", url: "https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=900&q=80" },
@@ -674,6 +683,10 @@ export default function AdminPage() {
     return Array.from(groups.values()).filter((items) => items.length > 1);
   }, [books]);
 
+  /* 単語帳の検索（一覧タブ・PDF作成タブ共通） */
+  const [manageBookSearch, setManageBookSearch] = useState("");
+  const [pdfBookSearch, setPdfBookSearch] = useState("");
+
   /* pdf builder 窶・all options */
   const [pdfBookId, setPdfBookId] = useState("");
   const [pdfType, setPdfType] = useState<PdfType>("list");
@@ -977,7 +990,7 @@ export default function AdminPage() {
     const result = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) { setCreateMsg(result.message ?? "保存失敗"); return; }
-    setCreateMsg(`✅ 保存しました（${result.wordCount}語）`);
+    const savedTitle = title;
     if (result.wordbook?.id) {
       const createdBook: OfficialBook = {
         id: String(result.wordbook.id),
@@ -992,7 +1005,12 @@ export default function AdminPage() {
       setBooks((current) => [createdBook, ...current.filter((book) => book.id !== createdBook.id)]);
     }
     await fetchBooks({ includeWords: false });
-    setTab("manage");
+    // 登録したら入力をクリアして、続けて次の単語帳を入力できるようにする（タブは移動しない）。
+    setTitle("");
+    setDesc("");
+    setCoverImage("");
+    setPasteText("");
+    setCreateMsg(`✅ 「${savedTitle}」を登録しました（${result.wordCount}語）。続けて次の単語帳を入力できます。`);
   }
 
   /* 笏笏 edit 笏笏 */
@@ -2158,6 +2176,14 @@ export default function AdminPage() {
               )}
             </div>
 
+            {books.length > 0 && (
+              <input
+                value={manageBookSearch}
+                onChange={(e) => setManageBookSearch(e.target.value)}
+                placeholder="🔍 単語帳を検索（タイトル・作成者・IDなど）"
+                className="mb-4 w-full rounded-xl border px-4 py-2.5 text-sm"
+              />
+            )}
             {manageMsg && (
               <p className={`mb-4 rounded-2xl p-4 text-sm font-bold ${manageMsg.startsWith("✅") ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{manageMsg}</p>
             )}
@@ -2179,7 +2205,12 @@ export default function AdminPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {books.map((book) => (
+                {books.filter((book) => bookMatchesQuery(book, manageBookSearch)).length === 0 ? (
+                  <p className="rounded-3xl border border-dashed bg-white p-8 text-center text-sm font-bold text-slate-400">
+                    「{manageBookSearch}」に一致する単語帳はありません。
+                  </p>
+                ) : null}
+                {books.filter((book) => bookMatchesQuery(book, manageBookSearch)).map((book) => (
                   <div key={book.id} className="rounded-3xl border bg-white p-5 shadow-sm">
                     {editId === book.id ? (
                       <div>
@@ -2263,14 +2294,23 @@ export default function AdminPage() {
                 <h2 className="text-lg font-black mb-4">📋 単語帳・範囲</h2>
 
                 <label className="text-sm font-bold">単語帳を選択</label>
+                <input
+                  value={pdfBookSearch}
+                  onChange={(e) => setPdfBookSearch(e.target.value)}
+                  placeholder="🔍 単語帳を検索して絞り込む"
+                  className="mt-1 mb-1 w-full rounded-xl border px-3 py-2 text-sm"
+                />
                 <select value={pdfBookId} onChange={(e) => setPdfBookId(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm">
                   <option value="">― 選択してください ―</option>
-                  {books.map((b) => (
+                  {books.filter((b) => bookMatchesQuery(b, pdfBookSearch)).map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.title}（{getBookWordCount(b)}語{b.visibility === "admin" ? " 🔒管理者限定" : ""})
                     </option>
                   ))}
                 </select>
+                {pdfBookSearch.trim() && books.filter((b) => bookMatchesQuery(b, pdfBookSearch)).length === 0 && (
+                  <p className="mt-1 text-xs font-bold text-amber-600">一致する単語帳がありません。</p>
+                )}
 
                 {selectedPdfBook && (
                   <div className="mt-3 grid grid-cols-3 gap-2">
