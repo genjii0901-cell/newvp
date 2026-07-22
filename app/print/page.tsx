@@ -448,11 +448,22 @@ const printJobCss = `
       min-height: 0 !important;
     }
 
+    /* 記入欄(氏名など)とフッター(created by)が2枚目に溢れないよう、本文下の余白を詰める。 */
+    .paper-preview .print-page-header {
+      margin-bottom: 2mm !important;
+    }
+    .paper-preview .print-info-box {
+      margin-top: 3mm !important;
+    }
+    .paper-preview footer {
+      margin-top: 3mm !important;
+    }
+
     /* min-heightでの強制フィルはしない。端末差は行の高さだけで調整（溢れ防止を最優先）。 */
-    .plat-ios .paper-preview .print-table td { height: 9mm !important; max-height: 9mm !important; }
-    .plat-ios .paper-preview .print-table th { height: 8mm !important; max-height: 8mm !important; }
-    .plat-ios .paper-preview .has-info .print-table td { height: 8.4mm !important; max-height: 8.4mm !important; }
-    .plat-ios .paper-preview .has-info .print-table th { height: 7.6mm !important; max-height: 7.6mm !important; }
+    .plat-ios .paper-preview .print-table td { height: 8.6mm !important; max-height: 8.6mm !important; }
+    .plat-ios .paper-preview .print-table th { height: 7.6mm !important; max-height: 7.6mm !important; }
+    .plat-ios .paper-preview .has-info .print-table td { height: 8.2mm !important; max-height: 8.2mm !important; }
+    .plat-ios .paper-preview .has-info .print-table th { height: 7.2mm !important; max-height: 7.2mm !important; }
 
     .plat-wide .paper-preview .print-table td { height: 9.5mm !important; max-height: 9.5mm !important; }
     .plat-wide .paper-preview .print-table th { height: 8.5mm !important; max-height: 8.5mm !important; }
@@ -496,7 +507,10 @@ export default function PrintPage() {
     try {
       const parsed = JSON.parse(raw) as PrintJob;
       if (typeof parsed?.html === "string") {
-        setJob(parsed);
+        // 埋め込みCSSの @page（余白9mm等）は後勝ちでこのページの @page を打ち消すため取り除く。
+        // 用紙余白はこのページ側（5mm）で一元管理する。
+        const html = parsed.html.replace(/@page\s*\{[^}]*\}/gi, "");
+        setJob({ ...parsed, html });
         window.setTimeout(openPrintDialog, 900);
       }
     } catch {
