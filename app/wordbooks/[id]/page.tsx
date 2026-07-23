@@ -111,6 +111,43 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-export default function WordbookDetailPage() {
-  return <WordbookDetailClient />;
+export default async function WordbookDetailPage({ params }: PageProps) {
+  const { id: slug } = await params;
+  const book = await findSeoWordbook(slug);
+  const displayTitle = book?.title ?? titleFromSlug(slug);
+  const canonicalPath = book ? buildWordbookPath(book.id, book.title) : `/wordbooks/${encodeURIComponent(slug)}`;
+  const wordCount = (book as { wordCount?: number } | null)?.wordCount ?? book?.words?.length ?? 0;
+
+  // 構造化データ: 教材ページであること＋パンくずをGoogleに伝える（検索での表示を助ける）。
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "LearningResource",
+        name: `${displayTitle}${label.titleSuffix}`,
+        url: `${siteUrl}${canonicalPath}`,
+        inLanguage: "ja",
+        learningResourceType: "英単語テスト・一覧プリント",
+        educationalUse: "自習・小テスト",
+        isAccessibleForFree: true,
+        provider: { "@type": "Organization", name: "Vocab Print Pro", url: siteUrl },
+        ...(wordCount ? { about: `${displayTitle}（約${wordCount}語）` } : {}),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "ホーム", item: siteUrl },
+          { "@type": "ListItem", position: 2, name: "みんなの単語帳", item: `${siteUrl}/wordbooks` },
+          { "@type": "ListItem", position: 3, name: displayTitle, item: `${siteUrl}${canonicalPath}` },
+        ],
+      },
+    ],
+  };
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <WordbookDetailClient />
+    </>
+  );
 }
