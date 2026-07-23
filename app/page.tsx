@@ -413,8 +413,10 @@ export default function Home() {
   const [redSheet, setRedSheet] = useState(false);
   // 新規登録時に選ぶプラン。Personalは7日間無料で始められるので既定でおすすめ表示にする。
   const [signupPlan, setSignupPlan] = useState<"free" | "personal">("personal");
-  // Personalを選んで登録した人に、ログイン後トライアル開始バナーを出すためのフラグ
+  // Personalを選んで登録した人に、ログイン後トライアル開始を促すためのフラグ
   const [pendingTrial, setPendingTrial] = useState(false);
+  const [trialModalOpen, setTrialModalOpen] = useState(false);
+  const [upsellBarDismissed, setUpsellBarDismissed] = useState(false);
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
@@ -935,22 +937,34 @@ export default function Home() {
   useEffect(() => {
     if (!user) {
       setPendingTrial(false);
+      setTrialModalOpen(false);
       return;
     }
+    let intent = false;
     try {
-      setPendingTrial(window.localStorage.getItem("vpp-signup-intent") === "personal");
+      intent = window.localStorage.getItem("vpp-signup-intent") === "personal";
     } catch {
-      setPendingTrial(false);
+      intent = false;
     }
+    setPendingTrial(intent);
+    if (intent) setTrialModalOpen(true); // 有料登録を選んだ人には、登録直後に目立つポップアップを出す
   }, [user]);
 
+  // 「有料登録の完了」ポップアップを閉じる（＝上部の勧誘バーに切り替わる）
+  function dismissTrialModal() {
+    setTrialModalOpen(false);
+  }
+
+  // トライアルの意思を消す（もう促さない）。バーの「あとで」用。
   function clearTrialIntent() {
     try {
       window.localStorage.removeItem("vpp-signup-intent");
     } catch {
-      // 消せなくてもバナーは閉じる
+      // 消せなくてもUIは閉じる
     }
     setPendingTrial(false);
+    setTrialModalOpen(false);
+    setUpsellBarDismissed(true);
   }
 
   const currentListeningWord = outputWords[listeningIndex] ?? null;
@@ -1196,6 +1210,7 @@ export default function Home() {
       // 確認メールが不要な設定では、この時点で既にログイン済みになる。
       if (data.session) {
         setPendingTrial(signupPlan === "personal");
+        if (signupPlan === "personal") setTrialModalOpen(true);
         setMessageTone("success");
         setMessage(
           signupPlan === "personal"
@@ -2003,16 +2018,16 @@ export default function Home() {
           </p>
         </div>
 
-        {user && plan === "free" && pendingTrial && (
-          <div className="mt-4 rounded-3xl border-2 border-blue-500 bg-blue-50 p-5 shadow-sm">
+        {user && plan === "free" && !trialModalOpen && !upsellBarDismissed && (
+          <div className="mt-4 rounded-3xl border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black text-blue-700">あと1ステップで完了です</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">
-                  Personalの7日間無料トライアルを開始しましょう
+                <p className="text-xs font-black text-rose-500">期間限定・7日間無料</p>
+                <h3 className="mt-1 text-base font-black text-slate-950 sm:text-lg">
+                  Personalなら印刷し放題。7日間0円でお試しできます
                 </h3>
-                <p className="mt-1 text-sm font-bold leading-6 text-slate-600">
-                  7日間は0円。その後は月額780円で、語数制限なし・透かしなし・範囲や問題数も自由になります。いつでも解約できます。
+                <p className="mt-1 text-xs font-bold leading-6 text-slate-600 sm:text-sm">
+                  無料プランは1ページの印刷が2回まで。たくさん刷るならPersonalがお得（その後は月額780円・いつでも解約OK）。
                 </p>
               </div>
               <div className="flex flex-none gap-2">
@@ -2025,10 +2040,10 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
-                  onClick={clearTrialIntent}
+                  onClick={() => setUpsellBarDismissed(true)}
                   className="rounded-2xl border bg-white px-4 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50"
                 >
-                  あとで
+                  閉じる
                 </button>
               </div>
             </div>
@@ -2193,13 +2208,16 @@ export default function Home() {
                     <span className="absolute right-3 top-3 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
                       おすすめ
                     </span>
-                    <span className="block text-xs font-black text-blue-700">Personal</span>
-                    <span className="mt-1 block text-xl font-black text-slate-950">7日間 0円</span>
+                    <span className="absolute right-14 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+                      期間限定
+                    </span>
+                    <span className="block text-xs font-black text-blue-700">Personalプラン</span>
+                    <span className="mt-1 block text-xl font-black text-slate-950">7日間 無料</span>
                     <span className="mt-1 block text-[11px] font-bold text-slate-500">
                       その後は月額780円 / いつでも解約OK
                     </span>
                     <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
-                      語数制限なし・透かしなし・範囲や問題数も自由・単語帳の保存
+                      印刷し放題・語数制限なし・透かしなし・範囲や問題数も自由・単語帳の保存
                     </span>
                   </button>
                   <button
@@ -2211,20 +2229,20 @@ export default function Home() {
                         : "border-slate-200 bg-white hover:border-blue-300"
                     }`}
                   >
-                    <span className="block text-xs font-black text-slate-500">Free</span>
-                    <span className="mt-1 block text-xl font-black text-slate-950">ずっと 0円</span>
+                    <span className="block text-xs font-black text-slate-500">フリープラン</span>
+                    <span className="mt-1 block text-xl font-black text-slate-950">無料</span>
                     <span className="mt-1 block text-[11px] font-bold text-slate-500">
                       カード登録は不要です
                     </span>
                     <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
-                      1回50語まで・「見本」の透かし入り・1ページまで
+                      1ページの印刷を2回まで無料。3回目以降や2ページ以上は1ページ50円（Personalなら印刷し放題でお得）。
                     </span>
                   </button>
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-slate-400">
                   {signupPlan === "personal"
-                    ? "メール認証のあと、お支払い手続きの画面へご案内します。7日以内に解約すれば料金はかかりません。"
-                    : "無料のまま使えます。あとからPersonalの7日間無料も試せます。"}
+                    ? "メール認証のあと、7日間無料トライアルの登録画面をご案内します。7日以内に解約すれば料金はかかりません。"
+                    : "無料で始められます。たくさん印刷するならPersonalの7日間無料がお得です。"}
                 </p>
               </div>
             )}
@@ -3221,6 +3239,48 @@ export default function Home() {
           </div>
         );
       })()}
+
+      {user && plan === "free" && trialModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
+            <p className="text-center text-xs font-black text-rose-500">期間限定・7日間無料</p>
+            <h3 className="mt-2 text-center text-2xl font-black leading-tight text-slate-950">
+              Personalプランの登録を
+              <br />
+              完了しましょう
+            </h3>
+            <div className="mt-5 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 text-center">
+              <p className="text-3xl font-black text-slate-950">7日間 0円</p>
+              <p className="mt-1 text-sm font-black text-slate-600">その後は月額780円・いつでも解約OK</p>
+            </div>
+            <ul className="mt-4 space-y-1.5 text-sm font-bold text-slate-700">
+              <li>✓ 印刷し放題（枚数・回数の制限なし）</li>
+              <li>✓ 語数制限なし・「見本」の透かしなし</li>
+              <li>✓ 出題範囲・問題数・形式も自由</li>
+              <li>✓ 単語帳の保存</li>
+            </ul>
+            <div className="mt-6 space-y-2">
+              <button
+                type="button"
+                onClick={() => startCheckout("personal")}
+                className="w-full rounded-2xl bg-blue-600 px-4 py-4 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+              >
+                7日間無料で登録する
+              </button>
+              <button
+                type="button"
+                onClick={dismissTrialModal}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50"
+              >
+                あとで（無料プランのまま使う）
+              </button>
+            </div>
+            <p className="mt-3 text-center text-[11px] font-bold text-slate-400">
+              7日以内に解約すれば料金は一切かかりません。
+            </p>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
