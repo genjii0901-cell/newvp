@@ -288,12 +288,10 @@ export default function WordbookDetailPage() {
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
   const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
-  // 登録誘導ゲート:
-  //  未登録   -> 出題方向・出力形式・番号すべてロック（一覧1〜50の見本のみ）
-  //  無料登録 -> 形式・方向・番号を自由に変更可（印刷は50語まで、超過分は有料案内）
-  //  有料     -> 語数無制限
-  const controlsLocked = !isLoggedIn;
-  const numbersLocked = !isLoggedIn;
+  // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
+  // 課金/登録のゲートは「最後の印刷」だけにかける方針。
+  const controlsLocked = false;
+  const numbersLocked = false;
 
   function guideToRegister(reason: string) {
     if (isLoggedIn || typeof window === "undefined") return;
@@ -1208,9 +1206,20 @@ export default function WordbookDetailPage() {
                 ))}
               </div>
 
-              <details className="rounded-2xl border bg-slate-50 p-3">
-                <summary className="cursor-pointer list-none text-sm font-black text-slate-800">詳細設定</summary>
-                <div className="mt-3 grid gap-2 text-sm font-bold">
+              <details className="group rounded-2xl border border-slate-300 bg-white shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-3 py-3 hover:bg-slate-50">
+                  <span className="flex items-center gap-2">
+                    <span>⚙️</span>
+                    <span className="text-sm font-black text-slate-800">詳細設定</span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">記入欄・日付など</span>
+                  </span>
+                  <span className="flex items-center gap-1 text-xs font-black text-blue-600">
+                    <span className="group-open:hidden">開く</span>
+                    <span className="hidden group-open:inline">閉じる</span>
+                    <span className="transition-transform group-open:rotate-180">▾</span>
+                  </span>
+                </summary>
+                <div className="grid gap-2 border-t px-3 pb-3 pt-3 text-sm font-bold">
                   <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     日付を入れる
                     <input type="checkbox" checked={includeDate} onChange={(event) => setIncludeDate(event.target.checked)} className="h-5 w-5" />

@@ -925,12 +925,10 @@ export default function Home() {
     return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
 
-  // 登録誘導ゲート:
-  //  未登録   -> 出題方向・出力形式・番号すべてロック（一覧1〜50の見本のみ印刷可）
-  //  無料登録 -> 形式・方向・番号を自由に変更可（印刷は50語まで、超過分は有料案内）
-  //  有料     -> 語数無制限
-  const controlsLocked = !user;
-  const numbersLocked = !user;
+  // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
+  // 課金/登録のゲートは「最後の印刷」だけにかける方針。
+  const controlsLocked = false;
+  const numbersLocked = false;
 
   // 「Personalで登録」を選んだ人には、ログイン後にトライアル開始バナーを出し続ける。
   // （Stripe設定の読み込み待ちで案内を取りこぼさないよう、意思の記録は本人が操作するまで消さない）
@@ -2515,11 +2513,22 @@ export default function Home() {
               ページ番号を表示
             </label>
 
-            <details className="mt-4 rounded-2xl border bg-slate-50 p-4">
-              <summary className="cursor-pointer list-none text-sm font-black text-slate-700">
-                詳細設定
+            <details className="group mt-4 rounded-2xl border border-slate-300 bg-white shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-4 py-3 hover:bg-slate-50">
+                <span className="flex items-center gap-2">
+                  <span className="text-base">⚙️</span>
+                  <span className="text-sm font-black text-slate-800">詳細設定</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                    文字の見せ方・記入欄・日付など
+                  </span>
+                </span>
+                <span className="flex items-center gap-1 text-xs font-black text-blue-600">
+                  <span className="group-open:hidden">開く</span>
+                  <span className="hidden group-open:inline">閉じる</span>
+                  <span className="transition-transform group-open:rotate-180">▾</span>
+                </span>
               </summary>
-              <div className="mt-4 space-y-4">
+              <div className="space-y-4 border-t px-4 pb-4 pt-4">
                 <div>
                   <label className="block text-sm font-bold">文字の見せ方</label>
                   <select
