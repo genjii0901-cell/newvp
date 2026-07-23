@@ -147,10 +147,23 @@ export function parseWordText(text: string): ParsedWordRow[] {
       }
 
       if (cells.length >= 4) {
+        const first = cleanCell(cells[0]);
+        const second = cleanCell(cells[1]);
+        const third = cleanCell(cells[2]);
+
+        if (!isPlainInteger(first) && hasJapanese(second) && !hasJapanese(third)) {
+          return {
+            number: String(index + 1),
+            english: first,
+            japanese: second,
+            unit: joinExtras(cells.slice(2)),
+          };
+        }
+
         return {
-          number: cleanCell(cells[0]) || String(index + 1),
-          english: cleanCell(cells[1]),
-          japanese: cleanCell(cells[2]),
+          number: first || String(index + 1),
+          english: second,
+          japanese: third,
           unit: joinExtras(cells.slice(3)),
         };
       }

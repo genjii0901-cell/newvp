@@ -10,7 +10,7 @@ import {
   normalizeBookTitle,
 } from "@/lib/official-wordbooks";
 import { requireAdmin } from "@/lib/admin-auth";
-import { embedWordbookMeta } from "@/lib/wordbook-meta";
+import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
 type IncomingWord = {
   number?: string | number;
@@ -31,7 +31,7 @@ function cleanWordList(words: IncomingWord[]) {
   return words
     .map((word, index) => {
       const rawNumber = String(word.number ?? word.no ?? "").trim();
-      const safeNumber = /^\d+$/.test(rawNumber) ? rawNumber : String(index + 1);
+      const safeNumber = /^(0|[1-9]\d*)$/.test(rawNumber) ? rawNumber : String(index + 1);
       const unitParts = [
         String(word.unit ?? "").trim(),
         String(word.page ?? "").trim(),
@@ -244,10 +244,31 @@ async function updateWordbookMeta(
 ) {
   const updatePayload: Record<string, unknown> = {};
   if (typeof meta.title === "string") updatePayload.title = meta.title.trim();
-  const embeddedDescription =
-    meta.description !== undefined || meta.coverImage !== undefined || meta.visibility !== undefined
-      ? embedWordbookMeta(meta.description, { coverImage: meta.coverImage, visibility: meta.visibility })
-      : null;
+
+  let embeddedDescription: string | null = null;
+  if (meta.description !== undefined || meta.coverImage !== undefined || meta.visibility !== undefined) {
+    const current = await supabase
+      .from("wordbooks")
+      .select("description,cover_image,visibility")
+      .eq("id", id)
+      .maybeSingle();
+    const currentRow = (current.data ?? {}) as {
+      description?: string | null;
+      cover_image?: string | null;
+      visibility?: string | null;
+    };
+    const currentEmbedded = parseEmbeddedWordbookMeta(currentRow.description);
+    const nextDescription =
+      meta.description !== undefined ? meta.description : stripEmbeddedWordbookMeta(currentRow.description);
+    const nextCoverImage =
+      meta.coverImage !== undefined ? meta.coverImage : currentRow.cover_image ?? currentEmbedded.coverImage ?? null;
+    const nextVisibility =
+      meta.visibility !== undefined ? meta.visibility : normalizeVisibility(currentRow.visibility ?? currentEmbedded.visibility);
+    embeddedDescription = embedWordbookMeta(nextDescription, {
+      coverImage: nextCoverImage,
+      visibility: nextVisibility,
+    });
+  }
   if (embeddedDescription !== null) updatePayload.description = embeddedDescription || null;
   if (meta.coverImage !== undefined) updatePayload.cover_image = meta.coverImage?.trim() || null;
   if (meta.visibility) updatePayload.visibility = meta.visibility;
@@ -298,8 +319,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const title = typeof body.title === "string" ? body.title.trim() : "";
-    const description = typeof body.description === "string" ? body.description.trim() : "";
-    const coverImage = typeof body.cover_image === "string" ? body.cover_image.trim() : null;
+    const description = typeof body.description === "string" ? body.description.trim() : undefined;
+    const coverImage = typeof body.cover_image === "string" ? body.cover_image.trim() : undefined;
     const visibility = normalizeVisibility(body.visibility);
     const words = Array.isArray(body.words) ? (body.words as IncomingWord[]) : [];
     const clean = cleanWordList(words);
@@ -325,8 +346,8 @@ export async function POST(request: Request) {
     } else {
       const created = await insertWordbook(supabase, {
         title,
-        description,
-        coverImage,
+        description: description ?? "",
+        coverImage: coverImage ?? null,
         visibility,
       });
       if (created.error || !created.data) {
@@ -358,8 +379,8 @@ export async function POST(request: Request) {
       wordbook: {
         id: String(wordbook.id),
         title,
-        description,
-        coverImage,
+        description: description ?? "",
+        coverImage: coverImage ?? null,
         visibility,
         requiredPlan: visibility === "teacher" ? "teacher" : visibility === "personal" ? "personal" : visibility === "admin" ? "admin" : "free",
         level: visibility === "teacher" ? "Teacher" : visibility === "personal" ? "Personal" : visibility === "admin" ? "Admin" : "Free",

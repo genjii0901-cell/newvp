@@ -15,7 +15,7 @@ function cleanWords(words: IncomingWord[]) {
   return words
     .map((word, index) => {
       const rawNumber = String(word.number ?? word.no ?? "").trim();
-      const safeNumber = /^\d+$/.test(rawNumber) ? rawNumber : String(index + 1);
+      const safeNumber = /^(0|[1-9]\d*)$/.test(rawNumber) ? rawNumber : String(index + 1);
       const unitParts = [
         typeof word.unit === "string" ? word.unit.trim() : "",
         typeof word.page === "string" ? word.page.trim() : "",
