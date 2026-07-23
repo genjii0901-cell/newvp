@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type PrintJob = {
   html: string;
   title: string;
   sourceLabel: string;
   createdAt: string;
+  requiresPayment?: boolean;
 };
 
 const printJobCss = `
@@ -512,6 +514,14 @@ export default function PrintPage() {
   const [availableWidth, setAvailableWidth] = useState(1060);
   // iOS(Safari)は印刷可能領域が狭く、Android/PCは広い。端末で用紙いっぱいの高さを変える。
   const [isIOS, setIsIOS] = useState(false);
+  // 単品購入の支払い待ち／検証中の状態。requiresPayment のジョブは支払い確認まで印刷させない。
+  const [paymentBlocked, setPaymentBlocked] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const blockedRef = useRef(false);
+  const block = (v: boolean) => {
+    blockedRef.current = v;
+    setPaymentBlocked(v);
+  };
 
   useEffect(() => {
     const ua = window.navigator.userAgent;
@@ -526,6 +536,7 @@ export default function PrintPage() {
   }
 
   function openPrintDialog() {
+    if (blockedRef.current) return; // 未払いの単品購入ジョブは印刷させない
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
         window.print();
@@ -533,22 +544,94 @@ export default function PrintPage() {
     });
   }
 
+  // 未払い状態から、この印刷ぶんの都度決済をやり直す。
+  async function retryPurchase(pages: number) {
+    setVerifying(true);
+    try {
+      const supabase = createClient();
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+      if (!token) {
+        alert("お手数ですが、トップ画面から会員登録・ログインのうえ、もう一度お試しください。");
+        setVerifying(false);
+        return;
+      }
+      const res = await fetch("/api/stripe/print-purchase-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pages }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.ok && data.url) {
+        window.location.href = data.url as string;
+        return;
+      }
+      alert(data?.error ?? "決済ページを開けませんでした。");
+    } catch {
+      alert("決済ページを開けませんでした。");
+    }
+    setVerifying(false);
+  }
+
   useEffect(() => {
     const raw = sessionStorage.getItem("vpp-print-job");
     if (!raw) return;
 
+    let parsed: PrintJob;
     try {
-      const parsed = JSON.parse(raw) as PrintJob;
-      if (typeof parsed?.html === "string") {
-        // 埋め込みCSSの @page（余白9mm等）は後勝ちでこのページの @page を打ち消すため取り除く。
-        // 用紙余白はこのページ側（5mm）で一元管理する。
-        const html = parsed.html.replace(/@page\s*\{[^}]*\}/gi, "");
-        setJob({ ...parsed, html });
-        window.setTimeout(openPrintDialog, 900);
-      }
+      parsed = JSON.parse(raw) as PrintJob;
     } catch {
-      // ignore parse errors
+      return;
     }
+    if (typeof parsed?.html !== "string") return;
+
+    // 埋め込みCSSの @page（余白9mm等）は後勝ちでこのページの @page を打ち消すため取り除く。
+    const html = parsed.html.replace(/@page\s*\{[^}]*\}/gi, "");
+    setJob({ ...parsed, html });
+
+    if (!parsed.requiresPayment) {
+      // 通常（有料ユーザー等）: そのまま印刷ダイアログを開く。
+      window.setTimeout(openPrintDialog, 900);
+      return;
+    }
+
+    // 単品購入ジョブ: Stripeから戻った時だけ、支払い済みを検証してから印刷を許可する。
+    const params = new URLSearchParams(window.location.search);
+    const purchase = params.get("purchase");
+    const sessionId = params.get("session_id");
+
+    if (purchase === "success" && sessionId) {
+      setVerifying(true);
+      (async () => {
+        try {
+          const supabase = createClient();
+          const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+          const res = await fetch("/api/stripe/verify-print-purchase", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            body: JSON.stringify({ sessionId }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (data?.ok && data.paid) {
+            // 支払い確認OK: 二重支払い防止のためジョブから支払いフラグを外し、印刷する。
+            block(false);
+            try {
+              sessionStorage.setItem("vpp-print-job", JSON.stringify({ ...parsed, html, requiresPayment: false }));
+            } catch { /* ignore */ }
+            window.setTimeout(openPrintDialog, 700);
+          } else {
+            block(true);
+          }
+        } catch {
+          block(true);
+        } finally {
+          setVerifying(false);
+        }
+      })();
+      return;
+    }
+
+    // 未払い（直接アクセス or キャンセル）: 印刷させない。
+    block(true);
   }, []);
 
   useEffect(() => {
@@ -589,13 +672,23 @@ export default function PrintPage() {
         <div>
           <h1 className="title">単語テスト</h1>
           <p className="sub">
-            自動で印刷画面が開かないときは「🖨 印刷する」を押してください。
+            {verifying
+              ? "支払いを確認しています..."
+              : paymentBlocked
+                ? `印刷するには支払いが必要です（${previewPageCount}ページ・¥${(previewPageCount * 50).toLocaleString()}）。`
+                : "自動で印刷画面が開かないときは「🖨 印刷する」を押してください。"}
           </p>
         </div>
         <div className="actions">
-          <button type="button" onClick={openPrintDialog} className="btn primary big">
-            🖨 印刷する
-          </button>
+          {paymentBlocked ? (
+            <button type="button" onClick={() => retryPurchase(previewPageCount)} disabled={verifying} className="btn primary big">
+              💳 支払って印刷（¥{(previewPageCount * 50).toLocaleString()}）
+            </button>
+          ) : (
+            <button type="button" onClick={openPrintDialog} disabled={verifying} className="btn primary big">
+              🖨 印刷する
+            </button>
+          )}
           <button type="button" onClick={goBack} className="btn">
             戻る
           </button>
@@ -634,9 +727,14 @@ export default function PrintPage() {
         </div>
       )}
 
-      {job && (
+      {job && !paymentBlocked && !verifying && (
         <button type="button" className="print-fab" onClick={openPrintDialog}>
           🖨 印刷する
+        </button>
+      )}
+      {job && paymentBlocked && (
+        <button type="button" className="print-fab" onClick={() => retryPurchase(previewPageCount)} disabled={verifying}>
+          💳 支払って印刷（¥{(previewPageCount * 50).toLocaleString()}）
         </button>
       )}
     </main>

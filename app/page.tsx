@@ -11,6 +11,7 @@ import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import OverlapTool from "./overlap-tool";
+import PrintGateModal from "./print-gate-modal";
 
 type Word = {
   no: number;
@@ -417,6 +418,10 @@ export default function Home() {
   const [pendingTrial, setPendingTrial] = useState(false);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
   const [upsellBarDismissed, setUpsellBarDismissed] = useState(false);
+  // 「最後の印刷」の支払いゲート（単品購入 or Personal）
+  const [printGateOpen, setPrintGateOpen] = useState(false);
+  const [printGatePages, setPrintGatePages] = useState(1);
+  const [printGateBusy, setPrintGateBusy] = useState(false);
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
@@ -1360,27 +1365,16 @@ export default function Home() {
   }
 
   async function printWords(words: Word[], sourceTitle: string, sourceLabel: string) {
-    // 印刷は会員登録（無料）から。ここが登録への入口になる。
-    if (!user) {
-      guideToRegister("印刷するには会員登録が必要です。");
-      return;
-    }
-
     const activePlan = user ? plan : "free";
+    const isPaidUser = activePlan === "personal" || activePlan === "teacher";
     const usageUserId = user?.id ?? "guest";
     const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     let usageCheckedByServer = false;
     const wordCount = words.length;
-    if (activePlan === "free" && wordCount > 50) {
-      await guideToPersonal(
-        `無料プランで印刷できるのは1回50語までです。現在の設定は${wordCount}語なので、範囲や問題数を50語以内にするか、Personalの7日無料トライアルをご利用ください。`
-      );
-      return;
-    }
-
     const pageCount = getPageCount(wordCount);
 
-    if (token && user) {
+    // 有料ユーザー(Personal/Teacher)のみサーバーで使用量チェック。無料/未登録は後段の支払いゲートで止める。
+    if (isPaidUser && token && user) {
       const usageResponse = await fetch("/api/usage/check", {
         method: "POST",
         headers: {
@@ -1407,13 +1401,16 @@ export default function Home() {
       }
     }
 
-    if (!usageCheckedByServer) {
+    if (isPaidUser && !usageCheckedByServer) {
       const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
       if (!fallback.ok) {
         await guideToPersonal(fallback.message);
         return;
       }
     }
+
+    // 支払い後は透かしなし・全ページを出す（無料判定でスライスされないよう personal 相当で組む）。
+    const buildPlan: Plan = isPaidUser ? activePlan : "personal";
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
@@ -1427,7 +1424,7 @@ export default function Home() {
       makeQuestion,
       direction,
       redSheet,
-      plan: activePlan,
+      plan: buildPlan,
       printStyle,
       includeWatermark,
       showRecordFields,
@@ -1458,6 +1455,24 @@ export default function Home() {
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
     const printPageHtml = `${copyGuardStyle}${copyGuardScript}<div id="print-root">${html}</div>`;
+
+    // 支払いゲート: Personal/Teacher 以外は、単品購入 or Personal を選ぶまで印刷しない。
+    if (!isPaidUser) {
+      window.sessionStorage.setItem(
+        "vpp-print-job",
+        JSON.stringify({
+          html: printPageHtml,
+          title: fullTitle,
+          sourceLabel,
+          createdAt: now.toISOString(),
+          requiresPayment: true,
+        }),
+      );
+      setPrintGatePages(Math.max(1, pageCount));
+      setPrintGateOpen(true);
+      return;
+    }
+
     const usePrintPage =
       typeof window !== "undefined" &&
       (window.matchMedia("(max-width: 767px)").matches ||
@@ -1517,6 +1532,39 @@ export default function Home() {
     if (usePrintPage) {
       window.location.href = "/print";
     }
+  }
+
+  // 支払いゲート「①単品購入」: 未登録は先に無料登録、登録済みはStripeの都度決済へ。
+  async function handlePrintPurchase() {
+    if (!user) {
+      setPrintGateOpen(false);
+      guideToRegister("印刷の単品購入には、無料の会員登録が必要です。");
+      return;
+    }
+    setPrintGateBusy(true);
+    try {
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+      const res = await fetch("/api/stripe/print-purchase-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ pages: printGatePages }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.ok && data.url) {
+        window.location.href = data.url as string;
+        return;
+      }
+      alert(data?.error ?? "決済ページを開けませんでした。");
+    } catch {
+      alert("決済ページを開けませんでした。時間をおいて再度お試しください。");
+    }
+    setPrintGateBusy(false);
+  }
+
+  // 支払いゲート「②Personal」: 7日間無料トライアルへ。
+  function handlePersonalFromGate() {
+    setPrintGateOpen(false);
+    void guideToPersonal("印刷し放題のPersonalプランを、7日間無料で試せます。");
   }
 
   async function printPdf() {
@@ -3248,6 +3296,16 @@ export default function Home() {
           </div>
         );
       })()}
+
+      <PrintGateModal
+        open={printGateOpen}
+        pages={printGatePages}
+        isLoggedIn={!!user}
+        busy={printGateBusy}
+        onPurchase={handlePrintPurchase}
+        onPersonal={handlePersonalFromGate}
+        onClose={() => setPrintGateOpen(false)}
+      />
 
       {user && plan === "free" && trialModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">

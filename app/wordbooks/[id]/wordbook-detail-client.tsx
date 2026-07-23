@@ -10,6 +10,7 @@ import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import QuizPanel from "./quiz-panel";
+import PrintGateModal from "../../print-gate-modal";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen";
@@ -285,9 +286,14 @@ export default function WordbookDetailPage() {
   const [userPlan, setUserPlan] = useState<Plan>("free");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [registerPrompt, setRegisterPrompt] = useState<string | null>(null);
+  // 「最後の印刷」の支払いゲート（単品購入 or Personal）
+  const [printGateOpen, setPrintGateOpen] = useState(false);
+  const [printGatePages, setPrintGatePages] = useState(1);
+  const [printGateBusy, setPrintGateBusy] = useState(false);
   const isPaid = userPlan === "personal" || userPlan === "teacher";
   const FREE_WORD_LIMIT = 50;
-  const maxWords = isPaid ? Number.MAX_SAFE_INTEGER : FREE_WORD_LIMIT;
+  // 設定は誰でも自由に。印刷は「単品購入 or Personal」の支払いゲートで止めるので、語数の上限は設けない。
+  const maxWords = Number.MAX_SAFE_INTEGER;
   // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
   // 課金/登録のゲートは「最後の印刷」だけにかける方針。
   const controlsLocked = false;
@@ -465,7 +471,8 @@ export default function WordbookDetailPage() {
   }, [controlsLocked, testType]);
 
   const requestedCount = Math.max(1, Math.min(Number(count) || 1, testWords.length || 1));
-  const freePrintBlocked = !isPaid && requestedCount > FREE_WORD_LIMIT;
+  // 旧「無料は50語まで」の印刷ブロックは廃止（印刷は支払いゲートで制御）。
+  const freePrintBlocked = false;
   const effectiveCount = Math.max(1, Math.min(requestedCount, maxWords, testWords.length || 1));
 
   const listenWord = visibleWords[listenIndex] ?? null;
@@ -484,7 +491,7 @@ export default function WordbookDetailPage() {
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: isPaid ? userPlan : "free",
+      plan: isPaid ? userPlan : "personal",
       printStyle,
       includeWatermark,
       includeDate,
@@ -635,26 +642,35 @@ export default function WordbookDetailPage() {
 
   async function openPrintPage() {
     if (!book || visibleWords.length === 0 || !printHtml) return;
-    // 印刷は会員登録（無料）から。ここが登録への入口になる。
-    if (!isLoggedIn) {
-      setRegisterPrompt("印刷するには会員登録が必要です。");
-      return;
-    }
-    if (freePrintBlocked) {
-      window.alert(
-        `無料プランで印刷できるのは1回${FREE_WORD_LIMIT}語までです。問題数を${FREE_WORD_LIMIT}語以内にするか、Personalの7日無料トライアルをご利用ください。`
-      );
-      return;
-    }
-    // 記録は最大600msだけ待つ。記録APIが遅い/失敗しても印刷ページへの遷移を止めない。
-    await Promise.race([
-      recordPdfUsage(),
-      new Promise((resolve) => window.setTimeout(resolve, 600)),
-    ]);
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
     const copyGuardScript = `<script>(function(){var b=["contextmenu","copy","cut","selectstart","dragstart"];b.forEach(function(e){document.addEventListener(e,function(ev){ev.preventDefault();return false;});});document.addEventListener("keydown",function(e){if((e.ctrlKey||e.metaKey)&&["c","x","a","u"].indexOf((e.key||"").toLowerCase())>-1){e.preventDefault();return false;}});})();<\/script>`;
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${printHtml}</div></body></html>`;
+    const printPageHtml = `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`;
+    const pages = Math.max(1, Math.ceil(effectiveCount / 50));
+
+    // 支払いゲート: Personal/Teacher 以外は、単品購入 or Personal を選ぶまで印刷しない。
+    if (!isPaid) {
+      sessionStorage.setItem(
+        "vpp-print-job",
+        JSON.stringify({
+          html: printPageHtml,
+          title: printTitle,
+          sourceLabel: "wordbook-detail",
+          createdAt: new Date().toISOString(),
+          requiresPayment: true,
+        }),
+      );
+      setPrintGatePages(pages);
+      setPrintGateOpen(true);
+      return;
+    }
+
+    // 有料ユーザーのみ。記録は最大600msだけ待つ（記録が遅くても印刷を止めない）。
+    await Promise.race([
+      recordPdfUsage(),
+      new Promise((resolve) => window.setTimeout(resolve, 600)),
+    ]);
 
     // メイン画面と同じ挙動：スマホは/printページで表示（iframe印刷が不安定なため）、PCは隠しiframeで直接ダイアログ。
     const usePrintPage =
@@ -695,6 +711,39 @@ export default function WordbookDetailPage() {
     } else {
       iframe.remove();
     }
+  }
+
+  // 支払いゲート「①単品購入」: 未登録は先に無料登録、登録済みはStripeの都度決済へ。
+  async function handlePrintPurchase() {
+    if (!isLoggedIn) {
+      setPrintGateOpen(false);
+      setRegisterPrompt("印刷の単品購入には、無料の会員登録が必要です。");
+      return;
+    }
+    setPrintGateBusy(true);
+    try {
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+      const res = await fetch("/api/stripe/print-purchase-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ pages: printGatePages }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.ok && data.url) {
+        window.location.href = data.url as string;
+        return;
+      }
+      window.alert(data?.error ?? "決済ページを開けませんでした。");
+    } catch {
+      window.alert("決済ページを開けませんでした。時間をおいて再度お試しください。");
+    }
+    setPrintGateBusy(false);
+  }
+
+  // 支払いゲート「②Personal」: 料金ページ（7日間無料トライアル）へ。
+  function handlePersonalFromGate() {
+    setPrintGateOpen(false);
+    window.location.href = "/pricing";
   }
 
   function openInListening() {
@@ -1835,6 +1884,16 @@ export default function WordbookDetailPage() {
           </div>
         </section>
       )}
+
+      <PrintGateModal
+        open={printGateOpen}
+        pages={printGatePages}
+        isLoggedIn={isLoggedIn}
+        busy={printGateBusy}
+        onPurchase={handlePrintPurchase}
+        onPersonal={handlePersonalFromGate}
+        onClose={() => setPrintGateOpen(false)}
+      />
 
       {registerPrompt && (
         <div
