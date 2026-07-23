@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 
 export const metadata: Metadata = {
   title: "英単語テストPDFをかんたん作成 | Vocab Print Pro",
@@ -33,6 +34,8 @@ const faqs = [
   ["スマホからも使えますか？", "スマホでも単語帳を選び、範囲を決めて印刷や聞き流しを使えるように調整しています。"],
 ];
 
+const sampleWordbooks = fallbackOfficialWordbooksForApi().slice(0, 6);
+
 export default function WordTestGeneratorGuidePage() {
   return (
     <main className="bg-white">
@@ -56,6 +59,37 @@ export default function WordTestGeneratorGuidePage() {
               みんなの単語帳を見る
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-5 py-14">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-blue-700">みんなの単語帳</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">画像で選んで、すぐ単語テストにできます</h2>
+            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+              登録済みの単語帳はカードで見つけやすく表示されます。単語帳ページから、印刷・聞き流し・単語チェックへ進めます。
+            </p>
+          </div>
+          <Link href="/wordbooks" className="rounded-2xl border px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
+            単語帳を見る
+          </Link>
+        </div>
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {sampleWordbooks.map((book) => (
+            <Link key={book.id} href="/wordbooks" className="overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="relative h-36 bg-slate-100">
+                <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
+                <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">
+                  {book.words.length}語
+                </span>
+              </div>
+              <div className="p-4">
+                <h3 className="line-clamp-2 font-black text-slate-950">{book.title}</h3>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{book.description}</p>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 

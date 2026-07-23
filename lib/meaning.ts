@@ -1,16 +1,28 @@
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff]/;
 
-function stripLeadingNoise(value: string) {
-  let text = value.trim();
+const LEADING_MARK_RE =
+  /^\s*(?:[-=:：・,，、]|No\.?\s*)*\s*(?:\(?\d+\)?[.)．、:：-]?|[①-⑳]|[一二三四五六七八九十]+[.)．、:：-]?)\s*/;
 
-  for (let i = 0; i < 6; i += 1) {
+const POS_LABEL_RE =
+  /^\s*(?:[（(【［\[]\s*(?:名|名詞|動|動詞|自|自動詞|他|他動詞|形|形容詞|形動|副|副詞|助|助動詞|接|接続詞|前|前置詞|句|熟語|古|古語|文|口語|俗|比|比喩|原義|派生|反|類|対)\s*[）)】］\]])\s*/;
+
+const NOTE_RE = /[（(【［\[].*?[）)】］\]]/g;
+
+function normalizeMeaningText(value: string) {
+  return value
+    .replace(/\u3000/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripLeadingNoise(value: string) {
+  let text = normalizeMeaningText(value);
+
+  for (let index = 0; index < 8; index += 1) {
     const next = text
-      .replace(/^[\s\-=:：・,，、]+/, "")
-      .replace(/^[\(\[（【][^\)\]）】]{0,20}[\)\]）】]\s*/, "")
-      .replace(/^(?:No\.?\s*)?\d+\s*[\.\):：、]?\s*/, "")
-      .replace(/^[①-⑳㉑-㉟]+\s*/, "")
-      .replace(/^[一二三四五六七八九十]+\s*[\.\):：、]?\s*/, "")
-      .replace(/^(?:自動詞|他動詞|動詞|名詞|形容詞|副詞|句動詞|熟語|前置詞|助動詞|助詞|連語)\s*/, "")
+      .replace(LEADING_MARK_RE, "")
+      .replace(POS_LABEL_RE, "")
+      .replace(/^\s*(?:意味|訳|答え|解答)\s*[:：]\s*/, "")
       .trim();
 
     if (next === text) break;
@@ -20,37 +32,51 @@ function stripLeadingNoise(value: string) {
   return text;
 }
 
-export function extractPrimaryMeaning(source: string) {
-  let text = stripLeadingNoise(source);
-  if (!text) return "";
-
-  const firstJapaneseIndex = text.search(JAPANESE_RE);
-  if (firstJapaneseIndex > 0) {
-    text = text.slice(firstJapaneseIndex);
+function preferJapanesePart(value: string) {
+  const colonParts = value.split(/[:：]/).map((part) => part.trim()).filter(Boolean);
+  if (colonParts.length > 1) {
+    const japanesePart = colonParts.find((part) => JAPANESE_RE.test(part));
+    if (japanesePart) return japanesePart;
   }
+
+  const firstJapaneseIndex = value.search(JAPANESE_RE);
+  if (firstJapaneseIndex > 0) return value.slice(firstJapaneseIndex).trim();
+  return value;
+}
+
+function cleanCandidate(value: string) {
+  return stripLeadingNoise(
+    normalizeMeaningText(value)
+      .replace(NOTE_RE, " ")
+      .replace(/^(?:こと|もの)\s*[:：]\s*/, "")
+      .replace(/^[\/／|｜;；、，,.。．・･\s]+/, "")
+      .replace(/[\/／|｜;；、，,.。．・･\s]+$/, ""),
+  );
+}
+
+export function extractPrimaryMeaning(source: string) {
+  let text = preferJapanesePart(stripLeadingNoise(source));
+  if (!text) return "";
 
   text = stripLeadingNoise(text);
 
   const segments = text
-    .replace(/[\/／]/g, "|")
-    .replace(/[;；]/g, "|")
-    .replace(/[|｜]/g, "|")
+    .replace(/[／/｜|;；。．\n\r]/g, "|")
+    .replace(/\s*[、，,]\s*/g, "|")
+    .replace(/\s*[・･]\s*/g, "|")
     .split("|")
-    .map((segment) => segment.trim())
+    .map(cleanCandidate)
     .filter(Boolean);
 
-  const primarySegment = segments.find((segment) => JAPANESE_RE.test(segment)) ?? segments[0] ?? text;
+  const primary =
+    segments.find((segment) => JAPANESE_RE.test(segment) && segment.length >= 2) ??
+    segments.find((segment) => JAPANESE_RE.test(segment)) ??
+    cleanCandidate(text);
 
-  const commaSplit = primarySegment
-    .split(/[、，,・]/)
-    .map((part) => stripLeadingNoise(part))
-    .filter(Boolean);
-
-  const result = commaSplit.find((part) => JAPANESE_RE.test(part)) ?? commaSplit[0] ?? stripLeadingNoise(primarySegment);
-  return result.trim();
+  return primary || normalizeMeaningText(source);
 }
 
 export function formatMeaning(source: string, mode: "all" | "main") {
-  if (mode === "all") return source.trim();
+  if (mode === "all") return normalizeMeaningText(source);
   return extractPrimaryMeaning(source);
 }

@@ -1702,8 +1702,8 @@ export default function WordbookDetailPage() {
                   <option value="all">意味を全部表示</option>
                 </select>
               </label>
-              <label className="block rounded-2xl border bg-white p-4">
-                <span className="flex items-center justify-between text-xs font-black text-slate-500">
+              <label className="block rounded-xl border bg-white p-3">
+                <span className="flex items-center justify-between gap-2 text-xs font-black text-slate-500">
                   読み上げ速度
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">x{listeningSpeed.toFixed(2)}</span>
                 </span>
@@ -1714,15 +1714,15 @@ export default function WordbookDetailPage() {
                   step={0.05}
                   value={listeningSpeed}
                   onChange={(event) => setListeningSpeed(Number(event.target.value))}
-                  className="mt-3 w-full accent-blue-600"
+                  className="mt-2 w-full accent-blue-600"
                 />
                 <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
                   <span>ゆっくり</span>
                   <span>速い</span>
                 </div>
               </label>
-              <label className="block rounded-2xl border bg-white p-4">
-                <span className="flex items-center justify-between text-xs font-black text-slate-500">
+              <label className="block rounded-xl border bg-white p-3">
+                <span className="flex items-center justify-between gap-2 text-xs font-black text-slate-500">
                   単語の間隔
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
                 </span>
@@ -1733,7 +1733,7 @@ export default function WordbookDetailPage() {
                   step={100}
                   value={listeningGapMs}
                   onChange={(event) => setListeningGapMs(Number(event.target.value))}
-                  className="mt-3 w-full accent-blue-600"
+                  className="mt-2 w-full accent-blue-600"
                 />
                 <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
                   <span>短い</span>

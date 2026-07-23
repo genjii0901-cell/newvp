@@ -561,7 +561,7 @@ export default function ListeningPage() {
               <div className="mt-3 grid gap-3">
                 <div className="grid gap-2">
                   <label className="text-sm font-bold">学習モード</label>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {([
                       { id: "listen", title: "聞き流し", help: "英語と日本語をテンポよく確認します。" },
                       { id: "test", title: "テスト再生", help: "英語だけ出して考える時間を作り、その後に答えを表示します。" },
@@ -573,12 +573,12 @@ export default function ListeningPage() {
                           setStudyMode(mode.id);
                           setShowTestMeaning(mode.id === "listen");
                         }}
-                        className={`rounded-2xl border px-4 py-3 text-left ${
+                        className={`rounded-xl border px-3 py-2 text-left ${
                           studyMode === mode.id ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <p className="font-bold text-slate-900">{mode.title}</p>
-                        <p className="mt-1 text-xs text-slate-500">{mode.help}</p>
+                        <p className="text-sm font-black text-slate-900">{mode.title}</p>
+                        <p className="mt-1 hidden text-xs text-slate-500 sm:block">{mode.help}</p>
                       </button>
                     ))}
                   </div>
@@ -586,18 +586,18 @@ export default function ListeningPage() {
 
                 <div className="grid gap-2">
                   <label className="text-sm font-bold">読み上げパターン</label>
-                  <div className="grid gap-2">
+                  <div className="grid grid-cols-3 gap-2">
                     {(["en-ja", "en-only", "ja-en"] as ListeningVoiceMode[]).map((mode) => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => setListeningVoiceMode(mode)}
-                        className={`rounded-2xl border px-4 py-3 text-left ${
+                        className={`rounded-xl border px-3 py-2 text-left ${
                           listeningVoiceMode === mode ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <p className="font-bold text-slate-900">{modeLabel(mode)}</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="text-xs font-black text-slate-900 sm:text-sm">{modeLabel(mode)}</p>
+                        <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                           {mode === "en-ja" && "英語を読んだあとに日本語を読みます。"}
                           {mode === "en-only" && "英語だけをテンポよく確認できます。"}
                           {mode === "ja-en" && "日本語を見てから英語を確認できます。"}
@@ -607,16 +607,16 @@ export default function ListeningPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-2xl border bg-white p-4">
-                    <label className="flex items-center justify-between text-sm font-bold">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="min-w-0 rounded-2xl border bg-white p-3">
+                    <label className="flex items-center justify-between gap-2 text-xs font-black text-slate-600">
                       英語の反復回数
                       <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{listeningRepeat}回</span>
                     </label>
                     <select
                       value={listeningRepeat}
                       onChange={(e) => setListeningRepeat(Number(e.target.value))}
-                      className="mt-3 w-full rounded-xl border bg-white px-3 py-2 text-sm font-bold"
+                      className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm font-bold"
                     >
                       <option value={1}>1回</option>
                       <option value={2}>2回</option>
@@ -624,8 +624,8 @@ export default function ListeningPage() {
                     </select>
                     <p className="mt-2 text-[11px] font-bold text-slate-400">英語だけを何回読むか</p>
                   </div>
-                  <div className="rounded-2xl border bg-white p-4">
-                    <label className="flex items-center justify-between text-sm font-bold">
+                  <div className="min-w-0 rounded-2xl border bg-white p-3">
+                    <label className="flex items-center justify-between gap-2 text-xs font-black text-slate-600">
                       単語ごとの間隔
                       <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
                     </label>
@@ -636,15 +636,15 @@ export default function ListeningPage() {
                       step={100}
                       value={listeningGapMs}
                       onChange={(e) => setListeningGapMs(Number(e.target.value))}
-                      className="mt-3 w-full accent-blue-600"
+                      className="mt-2 w-full accent-blue-600"
                     />
                     <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
                       <span>短い</span>
                       <span>ゆっくり</span>
                     </div>
                   </div>
-                  <div className="rounded-2xl border bg-white p-4">
-                    <label className="flex items-center justify-between text-sm font-bold">
+                  <div className="min-w-0 rounded-2xl border bg-white p-3">
+                    <label className="flex items-center justify-between gap-2 text-xs font-black text-slate-600">
                       読み上げ速度
                       <span className="rounded-full bg-blue-50 px-2 py-1 text-xs text-blue-700">x{listeningSpeed.toFixed(2)}</span>
                     </label>
@@ -655,7 +655,7 @@ export default function ListeningPage() {
                       step={0.05}
                       value={listeningSpeed}
                       onChange={(e) => setListeningSpeed(Number(e.target.value))}
-                      className="mt-3 w-full accent-blue-600"
+                      className="mt-2 w-full accent-blue-600"
                     />
                     <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
                       <span>ゆっくり</span>
@@ -666,18 +666,18 @@ export default function ListeningPage() {
 
                 <div className="grid gap-2">
                   <label className="text-sm font-bold">意味の表示</label>
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {(["main", "all"] as MeaningMode[]).map((mode) => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => setMeaningMode(mode)}
-                        className={`rounded-2xl border px-4 py-3 text-left ${
+                        className={`rounded-xl border px-3 py-2 text-left ${
                           meaningMode === mode ? "border-blue-400 bg-blue-50" : "bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <p className="font-bold text-slate-900">{mode === "main" ? "メインの意味だけ" : "意味を全部表示"}</p>
-                        <p className="mt-1 text-xs text-slate-500">
+                        <p className="text-sm font-black text-slate-900">{mode === "main" ? "メインの意味だけ" : "意味を全部表示"}</p>
+                        <p className="mt-1 hidden text-xs text-slate-500 sm:block">
                           {mode === "main"
                             ? "最初に使いたい意味を優先して短く表示します。"
                             : "登録されている意味をそのまま全部表示します。"}
