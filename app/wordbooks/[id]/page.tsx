@@ -19,7 +19,10 @@ const label = {
 
 type PageProps = {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tab?: string }>;
 };
+
+type SeoTab = "overview" | "test" | "listen" | "quiz";
 
 async function findSeoWordbook(slug: string) {
   const id = extractWordbookIdFromSlug(slug);
@@ -50,20 +53,60 @@ function getSeoWordCount(book: Awaited<ReturnType<typeof findSeoWordbook>>) {
   return ((book as { wordCount?: number } | null)?.wordCount ?? book?.words?.length ?? 0);
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+function normalizeSeoTab(value: string | undefined): SeoTab {
+  if (value === "test" || value === "listen" || value === "quiz") return value;
+  return "overview";
+}
+
+function tabCanonicalPath(basePath: string, tab: SeoTab) {
+  if (tab === "overview") return basePath;
+  return `${basePath}?tab=${tab}`;
+}
+
+function buildTabSeo(displayTitle: string, wordCount: number, tab: SeoTab) {
+  const countText = wordCount ? `約${wordCount}語に対応。` : "";
+  if (tab === "test") {
+    return {
+      title: `${displayTitle}の単語テスト印刷・PDF作成 | Vocab Print Pro`,
+      description: `${displayTitle}の単語リストから、A4の単語テスト、解答プリント、単語一覧PDFを作成できます。範囲指定、英語空欄、日本語空欄、ランダム順にも対応。${countText}`,
+      keywords: ["単語テスト 印刷", "単語テスト PDF", "英単語プリント", "小テスト 作成"],
+    };
+  }
+  if (tab === "listen") {
+    return {
+      title: `${displayTitle}の聞き流し学習 | Vocab Print Pro`,
+      description: `${displayTitle}の単語を、英語から日本語、日本語から英語の順で聞き流しできます。速度や間隔を調整しながら、移動中や復習に使えます。${countText}`,
+      keywords: ["英単語 聞き流し", "単語帳 音声", "英単語 復習"],
+    };
+  }
+  if (tab === "quiz") {
+    return {
+      title: `${displayTitle}の単語チェック・4択練習 | Vocab Print Pro`,
+      description: `${displayTitle}の単語を、カード形式や4択クイズで確認できます。わからない単語にマークを付けて復習できます。${countText}`,
+      keywords: ["英単語 クイズ", "単語チェック", "4択 英単語"],
+    };
+  }
+  return null;
+}
+
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { id: slug } = await params;
+  const tab = normalizeSeoTab((await searchParams)?.tab);
   const book = await findSeoWordbook(slug);
   const fallbackTitle = titleFromSlug(slug);
-  const canonicalPath = book
+  const baseCanonicalPath = book
     ? buildWordbookPath(book.id, book.title)
     : `/wordbooks/${encodeURIComponent(slug)}`;
 
   const displayTitle = book?.title ?? fallbackTitle;
   const wordCount = getSeoWordCount(book);
-  const title = displayTitle ? `${displayTitle}${label.titleSuffix}` : label.defaultTitle;
+  const tabSeo = displayTitle ? buildTabSeo(displayTitle, wordCount, tab) : null;
+  const canonicalPath = tabCanonicalPath(baseCanonicalPath, tab);
+  const title = tabSeo?.title ?? (displayTitle ? `${displayTitle}${label.titleSuffix}` : label.defaultTitle);
   const description =
-    `${displayTitle || label.defaultBook}${label.descriptionPrefix}` +
-    (wordCount ? `${label.wordCountPrefix}${wordCount}${label.wordCountSuffix}` : "");
+    tabSeo?.description ??
+    (`${displayTitle || label.defaultBook}${label.descriptionPrefix}` +
+      (wordCount ? `${label.wordCountPrefix}${wordCount}${label.wordCountSuffix}` : ""));
 
   return {
     title,
@@ -81,6 +124,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       `${displayTitle} 聞き流し`,
       `${displayTitle} 印刷`,
       `${displayTitle} 解答`,
+      ...(tabSeo?.keywords.map((keyword) => `${displayTitle} ${keyword}`) ?? []),
       "英単語テスト 作成",
       "単語帳 PDF",
     ].filter((value): value is string => Boolean(value)),
@@ -130,6 +174,23 @@ export default async function WordbookDetailPage({ params }: PageProps) {
         educationalUse: "自習・小テスト・授業プリント",
         isAccessibleForFree: true,
         provider: { "@type": "Organization", name: "Vocab Print Pro", url: siteUrl },
+        hasPart: [
+          {
+            "@type": "WebPage",
+            name: `${displayTitle}の単語テスト印刷`,
+            url: `${siteUrl}${canonicalPath}?tab=test`,
+          },
+          {
+            "@type": "WebPage",
+            name: `${displayTitle}の聞き流し`,
+            url: `${siteUrl}${canonicalPath}?tab=listen`,
+          },
+          {
+            "@type": "WebPage",
+            name: `${displayTitle}の単語チェック`,
+            url: `${siteUrl}${canonicalPath}?tab=quiz`,
+          },
+        ],
         ...(wordCount ? { about: `${displayTitle}・約${wordCount}語` } : {}),
       },
       {

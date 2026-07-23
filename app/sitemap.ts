@@ -37,12 +37,35 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const wordbooks = await loadSitemapWordbooks();
-  const wordbookUrls = wordbooks.map((book) => ({
-    url: `${siteUrl}${buildWordbookPath(book.id, book.title)}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.75,
-  }));
+  const wordbookUrls = wordbooks.flatMap((book) => {
+    const path = buildWordbookPath(book.id, book.title);
+    return [
+      {
+        url: `${siteUrl}${path}`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.78,
+      },
+      {
+        url: `${siteUrl}${path}?tab=test`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.9,
+      },
+      {
+        url: `${siteUrl}${path}?tab=listen`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.68,
+      },
+      {
+        url: `${siteUrl}${path}?tab=quiz`,
+        lastModified: now,
+        changeFrequency: "weekly" as const,
+        priority: 0.68,
+      },
+    ];
+  });
 
   return [...basePages, ...wordbookUrls];
 }
