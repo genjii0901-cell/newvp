@@ -41,7 +41,7 @@ export type LiveWordbook = {
   wordCount: number;
   unitCount: number;
   firstWord: string | null;
-  words: Array<{ no: number; english: string; japanese: string; unit: string | null }>;
+  words: Array<{ no: number; label?: string; english: string; japanese: string; unit: string | null }>;
 };
 
 function dedupeWordbooksByTitle(wordbooks: LiveWordbook[]) {
@@ -233,8 +233,13 @@ export async function loadOfficialWordbooks(options?: {
   for (const word of words) {
     const key = String(word.wordbook_id);
     const bucket = wordsByBookId.get(key) ?? [];
+    // no は並び替え・範囲指定用の連番。表示用の番号（"1-1" や "A1" など非数字も可）は label に保持する。
+    const rawLabel = word.number != null ? String(word.number).trim() : "";
+    const numeric = Number(word.number);
+    const no = Number.isFinite(numeric) && rawLabel !== "" ? numeric : bucket.length + 1;
     bucket.push({
-      no: Number(word.number) || bucket.length + 1,
+      no,
+      label: rawLabel || String(no),
       english: word.english ?? "",
       japanese: word.japanese ?? "",
       unit: word.unit ?? null,

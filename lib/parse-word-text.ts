@@ -131,11 +131,16 @@ export function parseWordText(text: string): ParsedWordRow[] {
       }
 
       if (cells.length >= 4) {
+        // 5列以上（レッスン・ページ等の追加列）も取りこぼさず、4列目以降を unit にまとめる。
+        const extras = cells
+          .slice(3)
+          .map((cell) => (cell || "").trim())
+          .filter(Boolean);
         return {
           number: (cells[0] || String(index + 1)).trim(),
           english: (cells[1] || "").trim(),
           japanese: (cells[2] || "").trim(),
-          unit: (cells[3] || "").trim(),
+          unit: extras.join(" / "),
         };
       }
 

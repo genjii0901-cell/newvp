@@ -15,6 +15,7 @@ import PrintGateModal from "./print-gate-modal";
 
 type Word = {
   no: number;
+  label?: string;
   english: string;
   japanese: string;
 };
@@ -103,8 +104,13 @@ function parsePastedWords(text: string) {
     .slice(1)
     .map((line, index) => {
       const cells = line.includes("\t") ? line.split("\t") : line.split(",");
+      const rawNo = (cells[0] ?? "").trim();
+      const numeric = Number(rawNo);
+      // 番号は連番(no)で並べつつ、"1-1" や "A1" など非数字の元番号は label として印刷に残す。
+      const no = Number.isFinite(numeric) && rawNo !== "" ? numeric : index + 1;
       return {
-        no: Number(cells[0]) || index + 1,
+        no,
+        label: rawNo || String(no),
         english: cells[1]?.trim() || "",
         japanese: cells[2]?.trim() || "",
       };
@@ -507,8 +513,9 @@ export default function Home() {
         const nextWords = Array.isArray(rawBook.words)
           ? rawBook.words
               .filter((word: { english?: string; japanese?: string }) => word.english && word.japanese)
-              .map((word: { no?: number; english?: string; japanese?: string }, index: number) => ({
+              .map((word: { no?: number; label?: string; english?: string; japanese?: string }, index: number) => ({
                 no: Number(word.no) || index + 1,
+                label: word.label ?? String(word.no ?? index + 1),
                 english: word.english ?? "",
                 japanese: word.japanese ?? "",
               }))
@@ -662,6 +669,7 @@ export default function Home() {
               .filter((word) => word.english && word.japanese)
               .map((word, index) => ({
                 no: Number(word.no) || index + 1,
+                label: (word as { label?: string }).label ?? String(word.no ?? index + 1),
                 english: word.english ?? "",
                 japanese: word.japanese ?? "",
               })),
@@ -2241,23 +2249,20 @@ export default function Home() {
             {authMode === "signup" && (
               <div className="mt-4">
                 <p className="text-sm font-black text-slate-700">どちらで始めますか？</p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div className="mt-2 grid gap-2">
                   <button
                     type="button"
                     onClick={() => setSignupPlan("personal")}
-                    className={`relative rounded-2xl border-2 p-4 text-left transition ${
+                    className={`rounded-2xl border-2 p-4 text-left transition ${
                       signupPlan === "personal"
                         ? "border-blue-600 bg-blue-50 shadow-md"
                         : "border-slate-200 bg-white hover:border-blue-300"
                     }`}
                   >
-                    <span className="absolute right-3 top-3 rounded-full bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
-                      おすすめ
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs font-black text-blue-700">Personalプラン</span>
+                      <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">🔥 期間限定・おすすめ</span>
                     </span>
-                    <span className="absolute right-14 top-3 rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
-                      期間限定
-                    </span>
-                    <span className="block text-xs font-black text-blue-700">Personalプラン</span>
                     <span className="mt-1 block text-xl font-black text-slate-950">7日間 無料</span>
                     <span className="mt-1 block text-[11px] font-bold text-slate-500">
                       その後は月額780円 / いつでも解約OK
@@ -3567,7 +3572,7 @@ function buildPrintHtml({
               const leftText = renderColumn(word, "english");
               const rightText = renderColumn(word, "japanese");
               return `<tr>
-                <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.no))}</span></div></td>
+                <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.label ?? word.no))}</span></div></td>
                 <td class="p-word"><div class="p-fit"><span class="p-text two">${leftText}</span></div></td>
                 <td class="p-meaning"><div class="p-fit"><span class="p-text two">${rightText}</span></div></td>
               </tr>`;

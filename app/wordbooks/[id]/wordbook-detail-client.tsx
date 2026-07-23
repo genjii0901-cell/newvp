@@ -27,6 +27,7 @@ const PREVIEW_HEIGHT = 1123;
 
 type Word = {
   no: number;
+  label?: string;
   english: string;
   japanese: string;
   unit: string | null;
@@ -1107,7 +1108,7 @@ export default function WordbookDetailPage() {
                         {marked ? "★" : "☆"}
                       </button>
                     </td>
-                    <td className="p-3 text-center font-bold text-slate-400">{word.no}</td>
+                    <td className="p-3 text-center font-bold text-slate-400">{word.label ?? word.no}</td>
                     <td className="p-3 text-slate-500">{word.unit ?? "-"}</td>
                     <td className="p-3 font-bold text-slate-900">{word.english}</td>
                     <td className="p-3 text-slate-600">{word.japanese}</td>

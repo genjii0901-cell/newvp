@@ -1,7 +1,7 @@
 /* 共有の印刷HTMLビルダー（メイン画面・管理画面で共通利用）
  * 元はapp/page.tsx内にあった実装を共通化したもの。出力・プレビューを1箇所に統一する。 */
 
-export type PrintWord = { no: number; english: string; japanese: string };
+export type PrintWord = { no: number; label?: string; english: string; japanese: string };
 export type PdfType = "list" | "test" | "answer";
 export type Direction = "en-ja" | "ja-en" | "spelling";
 export type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
@@ -192,7 +192,7 @@ export function buildPrintHtml({
               const leftText = renderColumn(word, "english");
               const rightText = renderColumn(word, "japanese");
               return `<tr>
-                <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.no))}</span></div></td>
+                <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.label ?? word.no))}</span></div></td>
                 <td class="p-word"><div class="p-fit"><span class="p-text two">${leftText}</span></div></td>
                 <td class="p-meaning"><div class="p-fit"><span class="p-text two">${rightText}</span></div></td>
               </tr>`;
