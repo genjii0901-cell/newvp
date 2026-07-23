@@ -2203,6 +2203,7 @@ export default function Home() {
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <Link
                       href={buildWordbookPath(book.id, book.title)}
+                      prefetch={false}
                       onClick={(event) => event.stopPropagation()}
                       className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 sm:px-3 sm:py-2"
                     >
@@ -2791,7 +2792,7 @@ export default function Home() {
                 レイアウトを見る
               </button>
               {selectedBook ? (
-                <Link href={buildWordbookPath(selectedBook.id, selectedBook.title)} className="rounded-xl border bg-white px-4 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">
+                <Link href={buildWordbookPath(selectedBook.id, selectedBook.title)} prefetch={false} className="rounded-xl border bg-white px-4 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">
                   単語帳ページへ
                 </Link>
               ) : null}

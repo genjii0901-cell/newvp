@@ -452,6 +452,7 @@ export default function WordbooksPage() {
                       <div className="mt-1.5 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
                         <Link
                           href={detailPath}
+                          prefetch={false}
                           onClick={(event) => event.stopPropagation()}
                           className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >

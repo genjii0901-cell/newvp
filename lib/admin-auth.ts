@@ -36,9 +36,8 @@ function getAdminServerKey(): string {
   const key =
     process.env.ADMIN_SESSION_SECRET ??
     process.env.ADMIN_PASSWORD ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
     "";
-  if (!key) throw new Error("ADMIN_SESSION_SECRET or another server-side admin secret is required.");
+  if (!key) throw new Error("ADMIN_SESSION_SECRET or ADMIN_PASSWORD is required.");
   return key;
 }
 

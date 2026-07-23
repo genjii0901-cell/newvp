@@ -94,6 +94,10 @@ function isPubliclyVisible(visibility: string | null | undefined) {
   return next !== "private" && next !== "admin";
 }
 
+function canFilterByDbId(value: string) {
+  return /^\d+$/.test(value) || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(value);
+}
+
 export async function loadOfficialWordbooks(options?: {
   includeAdmin?: boolean;
   includeFallback?: boolean;
@@ -107,6 +111,7 @@ export async function loadOfficialWordbooks(options?: {
   const includeWords = options?.includeWords !== false;
   const filterIds = (options?.filterIds ?? []).map(String);
   const filterIdSet = filterIds.length > 0 ? new Set(filterIds) : null;
+  const dbFilterIds = filterIds.filter(canFilterByDbId);
   const supabase = getSupabaseAdmin();
 
   const selects = [
@@ -119,9 +124,13 @@ export async function loadOfficialWordbooks(options?: {
   let dbError: string | null = null;
 
   for (const select of selects) {
-    let result = await supabase.from("wordbooks").select(select).eq("is_official", true);
+    let query = supabase.from("wordbooks").select(select).eq("is_official", true);
+    if (dbFilterIds.length > 0) query = query.in("id", dbFilterIds);
+    let result = await query;
     if (result.error && /is_official/i.test(result.error.message)) {
-      result = await supabase.from("wordbooks").select(select);
+      let fallbackQuery = supabase.from("wordbooks").select(select);
+      if (dbFilterIds.length > 0) fallbackQuery = fallbackQuery.in("id", dbFilterIds);
+      result = await fallbackQuery;
     }
     if (!result.error) {
       rows = (result.data as unknown as WordbookRow[] | null) ?? [];

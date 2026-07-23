@@ -27,7 +27,7 @@ async function findSeoWordbook(slug: string) {
 
   if (isSupabaseServerConfigured()) {
     try {
-      const result = await loadOfficialWordbooks({ includeWords: false });
+      const result = await loadOfficialWordbooks({ includeWords: false, filterIds: [id] });
       if (result.ok) {
         const found = result.wordbooks.find((book) => String(book.id) === id);
         if (found) return found;
