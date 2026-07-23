@@ -924,14 +924,14 @@ export default function WordbookDetailPage() {
   ];
 
   return (
-    <main className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
+    <main className="mx-auto max-w-6xl px-2.5 py-3 sm:px-5 sm:py-8">
       <Link href="/wordbooks" className="text-sm font-bold text-blue-600 hover:underline">
         ← 単語帳一覧へ
       </Link>
 
-      <section className="mt-4 overflow-hidden rounded-3xl border bg-white shadow-sm">
+      <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
         <div className="grid gap-0 md:grid-cols-[320px_1fr]">
-          <div className="relative h-44 bg-slate-100 md:h-full">
+          <div className="relative h-28 bg-slate-100 sm:h-44 md:h-full">
             {book.coverImage ? (
               <img src={book.coverImage} alt={book.title} className="h-full w-full object-cover" />
             ) : (
@@ -939,32 +939,32 @@ export default function WordbookDetailPage() {
                 VP
               </div>
             )}
-            <div className="absolute left-3 top-3 rounded-full bg-white/95 px-3 py-1 text-xs font-black text-blue-700 shadow-sm">
+            <div className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-xs">
               {planLabel(book.requiredPlan)}
             </div>
           </div>
 
-          <div className="p-5 sm:p-7">
+          <div className="p-3.5 sm:p-7">
             <p className="text-xs font-black text-blue-700">{planCopy(book.requiredPlan)}</p>
-            <h1 className="mt-2 text-2xl font-black leading-tight text-slate-950 sm:text-4xl">{book.title}</h1>
-            <p className="mt-3 text-sm leading-7 text-slate-600">
+            <h1 className="mt-1.5 line-clamp-3 text-xl font-black leading-tight text-slate-950 sm:mt-2 sm:text-4xl">{book.title}</h1>
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:line-clamp-none sm:text-sm sm:leading-7">
               {book.description || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold text-slate-500">
-              <span className="rounded-full bg-slate-100 px-3 py-1">{book.wordCount ?? book.words.length}語</span>
-              {units.length > 0 ? <span className="rounded-full bg-slate-100 px-3 py-1">{units.length}ユニット</span> : null}
-              <span className="rounded-full bg-slate-100 px-3 py-1">作成者: {book.creator ?? "Vocab Print Pro"}</span>
+            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
+              {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "Vocab Print Pro"}</span>
             </div>
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap">
               <button
                 type="button"
                 onClick={saveOfficialToMyWordbooks}
                 disabled={savingToMyBook}
-                className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-400"
+                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-2xl sm:px-4 sm:text-sm"
               >
                 {savingToMyBook ? "追加中..." : "マイ単語帳に追加"}
               </button>
-              <Link href="/my-wordbooks" className="rounded-2xl border bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50">
+              <Link href="/my-wordbooks" className="rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm">
                 マイ単語帳を見る
               </Link>
             </div>
@@ -972,8 +972,8 @@ export default function WordbookDetailPage() {
         </div>
       </section>
 
-      <section className="sticky top-0 z-10 mt-4 border-y bg-slate-50/95 py-2 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:py-0">
-        <div className="flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-4 sm:overflow-visible sm:pb-0">
+      <section className="sticky top-0 z-10 mt-3 border-y bg-slate-50/95 py-1.5 backdrop-blur sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:py-0">
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {tabs.map((tab) => {
             const tabLocked = controlsLocked && (tab.key === "quiz" || tab.key === "listen");
             return (
@@ -987,7 +987,7 @@ export default function WordbookDetailPage() {
                 }
                 setActiveTab(tab.key);
               }}
-              className={`min-w-[116px] rounded-2xl border px-3 py-2 text-left transition ${
+              className={`min-w-0 rounded-xl border px-1.5 py-2 text-center transition sm:rounded-2xl sm:px-3 sm:text-left ${
                 activeTab === tab.key
                   ? "border-blue-500 bg-blue-600 text-white shadow-sm"
                   : tabLocked
@@ -995,8 +995,8 @@ export default function WordbookDetailPage() {
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span className="block text-sm font-black">{tab.label}{tabLocked ? " 🔒" : ""}</span>
-              <span className={`block text-[11px] font-bold ${activeTab === tab.key ? "text-blue-100" : tabLocked ? "text-amber-600" : "text-slate-400"}`}>
+              <span className="block truncate text-[11px] font-black sm:text-sm">{tab.label}{tabLocked ? " 🔒" : ""}</span>
+              <span className={`hidden text-[11px] font-bold sm:block ${activeTab === tab.key ? "text-blue-100" : tabLocked ? "text-amber-600" : "text-slate-400"}`}>
                 {tabLocked ? "無料登録で解放" : tab.hint}
               </span>
             </button>
@@ -1005,26 +1005,26 @@ export default function WordbookDetailPage() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-3xl border bg-white p-4 shadow-sm sm:p-5">
+      <section className="mt-3 rounded-2xl border bg-white p-3 shadow-sm sm:mt-4 sm:rounded-3xl sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-black">使う範囲を選ぶ</h2>
-            <p className="mt-1 text-sm text-slate-500">
+            <h2 className="text-base font-black sm:text-lg">使う範囲を選ぶ</h2>
+            <p className="mt-1 hidden text-sm text-slate-500 sm:block">
               ここで選んだ範囲を、単語テスト・聞き流し・単語一覧にそのまま使います。
             </p>
           </div>
-          <p className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-slate-700">
+          <p className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700 sm:px-3 sm:text-sm">
             選択中: {visibleWords.length}語
           </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
           <div>
-            <label className="text-sm font-bold">ユニット</label>
+            <label className="text-xs font-bold sm:text-sm">ユニット</label>
             <select
               value={selectedUnit}
               onChange={(event) => setSelectedUnit(event.target.value)}
-              className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              className="mt-1 w-full rounded-xl border px-2 py-2 text-xs sm:px-3 sm:py-3 sm:text-sm"
             >
               <option value="all">すべて</option>
               {units.map((unit) => (
@@ -1035,7 +1035,7 @@ export default function WordbookDetailPage() {
             </select>
           </div>
           <div>
-            <label className="text-sm font-bold">
+            <label className="text-xs font-bold sm:text-sm">
               開始番号{numbersLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}
             </label>
             <input
@@ -1044,11 +1044,11 @@ export default function WordbookDetailPage() {
               onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
               onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
               type="number"
-              className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
+              className={`mt-1 w-full rounded-xl border px-2 py-2 text-xs sm:px-3 sm:py-3 sm:text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
           </div>
           <div>
-            <label className="text-sm font-bold">
+            <label className="text-xs font-bold sm:text-sm">
               終了番号{numbersLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}
             </label>
             <input
@@ -1057,7 +1057,7 @@ export default function WordbookDetailPage() {
               onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
               onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
               type="number"
-              className={`mt-1 w-full rounded-xl border px-3 py-3 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
+              className={`mt-1 w-full rounded-xl border px-2 py-2 text-xs sm:px-3 sm:py-3 sm:text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
             />
           </div>
         </div>

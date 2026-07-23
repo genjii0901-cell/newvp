@@ -2104,53 +2104,52 @@ export default function Home() {
           </div>
         )}
 
-        <section className="mt-5 rounded-3xl border bg-white p-4 shadow-sm sm:mt-6 sm:p-5">
+        <section className="mt-4 rounded-2xl border bg-white p-3 shadow-sm sm:mt-6 sm:rounded-3xl sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-sm font-bold text-blue-700">みんなの単語帳</p>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900">使いたい単語帳をすぐに選んで印刷</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="text-xs font-bold text-blue-700 sm:text-sm">みんなの単語帳</p>
+              <h3 className="text-lg font-black text-slate-900 sm:text-2xl">使いたい単語帳をすぐに選んで印刷</h3>
+              <p className="mt-1 hidden text-sm text-slate-500 sm:block">
                 スマホでは教材アプリのように小さく探して、単語帳ページから印刷・聞き流しを選べます。
               </p>
             </div>
-            <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
+            <Link href="/wordbooks" className="rounded-xl border bg-white px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm">
               みんなの単語帳を見る
             </Link>
           </div>
 
-          {/* スマホ: ABCeed風の横スクロール本棚（表紙中心） */}
-          <div className="mt-4 -mx-4 sm:hidden">
-            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* スマホ: 一覧性を優先した2列コンパクトカード */}
+          <div className="mt-3 sm:hidden">
+            <div className="grid grid-cols-2 gap-2">
               {featuredBooks.map((book, index) => (
                 <a
                   key={book.id}
                   href={buildWordbookPath(book.id, book.title)}
-                  className={`flex w-[132px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-white shadow-sm active:scale-[0.98] ${
+                  className={`min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] ${
                     book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                   }`}
                 >
-                  <div className="relative h-44 w-full bg-slate-100">
+                  <div className="relative h-24 w-full bg-slate-100">
                     <img
                       src={getBookCover(book, index)}
                       alt={book.title}
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
-                    <span className="absolute left-1.5 top-1.5 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-black text-slate-800">
+                    <span className="absolute left-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-black text-slate-800">
                       {planLabel(book.requiredPlan)}
                     </span>
-                    <span className="absolute bottom-1.5 right-1.5 rounded-full bg-blue-600/90 px-2 py-0.5 text-[10px] font-black text-white">
+                    <span className="absolute bottom-1 right-1 rounded-full bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-black text-white">
                       {getBookWordCount(book)}語
                     </span>
                   </div>
-                  <div className="flex flex-1 flex-col p-2">
-                    <h4 className="line-clamp-2 text-xs font-black leading-snug text-slate-900">{book.title}</h4>
-                    <p className="mt-1 truncate text-[11px] font-bold text-blue-700">{book.level}</p>
+                  <div className="p-2">
+                    <h4 className="line-clamp-2 min-h-[2.25rem] text-[11px] font-black leading-snug text-slate-900">{book.title}</h4>
+                    <p className="mt-0.5 truncate text-[10px] font-bold text-blue-700">{book.level}</p>
                   </div>
                 </a>
               ))}
             </div>
-            <p className="mt-1 px-4 text-[11px] font-bold text-slate-400">← 横にスワイプして単語帳を探す →</p>
           </div>
 
           {/* PC: グリッド表示 */}

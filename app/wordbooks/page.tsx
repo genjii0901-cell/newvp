@@ -410,7 +410,7 @@ export default function WordbooksPage() {
               <p className="text-lg font-black text-slate-700">表示できる単語帳がまだありません</p>
             </div>
           ) : (
-            <div className="mt-5 grid gap-2.5 sm:mt-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-6 sm:gap-4 lg:grid-cols-3">
               {filteredOfficialBooks.map((book) => {
                 const words = Array.isArray(book.words) ? book.words : [];
                 const units =
@@ -426,20 +426,20 @@ export default function WordbooksPage() {
                     onClick={() => {
                       window.location.href = detailPath;
                     }}
-                    className="flex min-h-[92px] cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
+                    className="min-w-0 cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
                   >
                     {book.coverImage ? (
-                      <img src={book.coverImage} alt={book.title} loading="lazy" className="h-auto w-16 flex-shrink-0 object-cover sm:h-40 sm:w-full" />
+                      <img src={book.coverImage} alt={book.title} loading="lazy" className="h-24 w-full object-cover sm:h-40" />
                     ) : null}
-                    <div className="min-w-0 flex-1 p-2 sm:p-5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 sm:px-3 sm:text-xs">
+                    <div className="min-w-0 p-2 sm:p-5">
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 sm:px-3 sm:py-1 sm:text-xs">
                           {planLabel(book.requiredPlan)}
                         </span>
-                        <span className="text-xs text-slate-400">{wordCount}語</span>
+                        <span className="text-[10px] text-slate-400 sm:text-xs">{wordCount}語</span>
                       </div>
-                      <h2 className="mt-1 line-clamp-2 text-sm font-black leading-snug text-slate-900 sm:mt-3 sm:text-xl">{book.title}</h2>
-                      <p className="mt-1 truncate text-xs font-bold text-slate-400">
+                      <h2 className="mt-1 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-0 sm:text-xl">{book.title}</h2>
+                      <p className="mt-1 hidden truncate text-xs font-bold text-slate-400 sm:block">
                         作成者: {book.creator ?? "Vocab Print Pro"}
                       </p>
                       <p className="mt-1 hidden line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:line-clamp-3 sm:text-sm">
@@ -449,14 +449,14 @@ export default function WordbooksPage() {
                         {units > 0 ? <span>{units}ユニット</span> : null}
                         <span>最初: {firstWord}</span>
                       </div>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
+                      <div className="mt-1.5 grid gap-1.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-2">
                         <Link
                           href={detailPath}
                           prefetch={false}
                           onClick={(event) => event.stopPropagation()}
-                          className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
+                          className="rounded-lg bg-blue-600 px-2 py-1.5 text-center text-[11px] font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
-                          単語帳ページへ
+                          開く
                         </Link>
                         <button
                           type="button"
@@ -465,7 +465,7 @@ export default function WordbooksPage() {
                             void addOfficialToMyWordbooks(book);
                           }}
                           disabled={savingOfficialId === book.id}
-                          className="rounded-lg border px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
+                          className="rounded-lg border px-2 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
                         >
                           {savingOfficialId === book.id ? "追加中..." : "マイ追加"}
                         </button>
@@ -502,49 +502,49 @@ export default function WordbooksPage() {
                     新規作成
                   </button>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-3">
                   {myBooks.map((book) => (
                     <article
                       key={book.id}
                       onClick={() => setSelectedMyBookId(book.id)}
-                      className={`cursor-pointer overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+                      className={`min-w-0 cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:rounded-3xl ${
                         selectedMyBookId === book.id ? "border-blue-400 ring-2 ring-blue-100" : ""
                       }`}
                     >
-                      <div className="flex h-28 items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-3xl font-black text-blue-600">
+                      <div className="flex h-20 items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-2xl font-black text-blue-600 sm:h-28 sm:text-3xl">
                         My
                       </div>
-                      <div className="p-4">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">マイ単語帳</span>
-                          <span className="text-xs font-bold text-slate-400">{book.wordCount}語</span>
+                      <div className="p-2 sm:p-4">
+                        <div className="flex items-center justify-between gap-1.5">
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 sm:px-3 sm:py-1 sm:text-xs">マイ単語帳</span>
+                          <span className="text-[10px] font-bold text-slate-400 sm:text-xs">{book.wordCount}語</span>
                         </div>
-                        <h2 className="mt-3 line-clamp-2 text-lg font-black text-slate-900">{book.title}</h2>
-                        <p className="mt-2 line-clamp-2 min-h-10 text-sm leading-5 text-slate-500">
+                        <h2 className="mt-1.5 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-0 sm:text-lg">{book.title}</h2>
+                        <p className="mt-2 hidden line-clamp-2 min-h-10 text-sm leading-5 text-slate-500 sm:block">
                           {book.description || "自分で保存した単語帳です。"}
                         </p>
-                        <div className="mt-4 flex flex-wrap gap-2">
+                        <div className="mt-2 grid gap-1.5 sm:mt-4 sm:flex sm:flex-wrap sm:gap-2">
                           <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
                               setSelectedMyBookId(book.id);
                             }}
-                            className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700"
+                            className="rounded-lg bg-blue-600 px-2 py-1.5 text-[11px] font-black text-white hover:bg-blue-700 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
                           >
                             編集
                           </button>
                           <Link
                             href={`/?book=${encodeURIComponent(book.id)}`}
                             onClick={(event) => event.stopPropagation()}
-                            className="rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            className="rounded-lg border px-2 py-1.5 text-center text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
                           >
                             印刷作成
                           </Link>
                           <Link
                             href={`/listening?source=my&id=${encodeURIComponent(book.id)}`}
                             onClick={(event) => event.stopPropagation()}
-                            className="rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            className="rounded-lg border px-2 py-1.5 text-center text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
                           >
                             聞き流し
                           </Link>
