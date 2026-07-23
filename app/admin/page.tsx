@@ -1000,7 +1000,12 @@ export default function AdminPage() {
         requiredPlan: visibility === "teacher" ? "teacher" : visibility === "personal" ? "personal" : visibility === "admin" ? "admin" : "free",
         visibility,
         wordCount: words.length,
-        words,
+        words: words.map((word, index) => ({
+          no: Number(word.number) || index + 1,
+          english: word.english,
+          japanese: word.japanese,
+          unit: word.unit || null,
+        })),
       };
       setBooks((current) => [createdBook, ...current.filter((book) => book.id !== createdBook.id)]);
     }

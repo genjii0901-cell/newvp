@@ -3,19 +3,32 @@ import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supa
 
 type IncomingWord = {
   no?: number | string;
+  number?: number | string;
   english?: string;
   japanese?: string;
   unit?: string | null;
+  page?: string | null;
+  memo?: string | null;
 };
 
 function cleanWords(words: IncomingWord[]) {
   return words
-    .map((word, index) => ({
-      number: String(word.no ?? index + 1),
-      english: String(word.english ?? "").trim(),
-      japanese: String(word.japanese ?? "").trim(),
-      unit: typeof word.unit === "string" ? word.unit.trim() : "",
-    }))
+    .map((word, index) => {
+      const rawNumber = String(word.number ?? word.no ?? "").trim();
+      const safeNumber = /^\d+$/.test(rawNumber) ? rawNumber : String(index + 1);
+      const unitParts = [
+        typeof word.unit === "string" ? word.unit.trim() : "",
+        typeof word.page === "string" ? word.page.trim() : "",
+        typeof word.memo === "string" ? word.memo.trim() : "",
+      ].filter(Boolean);
+      if (rawNumber && rawNumber !== safeNumber) unitParts.unshift(`番号: ${rawNumber}`);
+      return {
+        number: safeNumber,
+        english: String(word.english ?? "").trim(),
+        japanese: String(word.japanese ?? "").trim(),
+        unit: unitParts.join(" / "),
+      };
+    })
     .filter((word) => word.english && word.japanese);
 }
 

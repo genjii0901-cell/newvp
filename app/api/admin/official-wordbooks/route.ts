@@ -29,12 +29,22 @@ const checkAdminPassword = requireAdmin;
 
 function cleanWordList(words: IncomingWord[]) {
   return words
-    .map((word, index) => ({
-      number: String(word.number ?? word.no ?? index + 1),
-      english: String(word.english ?? "").trim(),
-      japanese: String(word.japanese ?? "").trim(),
-      unit: String(word.unit ?? "").trim() || null,
-    }))
+    .map((word, index) => {
+      const rawNumber = String(word.number ?? word.no ?? "").trim();
+      const safeNumber = /^\d+$/.test(rawNumber) ? rawNumber : String(index + 1);
+      const unitParts = [
+        String(word.unit ?? "").trim(),
+        String(word.page ?? "").trim(),
+        String(word.memo ?? "").trim(),
+      ].filter(Boolean);
+      if (rawNumber && rawNumber !== safeNumber) unitParts.unshift(`番号: ${rawNumber}`);
+      return {
+        number: safeNumber,
+        english: String(word.english ?? "").trim(),
+        japanese: String(word.japanese ?? "").trim(),
+        unit: unitParts.join(" / ") || null,
+      };
+    })
     .filter((word) => word.english && word.japanese);
 }
 

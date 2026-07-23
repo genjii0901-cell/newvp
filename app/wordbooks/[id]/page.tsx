@@ -8,18 +8,13 @@ import WordbookDetailClient from "./wordbook-detail-client";
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 
 const label = {
-  defaultTitle: "\u5358\u8a9e\u5e33\u306e\u5358\u8a9e\u30c6\u30b9\u30c8\u30fb\u4e00\u89a7\u30d7\u30ea\u30f3\u30c8\u4f5c\u6210",
-  titleSuffix: "\u306e\u5358\u8a9e\u30c6\u30b9\u30c8\u30fb\u4e00\u89a7\u30d7\u30ea\u30f3\u30c8\u4f5c\u6210",
-  defaultBook: "\u5358\u8a9e\u5e33",
-  descriptionPrefix: "\u306e\u5358\u8a9e\u30ea\u30b9\u30c8\u304b\u3089\u3001A4\u306e\u82f1\u5358\u8a9e\u30c6\u30b9\u30c8\u3001\u4e00\u89a7\u30d7\u30ea\u30f3\u30c8\u3001\u805e\u304d\u6d41\u3057\u5b66\u7fd2\u3092\u4f5c\u6210\u3067\u304d\u307e\u3059\u3002",
-  wordCountPrefix: "\u53ce\u9332\u8a9e\u6570\u306f\u7d04",
-  wordCountSuffix: "\u8a9e\u3067\u3059\u3002",
-  testKeyword: " \u5358\u8a9e\u30c6\u30b9\u30c8",
-  printKeyword: " \u30d7\u30ea\u30f3\u30c8",
-  listKeyword: " \u5358\u8a9e\u4e00\u89a7",
-  genericTest: "\u82f1\u5358\u8a9e\u30c6\u30b9\u30c8 \u4f5c\u6210",
-  genericPdf: "\u5358\u8a9e\u5e33 PDF",
-  coverAlt: "\u306e\u5358\u8a9e\u5e33\u30ab\u30d0\u30fc",
+  defaultTitle: "単語帳の単語テスト・一覧プリント作成",
+  titleSuffix: "の単語テスト・一覧プリント作成",
+  defaultBook: "単語帳",
+  descriptionPrefix: "の単語リストから、A4の英単語テスト、一覧プリント、聞き流し学習を作成できます。",
+  wordCountPrefix: "収録語数は約",
+  wordCountSuffix: "語です。",
+  coverAlt: "の単語帳カバー",
 };
 
 type PageProps = {
@@ -48,10 +43,11 @@ async function findSeoWordbook(slug: string) {
 function titleFromSlug(slug: string) {
   const decoded = decodeURIComponent(slug || "");
   const rawTitle = decoded.includes("--") ? decoded.split("--").slice(1).join("--") : "";
-  return rawTitle
-    .replace(/-/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return rawTitle.replace(/-/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function getSeoWordCount(book: Awaited<ReturnType<typeof findSeoWordbook>>) {
+  return ((book as { wordCount?: number } | null)?.wordCount ?? book?.words?.length ?? 0);
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -63,7 +59,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     : `/wordbooks/${encodeURIComponent(slug)}`;
 
   const displayTitle = book?.title ?? fallbackTitle;
-  const wordCount = book?.wordCount ?? book?.words?.length ?? 0;
+  const wordCount = getSeoWordCount(book);
   const title = displayTitle ? `${displayTitle}${label.titleSuffix}` : label.defaultTitle;
   const description =
     `${displayTitle || label.defaultBook}${label.descriptionPrefix}` +
@@ -77,12 +73,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     },
     keywords: [
       displayTitle,
-      `${displayTitle}${label.testKeyword}`,
+      `${displayTitle} 単語テスト`,
+      `${displayTitle} 小テスト`,
       `${displayTitle} PDF`,
-      `${displayTitle}${label.printKeyword}`,
-      `${displayTitle}${label.listKeyword}`,
-      label.genericTest,
-      label.genericPdf,
+      `${displayTitle} プリント`,
+      `${displayTitle} 単語一覧`,
+      `${displayTitle} 聞き流し`,
+      `${displayTitle} 印刷`,
+      `${displayTitle} 解答`,
+      "英単語テスト 作成",
+      "単語帳 PDF",
     ].filter((value): value is string => Boolean(value)),
     openGraph: {
       type: "article",
@@ -116,9 +116,8 @@ export default async function WordbookDetailPage({ params }: PageProps) {
   const book = await findSeoWordbook(slug);
   const displayTitle = book?.title ?? titleFromSlug(slug);
   const canonicalPath = book ? buildWordbookPath(book.id, book.title) : `/wordbooks/${encodeURIComponent(slug)}`;
-  const wordCount = (book as { wordCount?: number } | null)?.wordCount ?? book?.words?.length ?? 0;
+  const wordCount = getSeoWordCount(book);
 
-  // 構造化データ: 教材ページであること＋パンくずをGoogleに伝える（検索での表示を助ける）。
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
@@ -127,11 +126,11 @@ export default async function WordbookDetailPage({ params }: PageProps) {
         name: `${displayTitle}${label.titleSuffix}`,
         url: `${siteUrl}${canonicalPath}`,
         inLanguage: "ja",
-        learningResourceType: "英単語テスト・一覧プリント",
-        educationalUse: "自習・小テスト",
+        learningResourceType: "単語テスト・単語一覧プリント",
+        educationalUse: "自習・小テスト・授業プリント",
         isAccessibleForFree: true,
         provider: { "@type": "Organization", name: "Vocab Print Pro", url: siteUrl },
-        ...(wordCount ? { about: `${displayTitle}（約${wordCount}語）` } : {}),
+        ...(wordCount ? { about: `${displayTitle}・約${wordCount}語` } : {}),
       },
       {
         "@type": "BreadcrumbList",
