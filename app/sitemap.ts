@@ -44,13 +44,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: `${siteUrl}${path}`,
         lastModified: now,
         changeFrequency: "weekly" as const,
-        priority: 0.78,
+        priority: 0.62,
       },
       {
         url: `${siteUrl}${path}?tab=test`,
         lastModified: now,
         changeFrequency: "weekly" as const,
-        priority: 0.9,
+        priority: 0.95,
       },
       {
         url: `${siteUrl}${path}?tab=listen`,

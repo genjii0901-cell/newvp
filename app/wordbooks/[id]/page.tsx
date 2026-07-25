@@ -100,7 +100,8 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
 
   const displayTitle = book?.title ?? fallbackTitle;
   const wordCount = getSeoWordCount(book);
-  const tabSeo = displayTitle ? buildTabSeo(displayTitle, wordCount, tab) : null;
+  const primarySeoTab = tab === "overview" ? "test" : tab;
+  const tabSeo = displayTitle ? buildTabSeo(displayTitle, wordCount, primarySeoTab) : null;
   const canonicalPath = tabCanonicalPath(baseCanonicalPath, tab);
   const title = tabSeo?.title ?? (displayTitle ? `${displayTitle}${label.titleSuffix}` : label.defaultTitle);
   const description =

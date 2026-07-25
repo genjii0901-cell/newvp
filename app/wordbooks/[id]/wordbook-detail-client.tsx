@@ -311,7 +311,7 @@ export default function WordbookDetailPage() {
   const [selectedUnit, setSelectedUnit] = useState("all");
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
-  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const [activeTab, setActiveTab] = useState<DetailTab>("test");
   const [testType, setTestType] = useState<TestType>("test");
   const [testDirection, setTestDirection] = useState<TestDirection>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
