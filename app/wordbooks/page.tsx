@@ -426,30 +426,34 @@ export default function WordbooksPage() {
                     onClick={() => {
                       window.location.href = detailPath;
                     }}
-                    className="min-w-0 cursor-pointer overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
+                    className="flex h-[255px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:h-[390px] sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
                   >
                     {book.coverImage ? (
-                      <img src={book.coverImage} alt={book.title} loading="lazy" className="h-24 w-full object-cover sm:h-40" />
+                      <img src={book.coverImage} alt={book.title} loading="lazy" className="h-24 w-full shrink-0 object-cover sm:h-40" />
                     ) : null}
-                    <div className="min-w-0 p-2 sm:p-5">
+                    <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-5">
                       <div className="flex items-center justify-between gap-1.5">
                         <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 sm:px-3 sm:py-1 sm:text-xs">
                           {planLabel(book.requiredPlan)}
                         </span>
                         <span className="text-[10px] text-slate-400 sm:text-xs">{wordCount}語</span>
                       </div>
-                      <h2 className="mt-1 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-0 sm:text-xl">{book.title}</h2>
+                      <h2 className="mt-1 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-[3.5rem] sm:text-xl">{book.title}</h2>
                       <p className="mt-1 hidden truncate text-xs font-bold text-slate-400 sm:block">
                         作成者: {book.creator ?? "Vocab Print Pro"}
                       </p>
-                      <p className="mt-1 hidden line-clamp-2 text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:line-clamp-3 sm:text-sm">
+                      <p
+                        className="mt-1 hidden h-10 overflow-hidden text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:h-[4.5rem] sm:text-sm sm:leading-6"
+                        style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
+                        title={book.description || "公式単語帳です。"}
+                      >
                         {book.description || "公式単語帳です。"}
                       </p>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         {units > 0 ? <span>{units}ユニット</span> : null}
                         <span>最初: {firstWord}</span>
                       </div>
-                      <div className="mt-1.5 grid gap-1.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-2">
+                      <div className="mt-auto grid gap-1.5 pt-1.5 sm:flex sm:flex-wrap sm:gap-2 sm:pt-4">
                         <Link
                           href={detailPath}
                           prefetch={false}
