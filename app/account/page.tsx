@@ -62,6 +62,7 @@ export default function AccountPage() {
   const [savingPw, setSavingPw] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -183,6 +184,33 @@ export default function AccountPage() {
     setPortalLoading(false);
   }
 
+  async function cancelSubscription() {
+    if (!supabase || !user) return;
+
+    const confirmed = window.confirm(
+      "契約を解約しますか？\n\n無料トライアル中に解約すると、その場でPersonal機能が使えなくなりFreeプランに戻ります。\nすでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。"
+    );
+    if (!confirmed) return;
+
+    setCancelLoading(true);
+    setMsg("");
+    const { data: session } = await supabase.auth.getSession();
+    const token = session.session?.access_token;
+    const response = await fetch("/api/stripe/cancel-subscription", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (response.ok) {
+      if (result.profile?.plan) setPlan(normalizePlan(result.profile.plan));
+      setMsg(result.message ?? "解約処理が完了しました。");
+    } else {
+      setMsg(result.error ?? "解約処理に失敗しました。時間をおいて再度お試しください。");
+    }
+    setCancelLoading(false);
+  }
+
   async function changeAdminPlan(nextPlan: Plan) {
     if (!supabase || !user || role !== "admin") return;
     setAdminPlanSaving(true);
@@ -298,10 +326,10 @@ export default function AccountPage() {
               disabled={portalLoading}
               className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
-              {portalLoading ? "開いています..." : "請求・解約ページを開く"}
+              {portalLoading ? "開いています..." : "支払い方法を管理する"}
             </button>
             <p className="mt-2 text-xs text-slate-500">
-              Stripeの請求ページで、支払い方法の変更や解約ができます。
+              支払い方法の変更や請求情報の確認はStripeの安全な画面で行います。解約は下の専用ボタンから行えます。
             </p>
           </>
         ) : (
@@ -315,6 +343,23 @@ export default function AccountPage() {
           </>
         )}
       </section>
+
+      {plan !== "free" && (
+        <section className="mt-4 rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+          <h2 className="text-lg font-black text-red-700">契約の解約</h2>
+          <p className="mt-2 text-sm leading-6 text-red-700">
+            無料トライアル中に解約すると、その場でPersonal機能は使えなくなり、Freeプランに戻ります。
+            すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
+          </p>
+          <button
+            onClick={cancelSubscription}
+            disabled={cancelLoading || portalLoading}
+            className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
+          >
+            {cancelLoading ? "解約処理中..." : "契約を解約する"}
+          </button>
+        </section>
+      )}
 
       {role === "admin" && (
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
