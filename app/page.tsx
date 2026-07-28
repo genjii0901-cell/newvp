@@ -82,6 +82,35 @@ function planCacheKey(userId: string) {
   return `vpp-profile-plan:${userId}`;
 }
 
+const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
+
+function rememberPrintPurchaseIntent(pages: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      PRINT_PURCHASE_INTENT_KEY,
+      JSON.stringify({ pages: Math.max(1, Math.floor(Number(pages) || 1)), createdAt: Date.now() })
+    );
+  } catch {
+    // localStorageが使えない場合は、登録後にもう一度印刷ボタンから進んでもらう
+  }
+}
+
+function consumePrintPurchaseIntent() {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PRINT_PURCHASE_INTENT_KEY);
+    if (!raw) return null;
+    window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
+    const parsed = JSON.parse(raw) as { pages?: unknown; createdAt?: unknown };
+    const createdAt = Number(parsed.createdAt) || 0;
+    if (!createdAt || Date.now() - createdAt > 30 * 60 * 1000) return null;
+    return { pages: Math.max(1, Math.floor(Number(parsed.pages) || 1)) };
+  } catch {
+    return null;
+  }
+}
+
 function getAuthRedirectBaseUrl() {
   if (typeof window !== "undefined") {
     return window.location.origin.replace(/\/$/, "");
@@ -961,6 +990,16 @@ export default function Home() {
     if (intent) setTrialModalOpen(true); // 有料登録を選んだ人には、登録直後に目立つポップアップを出す
   }, [user]);
 
+  useEffect(() => {
+    if (!user || !supabase) return;
+    const pendingPurchase = consumePrintPurchaseIntent();
+    if (!pendingPurchase) return;
+
+    setMessageTone("info");
+    setMessage("ログインできました。今回だけ印刷の決済ページを準備しています。");
+    void startPrintPurchaseCheckout(pendingPurchase.pages);
+  }, [user, supabase]);
+
   // 「有料登録の完了」ポップアップを閉じる（＝上部の勧誘バーに切り替わる）
   function dismissTrialModal() {
     setTrialModalOpen(false);
@@ -1542,20 +1581,15 @@ export default function Home() {
     }
   }
 
-  // 支払いゲート「①単品購入」: 未登録は先に無料登録、登録済みはStripeの都度決済へ。
-  async function handlePrintPurchase() {
-    if (!user) {
-      setPrintGateOpen(false);
-      guideToRegister("印刷の単品購入には、無料の会員登録が必要です。");
-      return;
-    }
+  async function startPrintPurchaseCheckout(pages: number) {
+    setPrintGateOpen(false);
     setPrintGateBusy(true);
     try {
       const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
       const res = await fetch("/api/stripe/print-purchase-session", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ pages: printGatePages }),
+        body: JSON.stringify({ pages }),
       });
       const data = await res.json().catch(() => ({}));
       if (data?.ok && data.url) {
@@ -1567,6 +1601,19 @@ export default function Home() {
       alert("決済ページを開けませんでした。時間をおいて再度お試しください。");
     }
     setPrintGateBusy(false);
+  }
+
+  // 支払いゲート「①今回だけ印刷」: 未登録は登録後に同じ選択へ戻さず、Stripeの都度決済へ進める。
+  async function handlePrintPurchase() {
+    if (!user) {
+      rememberPrintPurchaseIntent(printGatePages);
+      setSignupPlan("free");
+      setPrintGateOpen(false);
+      guideToRegister("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
+      return;
+    }
+
+    await startPrintPurchaseCheckout(printGatePages);
   }
 
   // 支払いゲート「②Personal」: 7日間無料トライアルへ。
@@ -1957,9 +2004,15 @@ export default function Home() {
 
   async function guideToPersonal(reason: string) {
     if (!user) {
+      setSignupPlan("personal");
+      try {
+        window.localStorage.setItem("vpp-signup-intent", "personal");
+      } catch {
+        // localStorageが使えない環境では通常の無料登録として扱う
+      }
       setAuthMode("signup");
       setMessageTone("info");
-      setMessage(`${reason} 無料会員登録（メールアドレスだけ・完全無料）をすると、印刷回数がリセットされて、また印刷できます。さらにPersonalの7日間無料トライアルにも進めます。`);
+      setMessage(`${reason} まず無料会員登録を完了すると、そのままPersonalの7日間無料トライアルへ進めます。`);
       document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }

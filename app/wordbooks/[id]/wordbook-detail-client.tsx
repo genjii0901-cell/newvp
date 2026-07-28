@@ -24,6 +24,7 @@ type DragTarget = "title" | "date" | "info" | "grid" | "pageNo";
 const PREVIEW_SCALE = 0.48;
 const PREVIEW_WIDTH = 794;
 const PREVIEW_HEIGHT = 1123;
+const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
 
 type Word = {
   no: number;
@@ -77,6 +78,18 @@ function chunkWords(words: Word[], size: number) {
   const chunks: Word[][] = [];
   for (let index = 0; index < words.length; index += size) chunks.push(words.slice(index, index + size));
   return chunks;
+}
+
+function rememberPrintPurchaseIntent(pages: number) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      PRINT_PURCHASE_INTENT_KEY,
+      JSON.stringify({ pages: Math.max(1, Math.floor(Number(pages) || 1)), createdAt: Date.now() })
+    );
+  } catch {
+    // Ignore storage failures; the user can retry after login.
+  }
 }
 
 function formatPrintDate(date: Date) {
@@ -717,10 +730,12 @@ export default function WordbookDetailPage() {
   // 支払いゲート「①単品購入」: 未登録は先に無料登録、登録済みはStripeの都度決済へ。
   async function handlePrintPurchase() {
     if (!isLoggedIn) {
+      rememberPrintPurchaseIntent(printGatePages);
       setPrintGateOpen(false);
-      setRegisterPrompt("印刷の単品購入には、無料の会員登録が必要です。");
+      setRegisterPrompt("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
       return;
     }
+    setPrintGateOpen(false);
     setPrintGateBusy(true);
     try {
       const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
@@ -744,7 +759,12 @@ export default function WordbookDetailPage() {
   // 支払いゲート「②Personal」: 料金ページ（7日間無料トライアル）へ。
   function handlePersonalFromGate() {
     setPrintGateOpen(false);
-    window.location.href = "/pricing";
+    try {
+      window.localStorage.setItem("vpp-signup-intent", "personal");
+    } catch {
+      // Ignore storage failures; the signup form still works normally.
+    }
+    window.location.href = "/#auth";
   }
 
   function openInListening() {
