@@ -732,7 +732,7 @@ export default function WordbookDetailPage() {
     if (!isLoggedIn) {
       rememberPrintPurchaseIntent(printGatePages);
       setPrintGateOpen(false);
-      setRegisterPrompt("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
+      window.location.href = "/?print_auth=purchase";
       return;
     }
     setPrintGateOpen(false);
@@ -761,10 +761,11 @@ export default function WordbookDetailPage() {
     setPrintGateOpen(false);
     try {
       window.localStorage.setItem("vpp-signup-intent", "personal");
+      window.localStorage.setItem("vpp-post-auth-action", "personal");
     } catch {
       // Ignore storage failures; the signup form still works normally.
     }
-    window.location.href = "/#auth";
+    window.location.href = "/?print_auth=personal";
   }
 
   function openInListening() {
@@ -1948,7 +1949,7 @@ export default function WordbookDetailPage() {
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = "/#auth";
+                  window.location.href = "/?print_auth=personal";
                 }}
                 className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
               >

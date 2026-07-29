@@ -83,6 +83,7 @@ function planCacheKey(userId: string) {
 }
 
 const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
+const POST_AUTH_ACTION_KEY = "vpp-post-auth-action";
 
 function rememberPrintPurchaseIntent(pages: number) {
   if (typeof window === "undefined") return;
@@ -106,6 +107,26 @@ function consumePrintPurchaseIntent() {
     const createdAt = Number(parsed.createdAt) || 0;
     if (!createdAt || Date.now() - createdAt > 30 * 60 * 1000) return null;
     return { pages: Math.max(1, Math.floor(Number(parsed.pages) || 1)) };
+  } catch {
+    return null;
+  }
+}
+
+function rememberPostAuthAction(action: "personal") {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(POST_AUTH_ACTION_KEY, action);
+  } catch {
+    // localStorageが使えない場合は、ログイン後に通常導線で進める
+  }
+}
+
+function consumePostAuthAction() {
+  if (typeof window === "undefined") return null;
+  try {
+    const action = window.localStorage.getItem(POST_AUTH_ACTION_KEY);
+    window.localStorage.removeItem(POST_AUTH_ACTION_KEY);
+    return action === "personal" ? action : null;
   } catch {
     return null;
   }
@@ -457,6 +478,8 @@ export default function Home() {
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
+  const [printAuthIntent, setPrintAuthIntent] = useState<"personal" | "purchase" | null>(null);
+  const [printAuthReason, setPrintAuthReason] = useState("");
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
@@ -625,7 +648,6 @@ export default function Home() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const authStatus = params.get("auth");
-    if (!authStatus) return;
 
     if (authStatus === "confirmed") {
       setMessageTone("success");
@@ -638,8 +660,25 @@ export default function Home() {
       setMessage("認証リンクの確認に失敗しました。もう一度メール内のリンクを開くか、再登録を試してください。");
     }
 
+    const printAuth = params.get("print_auth");
+    if (printAuth === "personal") {
+      setAuthMode("signup");
+      setSignupPlan("personal");
+      setPrintAuthIntent("personal");
+      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、そのまま7日間無料トライアルの決済画面へ進みます。");
+      rememberPostAuthAction("personal");
+    } else if (printAuth === "purchase") {
+      setAuthMode("signup");
+      setSignupPlan("free");
+      setPrintAuthIntent("purchase");
+      setPrintAuthReason("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
+    }
+
+    if (!authStatus && !printAuth) return;
+
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete("auth");
+    nextUrl.searchParams.delete("print_auth");
     window.history.replaceState({}, "", nextUrl.pathname + nextUrl.search + nextUrl.hash);
   }, []);
 
@@ -992,13 +1031,33 @@ export default function Home() {
 
   useEffect(() => {
     if (!user || !supabase) return;
+    const postAuthAction = consumePostAuthAction();
+    if (postAuthAction === "personal") {
+      setPrintAuthIntent(null);
+      setTrialModalOpen(false);
+      setMessageTone("info");
+      setMessage("ログインできました。Personalの決済ページを準備しています。");
+      void startCheckout("personal");
+      return;
+    }
+
     const pendingPurchase = consumePrintPurchaseIntent();
     if (!pendingPurchase) return;
 
     setMessageTone("info");
     setMessage("ログインできました。今回だけ印刷の決済ページを準備しています。");
+    setPrintAuthIntent(null);
     void startPrintPurchaseCheckout(pendingPurchase.pages);
   }, [user, supabase]);
+
+  useEffect(() => {
+    if (!user || !supabase || printAuthIntent !== "personal") return;
+    setPrintAuthIntent(null);
+    setTrialModalOpen(false);
+    setMessageTone("info");
+    setMessage("ログインできました。Personalの決済ページを準備しています。");
+    void startCheckout("personal");
+  }, [user, supabase, printAuthIntent]);
 
   // 「有料登録の完了」ポップアップを閉じる（＝上部の勧誘バーに切り替わる）
   function dismissTrialModal() {
@@ -1260,13 +1319,17 @@ export default function Home() {
       // 確認メールが不要な設定では、この時点で既にログイン済みになる。
       if (data.session) {
         setPendingTrial(signupPlan === "personal");
-        if (signupPlan === "personal") setTrialModalOpen(true);
+        if (signupPlan === "personal" && printAuthIntent !== "personal") setTrialModalOpen(true);
         setMessageTone("success");
         setMessage(
           signupPlan === "personal"
             ? "登録が完了しました。続けて、Personalの7日間無料トライアルを開始してください。"
             : "登録が完了しました。無料プランですぐに使えます。"
         );
+        if (printAuthIntent === "personal") {
+          setPrintAuthIntent(null);
+          await startCheckout("personal");
+        }
         return;
       }
 
@@ -1608,18 +1671,44 @@ export default function Home() {
     if (!user) {
       rememberPrintPurchaseIntent(printGatePages);
       setSignupPlan("free");
+      setAuthMode("signup");
       setPrintGateOpen(false);
-      guideToRegister("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
+      setPrintAuthIntent("purchase");
+      setPrintAuthReason("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
       return;
     }
 
     await startPrintPurchaseCheckout(printGatePages);
   }
 
+  function closePrintAuthModal() {
+    setPrintAuthIntent(null);
+    setPrintAuthReason("");
+    try {
+      window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
+      window.localStorage.removeItem(POST_AUTH_ACTION_KEY);
+    } catch {
+      // 保存済み意図を消せなくても、画面操作は続けられる
+    }
+  }
+
   // 支払いゲート「②Personal」: 7日間無料トライアルへ。
   function handlePersonalFromGate() {
     setPrintGateOpen(false);
-    void guideToPersonal("印刷し放題のPersonalプランを、7日間無料で試せます。");
+    if (!user) {
+      setSignupPlan("personal");
+      setAuthMode("signup");
+      setPrintAuthIntent("personal");
+      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、そのまま7日間無料トライアルの決済画面へ進みます。");
+      rememberPostAuthAction("personal");
+      try {
+        window.localStorage.setItem("vpp-signup-intent", "personal");
+      } catch {
+        // localStorageが使えない環境では通常の登録導線として扱う
+      }
+      return;
+    }
+    void startCheckout("personal");
   }
 
   async function printPdf() {
@@ -2033,11 +2122,6 @@ export default function Home() {
     }
     if (!configuredPlans[targetPlan]) {
       alert(`${targetPlan === "teacher" ? "Teacher" : "Personal"}プランのStripe設定が未完了です。`);
-      return;
-    }
-
-    if (!user) {
-      alert("先にログインしてください。");
       return;
     }
 
@@ -3365,6 +3449,128 @@ export default function Home() {
         onPersonal={handlePersonalFromGate}
         onClose={() => setPrintGateOpen(false)}
       />
+
+      {printAuthIntent && !user && (
+        <div
+          className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm"
+          onClick={closePrintAuthModal}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-center text-xs font-black text-blue-700">
+              {printAuthIntent === "personal" ? "Personalで続ける" : "今回だけ印刷する"}
+            </p>
+            <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
+              {printAuthIntent === "personal" ? "登録後、そのまま決済へ進みます" : "登録後、そのまま50円決済へ進みます"}
+            </h3>
+            <div className={`mt-4 rounded-2xl border-2 p-4 text-center ${
+              printAuthIntent === "personal" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
+            }`}>
+              <p className="text-sm font-black text-slate-900">
+                {printAuthIntent === "personal"
+                  ? "Personal 7日間0円 / その後 月額780円"
+                  : `今回だけ ${printGatePages}ページ × 50円`}
+              </p>
+              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{printAuthReason}</p>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setAuthMode("signup")}
+                className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold ${authMode === "signup" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                新規登録
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMode("login")}
+                className={`flex-1 rounded-xl px-4 py-2 text-sm font-bold ${authMode === "login" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700"}`}
+              >
+                ログイン
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn("google")}
+                disabled={!supabase}
+                className="flex h-11 items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
+              >
+                <span className="text-lg font-black">
+                  <span className="text-blue-600">G</span><span className="text-red-500">o</span><span className="text-yellow-500">o</span><span className="text-blue-600">g</span><span className="text-emerald-600">l</span><span className="text-red-500">e</span>
+                </span>
+                <span>Googleで続ける</span>
+              </button>
+              {isLineLoginEnabled() && (
+                <button
+                  type="button"
+                  onClick={() => handleOAuthSignIn("line")}
+                  disabled={!supabase}
+                  className="flex h-11 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
+                >
+                  <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
+                  <span>LINEで続ける</span>
+                </button>
+              )}
+            </div>
+
+            <div className="mt-4 flex items-center gap-3 text-xs font-bold text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span>またはメールアドレスで続ける</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <input
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                placeholder="メールアドレス"
+                className="w-full rounded-xl border px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <div className="relative">
+                <input
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type={showAuthPassword ? "text" : "password"}
+                  placeholder={authMode === "signup" ? "パスワード（6文字以上）" : "パスワード"}
+                  className="w-full rounded-xl border px-3 py-3 pr-11 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAuthPassword((value) => !value)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                  aria-label={showAuthPassword ? "パスワードを隠す" : "パスワードを表示"}
+                >
+                  {showAuthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleAuth}
+                className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+              >
+                {authMode === "login"
+                  ? "ログインして続ける"
+                  : printAuthIntent === "personal"
+                    ? "登録してPersonalへ進む"
+                    : "登録して今回だけ印刷へ進む"}
+              </button>
+              <button
+                type="button"
+                onClick={closePrintAuthModal}
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50"
+              >
+                戻る
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {user && plan === "free" && trialModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
