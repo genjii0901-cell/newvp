@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
+import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 export const metadata: Metadata = {
   title: "単語帳別に単語テスト・プリントを作成 | Vocab Print Pro",
@@ -72,7 +73,7 @@ export default function WordbooksForPrintingGuidePage() {
         <div className="mt-8 -mx-5 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3">
           <div className="flex gap-3 sm:contents">
             {sampleWordbooks.map((book) => (
-              <Link key={book.id} href="/wordbooks" className="w-44 shrink-0 overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
+              <Link key={book.id} href={buildWordbookPath(book.id, book.title)} className="w-44 shrink-0 overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
                 <div className="relative h-48 bg-slate-100 sm:h-36">
                   <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
                   <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">

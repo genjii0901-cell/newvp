@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
+import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 export const metadata: Metadata = {
   title: "英単語テストPDFをかんたん作成 | Vocab Print Pro",
@@ -63,6 +64,47 @@ export default function WordTestGeneratorGuidePage() {
       </section>
 
       <section className="mx-auto max-w-5xl px-5 py-14">
+        <div className="grid gap-6 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+          <div>
+            <p className="text-sm font-black text-blue-700">完成イメージ</p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">
+              紙の見た目を確認してから印刷できます
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-600">
+              A4用紙のプレビューを見ながら、タイトル、日付、氏名欄、ページ番号、空欄形式を調整できます。
+              作成した単語テストは、そのまま印刷またはPDF保存できます。
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              {[
+                ["印刷", "A4に収まる一覧・問題・解答"],
+                ["聞き流し", "英語→日本語の音声学習"],
+                ["4択チェック", "間違えた語をあとで復習"],
+              ].map(([title, text]) => (
+                <div key={title} className="rounded-2xl border bg-white p-4 shadow-sm">
+                  <p className="text-sm font-black text-slate-900">{title}</p>
+                  <p className="mt-1 text-xs font-bold text-slate-500">{text}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mx-auto w-full max-w-[360px] rounded-[22px] border bg-slate-100 p-3 shadow-xl">
+            <div className="rounded-xl bg-white p-4 shadow-sm">
+              <div className="text-center text-[10px] font-black tracking-wide text-slate-900">英検 単語テスト　問題</div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {["番号　単語　　　意味", "1　 important　＿＿＿＿", "2　 practice　 ＿＿＿＿", "3　 improve　　＿＿＿＿", "4　 result　　 ＿＿＿＿", "5　 prepare　　＿＿＿＿"].map((row, index) => (
+                  <div key={`${row}-${index}`} className={`border-b border-slate-300 px-1 py-2 text-[8px] ${index === 0 ? "font-black" : "text-slate-700"}`}>
+                    {row}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex justify-between text-[8px] text-slate-400"><span>氏名 __________________</span><span>1/1</span></div>
+            </div>
+            <p className="pt-2 text-center text-[10px] font-bold text-slate-500">印刷プレビューのイメージ</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-5xl px-5 py-14">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-sm font-black text-blue-700">みんなの単語帳</p>
@@ -77,7 +119,7 @@ export default function WordTestGeneratorGuidePage() {
         </div>
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {sampleWordbooks.map((book) => (
-            <Link key={book.id} href="/wordbooks" className="overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+            <Link key={book.id} href={buildWordbookPath(book.id, book.title)} className="overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
               <div className="relative h-36 bg-slate-100">
                 <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
                 <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">

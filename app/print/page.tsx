@@ -399,7 +399,7 @@ const printJobCss = `
   @media print {
     @page {
       size: A4 portrait;
-      margin: 5mm;
+      margin: 9mm 9mm 8mm 9mm;
     }
 
     html,
@@ -453,12 +453,12 @@ const printJobCss = `
     }
 
     .paper-preview .print-page {
-      width: auto !important;
-      /* 高さは内容＋min-heightで用紙いっぱいに。固定280/296mmだと端末の余白で溢れて2枚目が出るため。 */
-      height: auto !important;
-      max-height: none !important;
+      /* メイン画面の印刷と同じA4本文寸法に固定する。都度決済後も同じ紙面になる。 */
+      width: 100% !important;
+      height: 280mm !important;
+      max-height: 280mm !important;
       overflow: hidden !important;
-      padding: 0 !important;
+      padding-bottom: 1mm !important;
       box-sizing: border-box !important;
       margin: 0 auto !important;
       border: 0 !important;

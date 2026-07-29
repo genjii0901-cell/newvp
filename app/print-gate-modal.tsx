@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 const PER_PAGE_PRICE_JPY = 50;
 
 export type PrintGateModalProps = {
@@ -21,6 +23,12 @@ export default function PrintGateModal({
   onPersonal,
   onClose,
 }: PrintGateModalProps) {
+  const [selectedMethod, setSelectedMethod] = useState<"personal" | "purchase">("personal");
+
+  useEffect(() => {
+    if (open) setSelectedMethod("personal");
+  }, [open]);
+
   if (!open) return null;
 
   const safePages = Math.max(1, pages);
@@ -45,9 +53,10 @@ export default function PrintGateModal({
 
         <button
           type="button"
-          onClick={onPersonal}
+          onClick={() => setSelectedMethod("personal")}
           disabled={busy}
-          className="mt-5 w-full rounded-2xl border-2 border-blue-500 bg-blue-50 p-4 text-left shadow-md transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-pressed={selectedMethod === "personal"}
+          className={`mt-5 w-full rounded-2xl border-2 p-4 text-left shadow-md transition disabled:cursor-not-allowed disabled:opacity-60 ${selectedMethod === "personal" ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:border-blue-300"}`}
         >
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-black text-blue-800">Personalプランで印刷し放題</span>
@@ -66,9 +75,10 @@ export default function PrintGateModal({
 
         <button
           type="button"
-          onClick={onPurchase}
+          onClick={() => setSelectedMethod("purchase")}
           disabled={busy}
-          className="mt-3 w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-left transition hover:border-blue-300 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-pressed={selectedMethod === "purchase"}
+          className={`mt-3 w-full rounded-2xl border-2 p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-60 ${selectedMethod === "purchase" ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:border-blue-300"}`}
         >
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-black text-slate-800">今回だけ印刷する</span>
@@ -84,11 +94,20 @@ export default function PrintGateModal({
 
         <button
           type="button"
+          onClick={selectedMethod === "personal" ? onPersonal : onPurchase}
+          disabled={busy}
+          className="mt-4 w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {busy ? "決済ページを準備中..." : selectedMethod === "personal" ? "Personalで次へ" : "今回だけ印刷で次へ"}
+        </button>
+
+        <button
+          type="button"
           onClick={onClose}
           disabled={busy}
           className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {busy ? "決済ページを準備中..." : "戻る"}
+          戻る
         </button>
         <p className="mt-3 text-center text-[11px] font-bold text-slate-400">
           支払いはStripeの安全な決済画面で行います。
