@@ -28,6 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/legal/terms",
     "/legal/privacy",
     "/legal/tokushoho",
+    "/legal/copyright",
   ];
   const basePages = paths.map((path) => ({
     url: `${siteUrl}${path}`,

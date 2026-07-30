@@ -14,6 +14,7 @@ const ogImage = `${siteUrl}/opengraph-image`;
 const twitterImage = `${siteUrl}/twitter-image`;
 
 const footerLabels = {
+  copyright: "著作権・コンテンツ利用",
   pricing: "\u6599\u91d1",
   terms: "\u5229\u7528\u898f\u7d04",
   privacy: "\u30d7\u30e9\u30a4\u30d0\u30b7\u30fc\u30dd\u30ea\u30b7\u30fc",
@@ -129,6 +130,9 @@ export default function RootLayout({
             </Link>
             <Link href="/legal/tokushoho" className="hover:text-slate-600">
               {footerLabels.tokushoho}
+            </Link>
+            <Link href="/legal/copyright" className="hover:text-slate-600">
+              {footerLabels.copyright}
             </Link>
           </div>
           <p className="mt-4">© 2026 Vocab Print Pro</p>
