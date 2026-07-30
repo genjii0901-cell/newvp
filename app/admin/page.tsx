@@ -17,6 +17,7 @@ import {
 import { parseWordText } from "@/lib/parse-word-text";
 import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
+import AdminQuizPanel from "./admin-quiz-panel";
 
 /* 笏笏笏 Types 笏笏笏 */
 type Visibility = "public" | "personal" | "teacher" | "admin";
@@ -651,7 +652,7 @@ export default function AdminPage() {
   const [twoFaConfirming, setTwoFaConfirming] = useState(false);
   const [twoFaOk, setTwoFaOk] = useState(false);
 
-  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "quiz">("dashboard");
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -867,7 +868,7 @@ export default function AdminPage() {
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
   useEffect(() => {
     if (!unlocked || (tab !== "manage" && tab !== "pdf")) return;
-    fetchBooks({ silent: true, includeWords: tab === "pdf" });
+    fetchBooks({ silent: true, includeWords: tab === "pdf" || tab === "quiz" });
   }, [tab, unlocked]);
   useEffect(() => {
     if (!unlocked || tab !== "dashboard") return;
@@ -1567,6 +1568,7 @@ export default function AdminPage() {
             ["create", "📚 単語帳を登録"],
             ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
             ["pdf", "📄 単語テスト作成"],
+            ["quiz", "🧪 4択単語チェック"],
           ] as const).map(([t, label]) => (
             <button
               key={t}
@@ -2600,6 +2602,8 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {tab === "quiz" && <AdminQuizPanel books={books} />}
       </div>
       {showLayoutEditor && selectedPdfBook && pdfOutputWords.length > 0 && (() => {
         const ppMM = PREVIEW_SCALE * 3.78;
