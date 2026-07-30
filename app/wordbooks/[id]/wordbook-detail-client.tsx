@@ -298,13 +298,15 @@ export default function WordbookDetailPage() {
 
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
+  const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
+  const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [registerPrompt, setRegisterPrompt] = useState<string | null>(null);
   // 「最後の印刷」の支払いゲート（単品購入 or Personal）
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const isPaid = userPlan === "personal" || userPlan === "teacher";
+  const isPaid = userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定は誰でも自由に。印刷は「単品購入 or Personal」の支払いゲートで止めるので、語数の上限は設けない。
   const maxWords = Number.MAX_SAFE_INTEGER;
@@ -450,6 +452,28 @@ export default function WordbookDetailPage() {
     return () => {
       active = false;
     };
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const token = data.session?.access_token;
+      if (!token) {
+        if (active) {
+          setLicenseWordbookIds([]);
+          setHasPersonalLicense(false);
+        }
+        return;
+      }
+      const response = await fetch("/api/licenses/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).catch(() => null);
+      const result = await response?.json().catch(() => ({}));
+      if (!active || !response?.ok || !Array.isArray(result?.entitlements)) return;
+      const entitlements = result.entitlements as Array<{ kind?: string; wordbookId?: string | null }>;
+      setHasPersonalLicense(entitlements.some((item) => item.kind === "personal"));
+      setLicenseWordbookIds(entitlements.filter((item) => item.kind === "wordbook" && item.wordbookId).map((item) => String(item.wordbookId)));
+    });
+    return () => { active = false; };
   }, [supabase]);
 
   const units = useMemo(() => {

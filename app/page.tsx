@@ -456,6 +456,8 @@ export default function Home() {
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
 
   const [plan, setPlan] = useState<Plan>("free");
+  const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
+  const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [books, setBooks] = useState<WordBook[]>([]);
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [bookId, setBookId] = useState("");
@@ -845,6 +847,8 @@ export default function Home() {
   useEffect(() => {
     if (!supabase || !user) {
       setPlan("free");
+      setLicenseWordbookIds([]);
+      setHasPersonalLicense(false);
       return;
     }
 
@@ -921,6 +925,24 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
+  }, [supabase, user]);
+
+  useEffect(() => {
+    if (!supabase || !user) return;
+    let cancelled = false;
+    async function loadLicenses() {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const response = await fetch("/api/licenses/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).catch(() => null);
+      const result = await response?.json().catch(() => ({}));
+      if (cancelled || !response?.ok || !Array.isArray(result?.entitlements)) return;
+      const entitlements = result.entitlements as Array<{ kind?: string; wordbookId?: string | null }>;
+      setHasPersonalLicense(entitlements.some((item) => item.kind === "personal"));
+      setLicenseWordbookIds(entitlements.filter((item) => item.kind === "wordbook" && item.wordbookId).map((item) => String(item.wordbookId)));
+    }
+    void loadLicenses();
+    return () => { cancelled = true; };
   }, [supabase, user]);
 
   // Handle import from wordbook detail page (?import=1)
@@ -1476,14 +1498,15 @@ export default function Home() {
 
   async function printWords(words: Word[], sourceTitle: string, sourceLabel: string) {
     const activePlan = user ? plan : "free";
-    const isPaidUser = activePlan === "personal" || activePlan === "teacher";
+    const selectedBookLicensed = Boolean(selectedBook && licenseWordbookIds.includes(String(selectedBook.id)));
+    const isPaidUser = activePlan === "personal" || activePlan === "teacher" || hasPersonalLicense || selectedBookLicensed;
     const usageUserId = user?.id ?? "guest";
     const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     let usageCheckedByServer = false;
     const wordCount = words.length;
     const pageCount = getPageCount(wordCount);
 
-    // 有料ユーザー(Personal/Teacher)のみサーバーで使用量チェック。無料/未登録は後段の支払いゲートで止める。
+    // Noteライセンスも同じAPIで再確認する。ブラウザ側の表示だけでは権限を決めない。
     if (isPaidUser && token && user) {
       const usageResponse = await fetch("/api/usage/check", {
         method: "POST",
@@ -1491,13 +1514,13 @@ export default function Home() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ wordCount, pageCount }),
+        body: JSON.stringify({ wordCount, pageCount, wordbookId: selectedBook ? String(selectedBook.id) : null }),
       });
       const usageResult = await usageResponse.json().catch(() => ({}));
 
       if (usageResponse.ok && usageResult.ok) {
         usageCheckedByServer = true;
-        if (usageResult.plan) {
+        if (usageResult.plan && !usageResult.licenseKind) {
           const serverPlan = normalizePlan(usageResult.plan);
           setPlan(serverPlan);
           writeCachedPlan(user.id, serverPlan);
@@ -1520,7 +1543,7 @@ export default function Home() {
     }
 
     // 支払い後は透かしなし・全ページを出す（無料判定でスライスされないよう personal 相当で組む）。
-    const buildPlan: Plan = isPaidUser ? activePlan : "personal";
+    const buildPlan: Plan = isPaidUser ? (activePlan === "teacher" ? "teacher" : "personal") : "personal";
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;

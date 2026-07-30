@@ -18,6 +18,7 @@ import { parseWordText } from "@/lib/parse-word-text";
 import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 import AdminQuizPanel from "./admin-quiz-panel";
+import LicenseAdminPanel from "./license-admin-panel";
 
 /* 笏笏笏 Types 笏笏笏 */
 type Visibility = "public" | "personal" | "teacher" | "admin";
@@ -652,7 +653,7 @@ export default function AdminPage() {
   const [twoFaConfirming, setTwoFaConfirming] = useState(false);
   const [twoFaOk, setTwoFaOk] = useState(false);
 
-  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "quiz">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "quiz" | "licenses">("dashboard");
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -1569,6 +1570,7 @@ export default function AdminPage() {
             ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
             ["pdf", "📄 単語テスト作成"],
             ["quiz", "🧪 4択単語チェック"],
+            ["licenses", "🔑 Noteライセンス"],
           ] as const).map(([t, label]) => (
             <button
               key={t}
@@ -2604,6 +2606,7 @@ export default function AdminPage() {
         )}
 
         {tab === "quiz" && <AdminQuizPanel books={books} />}
+        {tab === "licenses" && <LicenseAdminPanel books={books} />}
       </div>
       {showLayoutEditor && selectedPdfBook && pdfOutputWords.length > 0 && (() => {
         const ppMM = PREVIEW_SCALE * 3.78;

@@ -7,6 +7,7 @@ import {
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
 import { getPageCount, planLimits, type Plan } from "@/lib/plan-limits";
+import { getLicenseEntitlements, hasPersonalLicense, hasWordbookLicense, isLicenseSchemaError } from "@/lib/licenses";
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -36,8 +37,30 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const wordCount = Number(body.wordCount ?? 0);
     const pageCount = Number(body.pageCount ?? getPageCount(wordCount));
+    const wordbookId = body.wordbookId == null ? null : String(body.wordbookId);
     const profile = await ensureProfile(auth.user);
-    const plan = normalizePlan(profile?.plan);
+    let licenseKind: "personal" | "wordbook" | null = null;
+    try {
+      const entitlements = await getLicenseEntitlements(auth.user.id);
+      if (hasPersonalLicense(entitlements)) licenseKind = "personal";
+      else if (wordbookId && hasWordbookLicense(entitlements, wordbookId)) licenseKind = "wordbook";
+    } catch (error) {
+      // Existing installs remain usable until the optional Note license tables are created.
+      if (!isLicenseSchemaError(error)) throw error;
+    }
+    const plan = licenseKind ? "personal" : normalizePlan(profile?.plan);
+    if (licenseKind) {
+      return NextResponse.json({
+        ok: true,
+        plan,
+        licenseKind,
+        remaining: null,
+        maxPages: null,
+        maxWords: null,
+        maxGenerations: null,
+        period: "license",
+      });
+    }
     const rule = planLimits[plan];
 
     if (typeof rule.maxPages === "number" && pageCount > rule.maxPages) {
@@ -108,6 +131,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       ok: true,
       plan,
+      licenseKind,
       remaining,
       maxPages: rule.maxPages ?? null,
       maxWords: rule.maxWords,
