@@ -2,10 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { japanDateKey } from "@/lib/analytics-date";
 
 export default function VisitTracker() {
   const pathname = usePathname();
@@ -16,7 +13,7 @@ export default function VisitTracker() {
 
     const query = searchParams?.toString();
     const path = query ? `${pathname}?${query}` : pathname;
-    const dedupeKey = `vpp-visit:${todayKey()}:${path}`;
+    const dedupeKey = `vpp-visit:${japanDateKey()}:${path}`;
 
     try {
       if (sessionStorage.getItem(dedupeKey) === "1") return;

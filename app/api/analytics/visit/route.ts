@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { japanDateKey } from "@/lib/analytics-date";
 import { getSupabaseAdmin, isSupabaseServerConfigured } from "@/lib/supabase/admin";
 
 function normalizePath(value: unknown) {
@@ -7,10 +8,6 @@ function normalizePath(value: unknown) {
   const trimmed = value.trim();
   if (!trimmed.startsWith("/")) return "/";
   return trimmed.slice(0, 200) || "/";
-}
-
-function todayKey() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function hashVisitor(input: string) {
@@ -53,7 +50,7 @@ export async function POST(request: Request) {
     const ua = request.headers.get("user-agent") ?? "";
     const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
     const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
-    const date = todayKey();
+    const date = japanDateKey();
     const visitorHash = hashVisitor(`${ip}|${ua}|${date}`);
     const stableVisitorHash = hashVisitor(`${ip}|${ua}`);
     const encodedPath = encodeURIComponent(path);

@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
+import { japanDateKey, japanDateStart, utcDateKey } from "@/lib/analytics-date";
 import {
   getSupabaseAdmin,
   isSupabaseServerConfigured,
@@ -376,7 +377,9 @@ export async function GET(request: Request) {
         ua: string;
       }
     >();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = japanDateKey();
+    // Preserve same-day visits recorded by the pre-JST tracker during rollout.
+    const legacyUtcToday = utcDateKey();
     const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
     const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
     const currentUa = request.headers.get("user-agent") ?? "";
@@ -389,23 +392,23 @@ export async function GET(request: Request) {
 
       if (key.startsWith("visit_total::")) {
         const dateText = key.slice("visit_total::".length, "visit_total::".length + 10);
-        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        const time = japanDateStart(dateText);
         if (!Number.isFinite(time)) continue;
-        if (dateText === today) viewsToday += count;
+        if (dateText === today || (today !== legacyUtcToday && dateText === legacyUtcToday)) viewsToday += count;
         if (time >= date7dThreshold) views7d += count;
         if (time >= date30dThreshold) views30d += count;
       } else if (key.startsWith("visit_unique_total::")) {
         const dateText = key.slice("visit_unique_total::".length, "visit_unique_total::".length + 10);
-        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        const time = japanDateStart(dateText);
         if (!Number.isFinite(time)) continue;
-        if (dateText === today) uniqueToday += count;
+        if (dateText === today || (today !== legacyUtcToday && dateText === legacyUtcToday)) uniqueToday += count;
         if (time >= date7dThreshold) unique7d += count;
         if (time >= date30dThreshold) unique30d += count;
       } else if (key.startsWith("visit_path::")) {
         const match = key.match(/^visit_path::(\d{4}-\d{2}-\d{2})::(.+)$/);
         if (!match) continue;
         const [, dateText, encodedPath] = match;
-        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        const time = japanDateStart(dateText);
         if (!Number.isFinite(time) || time < date30dThreshold) continue;
         const path = decodeURIComponent(encodedPath);
         pathCounts.set(path, (pathCounts.get(path) ?? 0) + count);
@@ -413,7 +416,7 @@ export async function GET(request: Request) {
         const match = key.match(/^visit_referrer::(\d{4}-\d{2}-\d{2})::(.+)$/);
         if (!match) continue;
         const [, dateText, encodedReferrer] = match;
-        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        const time = japanDateStart(dateText);
         if (!Number.isFinite(time) || time < date30dThreshold) continue;
         const referrer = decodeURIComponent(encodedReferrer);
         const label = toPublicReferrerLabel(referrer === "direct" ? "" : referrer);
@@ -426,7 +429,7 @@ export async function GET(request: Request) {
         const match = key.match(/^visit_unique::(\d{4}-\d{2}-\d{2})::([a-f0-9]+)$/i);
         if (!match) continue;
         const [, dateText] = match;
-        const time = new Date(`${dateText}T00:00:00Z`).getTime();
+        const time = japanDateStart(dateText);
         if (!Number.isFinite(time) || time < date30dThreshold) continue;
         const payload = getObject(
           (() => {
