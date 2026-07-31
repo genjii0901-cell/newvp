@@ -329,6 +329,7 @@ export default function WordbookDetailPage({
   }
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
+  const [showFullDescription, setShowFullDescription] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedUnit, setSelectedUnit] = useState("all");
@@ -1004,9 +1005,14 @@ export default function WordbookDetailPage({
           <div className="p-3.5 sm:p-7">
             <p className="text-xs font-black text-blue-700">{planCopy(book.requiredPlan)}</p>
             <h1 className="mt-1.5 line-clamp-3 text-xl font-black leading-tight text-slate-950 sm:mt-2 sm:text-4xl">{book.title}</h1>
-            <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:line-clamp-none sm:text-sm sm:leading-7">
+            <p className={`mt-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
               {book.description || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>
+            {(book.description?.length ?? 0) > 90 ? (
+              <button type="button" onClick={() => setShowFullDescription((value) => !value)} className="mt-1 text-xs font-black text-blue-700 hover:underline">
+                {showFullDescription ? "説明を閉じる" : "続きを読む"}
+              </button>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
@@ -1462,7 +1468,7 @@ export default function WordbookDetailPage({
                 {printedWordCount}語 / {previewPageCount}ページ
               </p>
             </div>
-            <div className="mt-4 overflow-auto rounded-2xl border bg-slate-100 p-4">
+            <div className="mt-4 max-h-[70vh] overflow-auto rounded-2xl border bg-slate-100 p-4">
               <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, height: PREVIEW_HEIGHT * PREVIEW_SCALE * previewPageCount }}>
                 <iframe
                   title="単語テスト印刷プレビュー"

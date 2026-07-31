@@ -39,6 +39,7 @@ export default function QuizPanel({
   onToggleMark?: (word: Pick<QuizWord, "no" | "english">) => void;
 }) {
   const [mode, setMode] = useState<Mode>("choice");
+  const [selectedMode, setSelectedMode] = useState<Mode>("choice");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [started, setStarted] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -134,21 +135,29 @@ export default function QuizPanel({
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <button
             type="button"
-            onClick={() => begin("choice")}
+            onClick={() => setSelectedMode("choice")}
             disabled={!canUseChoice}
-            className="rounded-2xl bg-blue-600 px-4 py-4 text-base font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400"
+            className={`rounded-2xl border px-4 py-4 text-base font-black transition disabled:bg-slate-200 disabled:text-slate-400 ${selectedMode === "choice" ? "border-blue-600 bg-blue-600 text-white" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"}`}
           >
             4択でチェック
             {!canUseChoice ? <span className="mt-1 block text-[11px] font-bold">4語以上の範囲で使えます</span> : null}
           </button>
           <button
             type="button"
-            onClick={() => begin("card")}
-            className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 text-base font-black text-blue-700 hover:bg-blue-100"
+            onClick={() => setSelectedMode("card")}
+            className={`rounded-2xl border px-4 py-4 text-base font-black transition ${selectedMode === "card" ? "border-blue-600 bg-blue-600 text-white" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"}`}
           >
             カードで覚える
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => begin(selectedMode)}
+          disabled={selectedMode === "choice" && !canUseChoice}
+          className="mt-4 w-full rounded-2xl bg-slate-900 px-4 py-4 text-base font-black text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400"
+        >
+          {selectedMode === "choice" ? "4択単語チェックを始める" : "カード学習を始める"}
+        </button>
       </div>
     );
   }

@@ -54,6 +54,7 @@ export default function WordbooksPage() {
   const [error, setError] = useState("");
   const [officialFilter, setOfficialFilter] = useState<Plan | "all">("all");
   const [officialSearch, setOfficialSearch] = useState("");
+  const [expandedDescriptionId, setExpandedDescriptionId] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
   const [selectedMyBookId, setSelectedMyBookId] = useState("");
   const [editorTitle, setEditorTitle] = useState("マイ単語帳");
@@ -442,13 +443,10 @@ export default function WordbooksPage() {
                       <p className="mt-1 hidden truncate text-xs font-bold text-slate-400 sm:block">
                         作成者: {book.creator ?? "Vocab Print Pro"}
                       </p>
-                      <p
-                        className="mt-1 hidden h-10 overflow-hidden text-xs leading-5 text-slate-500 sm:mt-2 sm:block sm:h-[4.5rem] sm:text-sm sm:leading-6"
-                        style={{ display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" }}
-                        title={book.description || "公式単語帳です。"}
-                      >
-                        {book.description || "公式単語帳です。"}
-                      </p>
+                      <div className="mt-1 hidden sm:mt-2 sm:block">
+                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{book.description || "公式単語帳です。"}</p>
+                        {(book.description?.length ?? 0) > 90 ? <button type="button" onClick={(event) => { event.stopPropagation(); setExpandedDescriptionId((value) => value === book.id ? "" : book.id); }} className="mt-1 text-xs font-black text-blue-700 hover:underline">{expandedDescriptionId === book.id ? "閉じる" : "続きを読む"}</button> : null}
+                      </div>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         {units > 0 ? <span>{units}ユニット</span> : null}
                         <span>最初: {firstWord}</span>
