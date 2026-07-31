@@ -20,7 +20,7 @@
 5. Noteには次のように案内する。
 
 ```
-購入者用ページ: https://www.vocabprint.com/access/system-eitango
+システム英単語の購入者用ページ: https://www.vocabprint.com/note/system-eitango
 上のページでメールアドレス・パスワードを登録後、購入後にお渡しするライセンスキーを入力してください。
 ```
 

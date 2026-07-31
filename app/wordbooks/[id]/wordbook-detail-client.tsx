@@ -291,10 +291,18 @@ const detailPreviewCss = `
   footer span:nth-child(3) { text-align:right; word-break:break-word; }
 `;
 
-export default function WordbookDetailPage() {
+export default function WordbookDetailPage({
+  bookIdOverride,
+  preservePath = false,
+  temporaryLicensed = false,
+}: {
+  bookIdOverride?: string;
+  preservePath?: boolean;
+  temporaryLicensed?: boolean;
+} = {}) {
   const params = useParams();
   const slug = String(params.id ?? "");
-  const lookupId = extractWordbookIdFromSlug(slug);
+  const lookupId = bookIdOverride ?? extractWordbookIdFromSlug(slug);
 
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
@@ -306,7 +314,7 @@ export default function WordbookDetailPage() {
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const isPaid = userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
+  const isPaid = temporaryLicensed || userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定は誰でも自由に。印刷は「単品購入 or Personal」の支払いゲートで止めるので、語数の上限は設けない。
   const maxWords = Number.MAX_SAFE_INTEGER;
@@ -371,6 +379,10 @@ export default function WordbookDetailPage() {
   const markStorageKey = book ? `vpp-word-marks:${book.id}` : "";
 
   useEffect(() => {
+    if (temporaryLicensed) setIncludeWatermark(false);
+  }, [temporaryLicensed]);
+
+  useEffect(() => {
     primeSpeechVoices();
     const tab = new URLSearchParams(window.location.search).get("tab");
     if (tab === "test" || tab === "quiz" || tab === "listen") setActiveTab(tab);
@@ -423,7 +435,7 @@ export default function WordbookDetailPage() {
       setRangeEnd(String(nextBook.words[nextBook.words.length - 1]?.no ?? nextBook.words.length));
 
       const canonicalPath = buildWordbookPath(nextBook.id, nextBook.title);
-      if (typeof window !== "undefined" && window.location.pathname !== canonicalPath) {
+      if (!preservePath && typeof window !== "undefined" && window.location.pathname !== canonicalPath) {
         window.history.replaceState(null, "", `${canonicalPath}${window.location.search}`);
       }
       setLoading(false);
@@ -433,7 +445,7 @@ export default function WordbookDetailPage() {
       setError("単語帳を読み込めませんでした。");
       setLoading(false);
     });
-  }, [lookupId]);
+  }, [lookupId, preservePath]);
 
   // ログインユーザーのプランを取得（無料は50語まで／Personal以上は制限なし）
   useEffect(() => {
@@ -529,7 +541,7 @@ export default function WordbookDetailPage() {
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: isPaid ? userPlan : "personal",
+      plan: isPaid ? (userPlan === "teacher" ? "teacher" : "personal") : "personal",
       printStyle,
       includeWatermark,
       includeDate,
