@@ -207,12 +207,15 @@ export async function GET(request: Request) {
         () => supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000),
         () => supabase.from("wordbooks").select("id,title").limit(5000),
       ),
+      // Keep this query intentionally simple. PostgREST's compound `or` filter
+      // can reject punctuation-heavy analytics keys and then make every visitor
+      // card look like zero even though visit recording succeeded.
       safeSelect<AppSettingRow>(() =>
         supabase
           .from("app_settings")
           .select("key,value")
-          .or("key.like.visit_total::%,key.like.visit_unique_total::%,key.like.visit_path::%,key.like.visit_referrer::%,key.like.visit_unique::%")
-          .limit(5000)
+          .like("key", "visit%")
+          .limit(10000)
       ),
     ]);
 
