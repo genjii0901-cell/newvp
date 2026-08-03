@@ -533,6 +533,17 @@ export async function GET(request: Request) {
       })
       .slice(0, 100);
 
+    // Keep the visitor cards diagnosable in production without exposing
+    // analytics internals to non-admin users.
+    console.info("Admin visitor metrics calculated", {
+      today,
+      analyticsRows: settings.length,
+      viewsToday,
+      uniqueToday,
+      views7d,
+      views30d,
+    });
+
     return NextResponse.json(
       {
         ok: true,
