@@ -178,8 +178,18 @@ export async function GET(request: Request) {
 
   try {
     const supabase = getSupabaseAdmin();
+    const analyticsStartDate = japanDateKey(
+      new Date(Date.now() - 31 * 24 * 60 * 60 * 1000)
+    );
+    const analyticsPrefixes = [
+      "visit_total::",
+      "visit_unique_total::",
+      "visit_path::",
+      "visit_referrer::",
+      "visit_unique::",
+    ];
 
-    const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, settingsResult] = await Promise.all([
+    const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, analyticsResults] = await Promise.all([
       listAuthUsers(),
       safeSelect<ProfileRow>(
         () => supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000),
@@ -207,15 +217,19 @@ export async function GET(request: Request) {
         () => supabase.from("wordbooks").select("id,title,visibility,is_official").limit(5000),
         () => supabase.from("wordbooks").select("id,title").limit(5000),
       ),
-      // Keep this query intentionally simple. PostgREST's compound `or` filter
-      // can reject punctuation-heavy analytics keys and then make every visitor
-      // card look like zero even though visit recording succeeded.
-      safeSelect<AppSettingRow>(() =>
-        supabase
-          .from("app_settings")
-          .select("key,value")
-          .like("key", "visit%")
-          .limit(10000)
+      // Query each analytics prefix separately. Supabase caps a broad select at
+      // 1,000 rows, which can otherwise omit the newest daily records.
+      Promise.all(
+        analyticsPrefixes.map((prefix) =>
+          safeSelect<AppSettingRow>(() =>
+            supabase
+              .from("app_settings")
+              .select("key,value")
+              .like("key", `${prefix}%`)
+              .gte("key", `${prefix}${analyticsStartDate}`)
+              .limit(5000)
+          )
+        )
       ),
     ]);
 
@@ -223,15 +237,16 @@ export async function GET(request: Request) {
     const subscriptions = subscriptionsResult.data;
     const pdfGenerations = pdfResult.data;
     const wordbooks = wordbooksResult.data;
+    const settings = analyticsResults.flatMap((result) => result.data);
     const warnings = [
       profilesResult.warning ? `profiles: ${profilesResult.warning}` : null,
       subscriptionsResult.warning ? `subscriptions: ${subscriptionsResult.warning}` : null,
       pdfResult.warning ? `pdf_generations: ${pdfResult.warning}` : null,
       wordbooksResult.warning ? `wordbooks: ${wordbooksResult.warning}` : null,
-      settingsResult.warning ? `app_settings: ${settingsResult.warning}` : null,
+      ...analyticsResults.map((result, index) =>
+        result.warning ? `app_settings (${analyticsPrefixes[index]}): ${result.warning}` : null
+      ),
     ].filter((value): value is string => Boolean(value));
-
-    const settings = settingsResult.data;
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
     const latestSubscriptionByUserId = new Map<string, SubscriptionRow>();
