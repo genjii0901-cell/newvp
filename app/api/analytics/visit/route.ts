@@ -35,7 +35,9 @@ async function setSettingValue(key: string, value: string) {
 
 async function incrementSetting(key: string, delta = 1) {
   const current = Number((await getSettingValue(key)) ?? "0");
-  await setSettingValue(key, String(Number.isFinite(current) ? current + delta : delta));
+  const next = Number.isFinite(current) ? current + delta : delta;
+  await setSettingValue(key, String(next));
+  return next;
 }
 
 export async function POST(request: Request) {
@@ -57,7 +59,7 @@ export async function POST(request: Request) {
     const encodedReferrer = encodeURIComponent(referrer || "direct");
     const uaLabel = ua.slice(0, 160);
 
-    await incrementSetting(`visit_total::${date}`);
+    const viewsToday = await incrementSetting(`visit_total::${date}`);
     await incrementSetting(`visit_path::${date}::${encodedPath}`);
     await incrementSetting(`visit_referrer::${date}::${encodedReferrer}`);
 
@@ -77,6 +79,15 @@ export async function POST(request: Request) {
       );
       await incrementSetting(`visit_unique_total::${date}`);
     }
+
+    // This has no personal information. It makes production analytics failures
+    // observable in Vercel without exposing counters through a public API.
+    console.info("Analytics visit recorded", {
+      date,
+      path,
+      viewsToday,
+      isNewVisitor: !existingUnique,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
