@@ -2589,7 +2589,7 @@ export default function Home() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[400px_1fr]">
           <section id="pdf-builder" className="rounded-3xl border bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-black">単語テストを作成</h3>
+            <h3 className="text-lg font-black">単語テスト印刷</h3>
 
             <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>
             <input
@@ -2873,7 +2873,7 @@ export default function Home() {
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入り・1回50語まで印刷できます。透かしなしで、全単語をまとめて印刷するにはPersonalプランへ。
+                  無料版は「見本」の透かし入り・1回50語まで印刷できます。Personalなら透かしなし・語数制限なしの印刷に加え、単語帳と履歴の保存、聞き流し、苦手語の復習までまとめて使えます。
                 </p>
                 <a
                   href="/pricing"

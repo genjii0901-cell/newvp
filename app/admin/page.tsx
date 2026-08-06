@@ -1568,7 +1568,7 @@ export default function AdminPage() {
             ["dashboard", `📊 ダッシュボード${metricsLoading && !metrics ? "（読込中）" : ""}`],
             ["create", "📚 単語帳を登録"],
             ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
-            ["pdf", "📄 単語テスト作成"],
+            ["pdf", "📄 単語テスト印刷"],
             ["quiz", "🧪 4択単語チェック"],
             ["licenses", "🔑 Noteライセンス"],
           ] as const).map(([t, label]) => (
@@ -2281,7 +2281,7 @@ export default function AdminPage() {
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button onClick={() => startEdit(book, "meta")} className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">✏️ 基本情報編集</button>
                             <button onClick={() => startEdit(book, "words")} className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">📋 単語を更新</button>
-                            <button onClick={() => { setPdfBookId(book.id); setTab("pdf"); }} className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">📄 単語テスト作成</button>
+                            <button onClick={() => { setPdfBookId(book.id); setTab("pdf"); }} className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">📄 単語テスト印刷</button>
                             <button onClick={() => deleteBook(book.id, book.title)} className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">🗑️ 削除</button>
                           </div>
                         </div>

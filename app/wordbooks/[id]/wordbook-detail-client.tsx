@@ -976,7 +976,7 @@ export default function WordbookDetailPage({
 
   const tabs: Array<{ key: DetailTab; label: string; hint: string }> = [
     { key: "overview", label: "概要", hint: "単語一覧" },
-    { key: "test", label: "単語テスト", hint: "印刷作成" },
+    { key: "test", label: "単語テスト印刷", hint: "印刷・PDF" },
     { key: "quiz", label: "単語チェック", hint: "4択・カード" },
     { key: "listen", label: "聞き流し", hint: "音声学習" },
   ];
@@ -1192,7 +1192,7 @@ export default function WordbookDetailPage({
       {activeTab === "test" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
           <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">単語テスト</p>
+            <p className="text-sm font-black text-blue-700">単語テスト印刷</p>
             <h2 className="mt-1 text-2xl font-black text-slate-950">印刷設定</h2>
 
             <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">

@@ -414,7 +414,7 @@ export default function ListeningPage() {
             単語帳へ
           </Link>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-            単語テスト作成へ
+            単語テスト印刷へ
           </Link>
         </div>
       </div>
@@ -794,7 +794,7 @@ export default function ListeningPage() {
                 href={`/?book=${encodeURIComponent(activeBook.id)}`}
                 className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-                単語テスト作成で開く
+                単語テスト印刷で開く
               </Link>
             )}
           </div>

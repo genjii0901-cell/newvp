@@ -4,7 +4,7 @@ import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 export const metadata: Metadata = {
-  title: "英単語テストPDFをかんたん作成 | Vocab Print Pro",
+  title: "英単語テストPDFをかんたん作成",
   description:
     "Vocab Print Proは、単語帳やCSV/Excelの単語データからA4印刷向けの英単語テスト、解答プリント、単語一覧PDFを作れるサービスです。英語空欄・日本語空欄・ランダム順・赤シート学習にも対応しています。",
   alternates: {

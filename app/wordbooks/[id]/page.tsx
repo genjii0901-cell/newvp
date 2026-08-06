@@ -67,21 +67,21 @@ function buildTabSeo(displayTitle: string, wordCount: number, tab: SeoTab) {
   const countText = wordCount ? `約${wordCount}語に対応。` : "";
   if (tab === "test") {
     return {
-      title: `${displayTitle}の単語テスト印刷・PDF作成 | Vocab Print Pro`,
+      title: `${displayTitle}の単語テスト印刷・PDF作成`,
       description: `${displayTitle}の単語リストから、A4の単語テスト、解答プリント、単語一覧PDFを作成できます。範囲指定、英語空欄、日本語空欄、ランダム順にも対応。${countText}`,
       keywords: ["単語テスト 印刷", "単語テスト PDF", "英単語プリント", "小テスト 作成"],
     };
   }
   if (tab === "listen") {
     return {
-      title: `${displayTitle}の聞き流し学習 | Vocab Print Pro`,
+      title: `${displayTitle}の聞き流し学習`,
       description: `${displayTitle}の単語を、英語から日本語、日本語から英語の順で聞き流しできます。速度や間隔を調整しながら、移動中や復習に使えます。${countText}`,
       keywords: ["英単語 聞き流し", "単語帳 音声", "英単語 復習"],
     };
   }
   if (tab === "quiz") {
     return {
-      title: `${displayTitle}の単語チェック・4択練習 | Vocab Print Pro`,
+      title: `${displayTitle}の単語チェック・4択練習`,
       description: `${displayTitle}の単語を、カード形式や4択クイズで確認できます。わからない単語にマークを付けて復習できます。${countText}`,
       keywords: ["英単語 クイズ", "単語チェック", "4択 英単語"],
     };

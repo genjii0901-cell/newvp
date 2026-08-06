@@ -4,7 +4,7 @@ import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 
 export const metadata: Metadata = {
-  title: "単語帳別に単語テスト・プリントを作成 | Vocab Print Pro",
+  title: "単語帳別に単語テスト・プリントを作成",
   description:
     "英検、大学受験、TOEICなどの単語帳ごとに、範囲を選んで単語テスト、単語一覧、聞き流し、単語チェックを使えます。単語帳名入りの専用ページから印刷しやすいプリントを作成できます。",
   alternates: {

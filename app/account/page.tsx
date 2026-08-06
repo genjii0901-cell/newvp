@@ -456,7 +456,7 @@ export default function AccountPage() {
         <h2 className="text-lg font-black">クイックリンク</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Link href="/" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
-            単語テスト作成
+            単語テスト印刷
           </Link>
           <Link href="/wordbooks" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
             単語帳

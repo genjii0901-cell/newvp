@@ -59,7 +59,7 @@ export default function PrintGateModal({
           className={`mt-5 w-full rounded-2xl border-2 p-4 text-left shadow-md transition disabled:cursor-not-allowed disabled:opacity-60 ${selectedMethod === "personal" ? "border-blue-500 bg-blue-50" : "border-slate-200 bg-white hover:border-blue-300"}`}
         >
           <span className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-black text-blue-800">Personalプランで印刷し放題</span>
+            <span className="text-sm font-black text-blue-800">Personalで印刷をもっと自由に</span>
             <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
               7日間無料
             </span>
@@ -71,6 +71,12 @@ export default function PrintGateModal({
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
             たくさん印刷するならこちらがおすすめです。語数制限なし・透かしなしで使えます。
           </p>
+          <ul className="mt-3 grid gap-1.5 text-[11px] font-bold leading-5 text-slate-700 sm:grid-cols-2">
+            <li>✓ 透かしなしで全範囲を印刷</li>
+            <li>✓ 単語帳と印刷履歴を保存</li>
+            <li>✓ 聞き流し・単語チェックも利用</li>
+            <li>✓ 苦手語をマークして復習</li>
+          </ul>
         </button>
 
         <button
