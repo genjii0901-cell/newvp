@@ -89,6 +89,62 @@ function buildTabSeo(displayTitle: string, wordCount: number, tab: SeoTab) {
   return null;
 }
 
+function WordbookPrintGuide({
+  title,
+  description,
+  wordCount,
+}: {
+  title: string;
+  description?: string | null;
+  wordCount: number;
+}) {
+  const countText = wordCount ? `${wordCount.toLocaleString()}語` : "選んだ範囲";
+  const intro =
+    description?.trim() ||
+    `${title}の単語を、必要な範囲だけ選んで単語テストや学習プリントにできます。`;
+
+  return (
+    <section className="mx-auto max-w-6xl px-2.5 pb-8 sm:px-5 sm:pb-12" aria-label={`${title}の単語テスト印刷について`}>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:rounded-3xl sm:p-7">
+        <p className="text-xs font-black text-blue-700">単語帳別の単語テスト印刷</p>
+        <h2 className="mt-1 text-xl font-black text-slate-950 sm:text-2xl">{title}の単語テストを印刷</h2>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">
+          {intro} Vocab Print Proでは、{countText}から開始番号・終了番号・問題数を選び、A4で印刷しやすい問題・解答・一覧プリントを作成できます。
+        </p>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <h3 className="text-sm font-black text-slate-900">範囲を選んで印刷</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">授業や小テストに合わせて、使う番号の範囲と問題数を設定できます。</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <h3 className="text-sm font-black text-slate-900">問題・解答・一覧に対応</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">英語・日本語の空欄、赤字、ランダム順など学習目的に合わせて切り替えられます。</p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <h3 className="text-sm font-black text-slate-900">印刷前にレイアウト確認</h3>
+            <p className="mt-1 text-xs leading-5 text-slate-600">日付・氏名欄・ページ番号を調整し、実際のA4レイアウトを確認してから印刷できます。</p>
+          </div>
+        </div>
+
+        <div className="mt-6 border-t pt-5">
+          <h3 className="text-base font-black text-slate-900">{title}の単語テスト印刷でよくある質問</h3>
+          <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
+            <details className="rounded-xl border border-slate-200 px-4 py-3">
+              <summary className="cursor-pointer font-bold text-slate-800">必要な範囲だけ印刷できますか？</summary>
+              <p className="mt-2">開始番号と終了番号、出題数を指定できます。毎日の確認テストや授業用プリントにも使えます。</p>
+            </details>
+            <details className="rounded-xl border border-slate-200 px-4 py-3">
+              <summary className="cursor-pointer font-bold text-slate-800">英語を隠したテストや日本語を隠したテストは作れますか？</summary>
+              <p className="mt-2">印刷設定から、英語空欄・日本語空欄・赤字表示を選べます。問題、解答、一覧の形式も切り替え可能です。</p>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
   const { id: slug } = await params;
   const tab = normalizeSeoTab((await searchParams)?.tab);
@@ -156,8 +212,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   };
 }
 
-export default async function WordbookDetailPage({ params }: PageProps) {
+export default async function WordbookDetailPage({ params, searchParams }: PageProps) {
   const { id: slug } = await params;
+  const tab = normalizeSeoTab((await searchParams)?.tab);
   const book = await findSeoWordbook(slug);
   const displayTitle = book?.title ?? titleFromSlug(slug);
   const canonicalPath = book ? buildWordbookPath(book.id, book.title) : `/wordbooks/${encodeURIComponent(slug)}`;
@@ -209,6 +266,13 @@ export default async function WordbookDetailPage({ params }: PageProps) {
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <WordbookDetailClient />
+      {tab === "test" && displayTitle ? (
+        <WordbookPrintGuide
+          title={displayTitle}
+          description={book?.description}
+          wordCount={wordCount}
+        />
+      ) : null}
     </>
   );
 }
