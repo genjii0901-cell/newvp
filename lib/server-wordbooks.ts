@@ -245,10 +245,13 @@ export async function loadOfficialWordbooks(options?: {
     // no は並び替え・範囲指定用の連番。表示用の番号（"1-1" や "A1" など非数字も可）は label に保持する。
     const rawLabel = word.number != null ? String(word.number).trim() : "";
     const numeric = Number(word.number);
-    const no = Number.isFinite(numeric) && rawLabel !== "" ? numeric : bucket.length + 1;
+    // 以前に登録された "0" / "0000" は行番号として不正なので、印刷時には連番へ補正する。
+    // "0001" のようなゼロ埋めの有効な番号は label を残して表示する。
+    const hasPositiveInteger = Number.isSafeInteger(numeric) && numeric > 0;
+    const no = hasPositiveInteger ? numeric : bucket.length + 1;
     bucket.push({
       no,
-      label: rawLabel || String(no),
+      label: hasPositiveInteger && rawLabel ? rawLabel : String(no),
       english: word.english ?? "",
       japanese: word.japanese ?? "",
       unit: word.unit ?? null,
