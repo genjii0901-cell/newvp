@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type SetStateAction } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import {
   buildPrintHtml,
@@ -15,6 +15,7 @@ import {
   type PrintStyle,
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
+import { richClipboardHtmlToWordTsv } from "@/lib/clipboard-rich-word-text";
 import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 import AdminQuizPanel from "./admin-quiz-panel";
@@ -215,6 +216,24 @@ const SAMPLE_CSV =
 
 function parseWords(text: string): ParsedWord[] {
   return parseWordText(text);
+}
+
+function insertPastedText(value: string, textarea: HTMLTextAreaElement, pastedText: string) {
+  const start = textarea.selectionStart ?? value.length;
+  const end = textarea.selectionEnd ?? start;
+  return `${value.slice(0, start)}${pastedText}${value.slice(end)}`;
+}
+
+function preserveExcelBoldOnPaste(
+  event: ReactClipboardEvent<HTMLTextAreaElement>,
+  setValue: Dispatch<SetStateAction<string>>
+) {
+  const richText = richClipboardHtmlToWordTsv(event.clipboardData.getData("text/html"));
+  if (!richText) return;
+
+  event.preventDefault();
+  const textarea = event.currentTarget;
+  setValue((current) => insertPastedText(current, textarea, richText));
 }
 
 function isPersistedBookId(value: string) {
@@ -2063,8 +2082,8 @@ export default function AdminPage() {
 
               <div>
                 <label className="text-sm font-bold">CSV / Excel 貼り付け *</label>
-                <p className="text-xs text-slate-400">列: 番号 / 英単語 / 意味 / Unit（タブまたはカンマ区切り）。太字にしたい部分は <code>**このように囲みます**</code>。</p>
-                <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} className="mt-2 h-52 w-full rounded-xl border p-3 font-mono text-sm resize-y" />
+                <p className="text-xs text-slate-400">列: 番号 / 英単語 / 意味 / Unit（タブまたはカンマ区切り）。Excelの太字はそのまま貼り付け可能です。手入力では <code>**このように囲みます**</code>。</p>
+                <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} onPaste={(event) => preserveExcelBoldOnPaste(event, setPasteText)} className="mt-2 h-52 w-full rounded-xl border p-3 font-mono text-sm resize-y" />
               </div>
 
               {createMsg && (
@@ -2270,8 +2289,8 @@ export default function AdminPage() {
                           </div>
                         ) : (
                           <div>
-                            <p className="text-xs text-slate-400 mb-2">現在の単語を全て置き換えます。列: 番号/英/日/Unit。印刷で太字にする部分は <code>**このように囲みます**</code>。</p>
-                            <textarea value={editPaste} onChange={(e) => setEditPaste(e.target.value)} className="w-full h-48 rounded-xl border p-3 font-mono text-sm resize-y" />
+                            <p className="text-xs text-slate-400 mb-2">現在の単語を全て置き換えます。列: 番号/英/日/Unit。Excelの太字はそのまま貼り付け可能です。手入力では <code>**このように囲みます**</code>。</p>
+                            <textarea value={editPaste} onChange={(e) => setEditPaste(e.target.value)} onPaste={(event) => preserveExcelBoldOnPaste(event, setEditPaste)} className="w-full h-48 rounded-xl border p-3 font-mono text-sm resize-y" />
                             <p className="mt-1 text-xs text-slate-400">{`${parseWords(editPaste).length}語を認識`}</p>
                           </div>
                         )}
