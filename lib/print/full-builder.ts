@@ -82,6 +82,12 @@ export interface BuildPrintHtmlOptions {
   gridOffsetY?: number;
   pageNoOffsetX?: number;
   pageNoOffsetY?: number;
+  /** 管理者用: 1ページを1列/2列で組む。未指定時は従来の2列。 */
+  layoutColumns?: "one" | "two";
+  /** 管理者用: 1ページに収める語数。2列は最大100語、1列は最大50語。 */
+  wordsPerPage?: number;
+  /** 管理者用: 英語列の幅（番号列10%を除いた表内の割合）。 */
+  wordColumnWidth?: number;
 }
 
 export function buildPrintHtml({
@@ -116,9 +122,14 @@ export function buildPrintHtml({
   gridOffsetY = 0,
   pageNoOffsetX = 0,
   pageNoOffsetY = 0,
+  layoutColumns = "two",
+  wordsPerPage = 50,
+  wordColumnWidth = 26,
 }: BuildPrintHtmlOptions) {
-  const perPage = 50;
-  const visibleWords = plan === "free" ? words.slice(0, perPage) : words;
+  const isOneColumn = layoutColumns === "one";
+  const maxWordsPerPage = isOneColumn ? 50 : 100;
+  const perPage = Math.min(maxWordsPerPage, Math.max(10, Math.floor(Number(wordsPerPage) || 50)));
+  const visibleWords = plan === "free" ? words.slice(0, 50) : words;
   const pages: PrintWord[][] = [];
 
   for (let index = 0; index < visibleWords.length; index += perPage) {
@@ -149,6 +160,16 @@ export function buildPrintHtml({
   const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
   const showDateHeader = includeDate;
   const dateStr = showDateHeader ? formatPrintDate(generatedAt) : "";
+  const baseRowHeight = hasInfoBox ? 9 : 9.5;
+  const baseHeaderHeight = hasInfoBox ? 8 : 8.5;
+  const baseFontSize = hasInfoBox ? 7.8 : 8.4;
+  const rowsPerColumn = isOneColumn ? perPage : Math.ceil(perPage / 2);
+  const availableGridHeight = hasInfoBox ? 233 : 246;
+  const rowHeight = Math.min(baseRowHeight, Math.max(4.2, (availableGridHeight - baseHeaderHeight) / rowsPerColumn));
+  const compactRatio = Math.min(1, rowHeight / baseRowHeight);
+  const tableFontSize = Math.max(5.3, baseFontSize * (0.65 + compactRatio * 0.35));
+  const englishColumnWidth = Math.min(55, Math.max(18, Number(wordColumnWidth) || 26));
+  const meaningColumnWidth = 90 - englishColumnWidth;
 
   // 透かし: 有料は購入者メール入り（流出・編集の抑止）、無料はFREE表記
   const watermark = includeWatermark || plan === "free"
@@ -165,8 +186,9 @@ export function buildPrintHtml({
 
   return `<style>${printCss}</style>` + pages
     .map((pageWords, pageIndex) => {
-      const left = pageWords.slice(0, 25);
-      const right = pageWords.slice(25, 50);
+      const columnCapacity = isOneColumn ? perPage : Math.ceil(perPage / 2);
+      const left = pageWords.slice(0, columnCapacity);
+      const right = isOneColumn ? [] : pageWords.slice(columnCapacity, perPage);
 
       // 列は常に[番号|単語(英)|意味(日)]。出題方向で「答え側」を決め、問題PDFではそこを空欄/ヒント/赤字にする。
       const answerSide: "english" | "japanese" = direction === "en-ja" ? "japanese" : "english";
@@ -229,14 +251,14 @@ export function buildPrintHtml({
             )
             .join("")}</div>`
         : "";
-      return `<section class="print-page${hasInfoBox ? " has-info" : ""}" style="--vp-fs:${fs}">
+      return `<section class="print-page${hasInfoBox ? " has-info" : ""}" style="--vp-fs:${fs};--vp-row-height:${rowHeight.toFixed(2)}mm;--vp-header-height:${baseHeaderHeight.toFixed(2)}mm;--vp-table-font:${tableFontSize.toFixed(2)}pt;--vp-word-width:${englishColumnWidth.toFixed(2)}%;--vp-meaning-width:${meaningColumnWidth.toFixed(2)}%">
         ${wmTiled}
         <div class="print-page-header"${headerStyle ? ` style="${headerStyle}"` : ""}>
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
           ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
         </div>
         ${plan === "free" ? `<p class="print-note">Free版は1ページのみです。</p>` : ""}
-        <div class="print-grid"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${table(right)}</div>
+        <div class="print-grid${isOneColumn ? " print-grid-one" : ""}"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${right.length > 0 ? table(right) : ""}</div>
         ${hasInfoBox ? `<div class="print-info-box" style="${infoStyle}"><div class="print-info-fields">
           ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
           ${showNumberField ? `<div class="pif pif-sm"><span class="pif-label">番号</span><span class="pif-value">${escapeHtml(studentNumber)}</span></div>` : ""}
@@ -290,20 +312,18 @@ export const printCss = `
   .print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
 
   .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
+  .print-grid-one { grid-template-columns:1fr; }
 
   /* 記入欄なし: footer margin 9mm込み → grid ~254mm。td=9.5mm×25+th=8.5mm=246mm */
-  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:calc(8.4pt * var(--vp-fs, 1)); line-height:1.2; }
-  .print-table th, .print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
-  .print-table th { height:8.5mm; text-align:center; font-weight:800; background:#fff; }
+  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:calc(var(--vp-table-font, 8.4pt) * var(--vp-fs, 1)); line-height:1.2; }
+  .print-table th, .print-table td { border:.65pt solid #111; padding:0; height:var(--vp-row-height, 9.5mm); max-height:var(--vp-row-height, 9.5mm); overflow:hidden; vertical-align:middle; }
+  .print-table th { height:var(--vp-header-height, 8.5mm); text-align:center; font-weight:800; background:#fff; }
 
   /* 記入欄あり: footer margin 9mm込み → grid ~237mm。td=9.0mm×25+th=8.0mm=233mm */
-  .has-info .print-table { font-size:calc(7.8pt * var(--vp-fs, 1)); }
-  .has-info .print-table td { height:9.0mm; max-height:9.0mm; }
-  .has-info .print-table th { height:8.0mm; max-height:8.0mm; }
 
   .p-no { width:10%; text-align:center; }
-  .p-word { width:26%; }
-  .p-meaning { width:64%; }
+  .p-word { width:var(--vp-word-width, 26%); }
+  .p-meaning { width:var(--vp-meaning-width, 64%); }
 
   .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
   .p-fit.center { justify-content:center; text-align:center; }
@@ -361,15 +381,13 @@ body { margin:0; background:white; overflow:hidden; }
 }
 .print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
 .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
-.print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:calc(8.4pt * var(--vp-fs, 1)); line-height:1.2; }
-.print-table th, .print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
-.print-table th { height:8.5mm; text-align:center; font-weight:800; background:#fff; }
-.has-info .print-table { font-size:calc(7.8pt * var(--vp-fs, 1)); }
-.has-info .print-table td { height:9.0mm; max-height:9.0mm; }
-.has-info .print-table th { height:8.0mm; max-height:8.0mm; }
+.print-grid-one { grid-template-columns:1fr; }
+.print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:calc(var(--vp-table-font, 8.4pt) * var(--vp-fs, 1)); line-height:1.2; }
+.print-table th, .print-table td { border:.65pt solid #111; padding:0; height:var(--vp-row-height, 9.5mm); max-height:var(--vp-row-height, 9.5mm); overflow:hidden; vertical-align:middle; }
+.print-table th { height:var(--vp-header-height, 8.5mm); text-align:center; font-weight:800; background:#fff; }
 .p-no { width:10%; text-align:center; }
-.p-word { width:26%; }
-.p-meaning { width:64%; }
+.p-word { width:var(--vp-word-width, 26%); }
+.p-meaning { width:var(--vp-meaning-width, 64%); }
 .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
 .p-fit.center { justify-content:center; text-align:center; }
 .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }

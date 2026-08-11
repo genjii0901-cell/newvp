@@ -727,6 +727,9 @@ export default function AdminPage() {
   const [pdfDate, setPdfDate] = useState(true);
   const [pdfFooterText, setPdfFooterText] = useState("Created by Vocab Print Pro");
   const [pdfFontScale, setPdfFontScale] = useState(1);
+  const [pdfLayoutColumns, setPdfLayoutColumns] = useState<"one" | "two">("two");
+  const [pdfWordsPerPage, setPdfWordsPerPage] = useState(50);
+  const [pdfWordColumnWidth, setPdfWordColumnWidth] = useState(26);
   const [pdfLockEditing, setPdfLockEditing] = useState(true);
   const [pdfOwnerPassword, setPdfOwnerPassword] = useState("");
   const [pdfStudentClass, setPdfStudentClass] = useState("");
@@ -1132,6 +1135,12 @@ export default function AdminPage() {
 
   /* 笏笏 PDF 笏笏 */
   const selectedPdfBook = books.find((b) => b.id === pdfBookId) ?? null;
+  const pdfWordsPerPageMax = pdfLayoutColumns === "two" ? 100 : 50;
+
+  function setAdminPrintColumns(next: "one" | "two") {
+    setPdfLayoutColumns(next);
+    setPdfWordsPerPage((current) => Math.min(current, next === "two" ? 100 : 50));
+  }
 
   const pdfOutputWords = useMemo(() => {
     if (!selectedPdfBook) return [];
@@ -1175,6 +1184,9 @@ export default function AdminPage() {
       userEmail: "",
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
+      layoutColumns: pdfLayoutColumns,
+      wordsPerPage: pdfWordsPerPage,
+      wordColumnWidth: pdfWordColumnWidth,
       titleOffsetX: pdfTitleOffset.x,
       titleOffsetY: pdfTitleOffset.y,
       dateOffsetX: pdfDateOffset.x,
@@ -1187,7 +1199,7 @@ export default function AdminPage() {
       pageNoOffsetY: pdfPageNoOffset.y,
     });
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${previewCss}</style></head><body><div id="print-root">${html}</div></body></html>`;
-  }, [selectedPdfBook, pdfOutputWords, pdfType, pdfDir, pdfShowPageNo, pdfPrintStyle, pdfWatermark, pdfShowRecord, pdfClass, pdfNumber, pdfName, pdfStudentClass, pdfStudentNumber, pdfStudentName, pdfDate, pdfTitle, pdfFooterText, pdfFontScale, pdfTitleOffset, pdfDateOffset, pdfInfoOffset, pdfGridOffset, pdfPageNoOffset]);
+  }, [selectedPdfBook, pdfOutputWords, pdfType, pdfDir, pdfShowPageNo, pdfPrintStyle, pdfWatermark, pdfShowRecord, pdfClass, pdfNumber, pdfName, pdfStudentClass, pdfStudentNumber, pdfStudentName, pdfDate, pdfTitle, pdfFooterText, pdfFontScale, pdfLayoutColumns, pdfWordsPerPage, pdfWordColumnWidth, pdfTitleOffset, pdfDateOffset, pdfInfoOffset, pdfGridOffset, pdfPageNoOffset]);
 
   useEffect(() => {
     if (selectedPdfBook) {
@@ -1268,6 +1280,9 @@ export default function AdminPage() {
       userEmail: "",
       footerText: pdfFooterText,
       fontScale: pdfFontScale,
+      layoutColumns: pdfLayoutColumns,
+      wordsPerPage: pdfWordsPerPage,
+      wordColumnWidth: pdfWordColumnWidth,
       titleOffsetX: pdfTitleOffset.x,
       titleOffsetY: pdfTitleOffset.y,
       dateOffsetX: pdfDateOffset.x,
@@ -2415,6 +2430,85 @@ export default function AdminPage() {
                   </select>
                 </div>
 
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-slate-800">管理者レイアウト設定</p>
+                      <p className="mt-0.5 text-xs text-slate-500">列数と表の幅を教材に合わせて調整できます。</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminPrintColumns("two");
+                        setPdfWordsPerPage(50);
+                        setPdfWordColumnWidth(26);
+                      }}
+                      className="shrink-0 text-xs font-bold text-blue-700 hover:text-blue-900"
+                    >
+                      標準に戻す
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    {([
+                      { value: "two", title: "2列", detail: "最大100語 / ページ" },
+                      { value: "one", title: "1列", detail: "最大50語 / ページ" },
+                    ] as const).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAdminPrintColumns(option.value)}
+                        className={`rounded-xl border px-3 py-2 text-left transition ${pdfLayoutColumns === option.value ? "border-blue-600 bg-white text-blue-800 shadow-sm" : "border-slate-200 bg-white/70 text-slate-600 hover:bg-white"}`}
+                      >
+                        <span className="block text-sm font-black">{option.title}</span>
+                        <span className="block text-[11px] font-medium">{option.detail}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label htmlFor="admin-words-per-page" className="text-xs font-bold text-slate-700">1ページの語数</label>
+                      <input
+                        id="admin-words-per-page"
+                        type="number"
+                        min={10}
+                        max={pdfWordsPerPageMax}
+                        value={pdfWordsPerPage}
+                        onChange={(e) => setPdfWordsPerPage(Math.min(pdfWordsPerPageMax, Math.max(10, Number(e.target.value) || 10)))}
+                        className="w-20 rounded-lg border bg-white px-2 py-1 text-right text-sm font-bold"
+                      />
+                    </div>
+                    <input
+                      type="range"
+                      min={10}
+                      max={pdfWordsPerPageMax}
+                      step={5}
+                      value={pdfWordsPerPage}
+                      onChange={(e) => setPdfWordsPerPage(Number(e.target.value))}
+                      className="mt-2 w-full accent-blue-600"
+                    />
+                  </div>
+
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <label htmlFor="admin-word-column-width" className="text-xs font-bold text-slate-700">英語列の幅</label>
+                      <span className="text-xs font-black text-slate-700">英語 {pdfWordColumnWidth}% / 意味 {90 - pdfWordColumnWidth}%</span>
+                    </div>
+                    <input
+                      id="admin-word-column-width"
+                      type="range"
+                      min={18}
+                      max={55}
+                      step={1}
+                      value={pdfWordColumnWidth}
+                      onChange={(e) => setPdfWordColumnWidth(Number(e.target.value))}
+                      className="mt-2 w-full accent-blue-600"
+                    />
+                    <p className="mt-2 text-[11px] leading-relaxed text-slate-500">語数を増やすほど文字と行の高さを自動で小さくします。長い意味は2行まで表示されます。</p>
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-sm font-bold">出題方向</label>
                   <select value={pdfDir} onChange={(e) => setPdfDir(e.target.value as Direction)} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm">
@@ -2549,7 +2643,7 @@ export default function AdminPage() {
                 )}
                 {selectedPdfBook && pdfOutputWords.length > 0 && (
                   <p className="mt-2 text-center text-xs text-slate-400">
-                    実際のA4レイアウトのプレビューです（{pdfOutputWords.length}語 / {Math.max(1, Math.ceil(pdfOutputWords.length / 50))}ページ）。
+                    実際のA4レイアウトのプレビューです（{pdfOutputWords.length}語 / {Math.max(1, Math.ceil(pdfOutputWords.length / pdfWordsPerPage))}ページ）。
                   </p>
                 )}
               </section>
