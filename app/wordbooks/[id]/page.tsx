@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
 import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
@@ -16,6 +17,17 @@ const label = {
   wordCountSuffix: "語です。",
   coverAlt: "の単語帳カバー",
 };
+
+const PRINT_FAQ = [
+  {
+    question: "必要な範囲だけ印刷できますか？",
+    answer: "開始番号と終了番号、出題数を指定できます。毎日の確認テストや授業用プリントにも使えます。",
+  },
+  {
+    question: "英語を隠したテストや日本語を隠したテストは作れますか？",
+    answer: "印刷設定から、英語空欄・日本語空欄・赤字表示を選べます。問題、解答、一覧の形式も切り替え可能です。",
+  },
+] as const;
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -131,15 +143,21 @@ function WordbookPrintGuide({
           <h3 className="text-base font-black text-slate-900">{title}の単語テスト印刷でよくある質問</h3>
           <div className="mt-3 grid gap-3 text-sm leading-6 text-slate-600">
             <details className="rounded-xl border border-slate-200 px-4 py-3">
-              <summary className="cursor-pointer font-bold text-slate-800">必要な範囲だけ印刷できますか？</summary>
-              <p className="mt-2">開始番号と終了番号、出題数を指定できます。毎日の確認テストや授業用プリントにも使えます。</p>
+              <summary className="cursor-pointer font-bold text-slate-800">{PRINT_FAQ[0].question}</summary>
+              <p className="mt-2">{PRINT_FAQ[0].answer}</p>
             </details>
             <details className="rounded-xl border border-slate-200 px-4 py-3">
-              <summary className="cursor-pointer font-bold text-slate-800">英語を隠したテストや日本語を隠したテストは作れますか？</summary>
-              <p className="mt-2">印刷設定から、英語空欄・日本語空欄・赤字表示を選べます。問題、解答、一覧の形式も切り替え可能です。</p>
+              <summary className="cursor-pointer font-bold text-slate-800">{PRINT_FAQ[1].question}</summary>
+              <p className="mt-2">{PRINT_FAQ[1].answer}</p>
             </details>
           </div>
         </div>
+
+        <nav className="mt-5 flex flex-wrap gap-3 text-sm font-bold">
+          <Link href="/guides/word-test-generator" className="text-blue-700 hover:text-blue-900 hover:underline">英単語テストの作り方</Link>
+          <Link href="/guides/wordbooks-for-printing" className="text-blue-700 hover:text-blue-900 hover:underline">単語帳別プリントの使い方</Link>
+          <Link href="/wordbooks" className="text-blue-700 hover:text-blue-900 hover:underline">ほかの単語帳を探す</Link>
+        </nav>
       </div>
     </section>
   );
@@ -259,12 +277,25 @@ export default async function WordbookDetailPage({ params, searchParams }: PageP
           { "@type": "ListItem", position: 3, name: displayTitle, item: `${siteUrl}${canonicalPath}` },
         ],
       },
+      ...(tab === "test"
+        ? [
+            {
+              "@type": "FAQPage",
+              "@id": `${siteUrl}${canonicalPath}?tab=test#faq`,
+              mainEntity: PRINT_FAQ.map((item) => ({
+                "@type": "Question",
+                name: item.question,
+                acceptedAnswer: { "@type": "Answer", text: item.answer },
+              })),
+            },
+          ]
+        : []),
     ],
   };
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <WordbookDetailClient />
       {tab === "test" && displayTitle ? (
         <WordbookPrintGuide

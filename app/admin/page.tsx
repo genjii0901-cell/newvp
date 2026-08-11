@@ -2063,7 +2063,7 @@ export default function AdminPage() {
 
               <div>
                 <label className="text-sm font-bold">CSV / Excel 貼り付け *</label>
-                <p className="text-xs text-slate-400">列: 番号 / 英単語 / 意味 / Unit（タブまたはカンマ区切り）</p>
+                <p className="text-xs text-slate-400">列: 番号 / 英単語 / 意味 / Unit（タブまたはカンマ区切り）。太字にしたい部分は <code>**このように囲みます**</code>。</p>
                 <textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} className="mt-2 h-52 w-full rounded-xl border p-3 font-mono text-sm resize-y" />
               </div>
 
@@ -2270,7 +2270,7 @@ export default function AdminPage() {
                           </div>
                         ) : (
                           <div>
-                            <p className="text-xs text-slate-400 mb-2">現在の単語を全て置き換えます。列: 番号/英/日/Unit</p>
+                            <p className="text-xs text-slate-400 mb-2">現在の単語を全て置き換えます。列: 番号/英/日/Unit。印刷で太字にする部分は <code>**このように囲みます**</code>。</p>
                             <textarea value={editPaste} onChange={(e) => setEditPaste(e.target.value)} className="w-full h-48 rounded-xl border p-3 font-mono text-sm resize-y" />
                             <p className="mt-1 text-xs text-slate-400">{`${parseWords(editPaste).length}語を認識`}</p>
                           </div>

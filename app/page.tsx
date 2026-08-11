@@ -10,6 +10,7 @@ import { getPageCount, planLimits } from "@/lib/plan-limits";
 import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
+import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-builder";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
 
@@ -3799,10 +3800,10 @@ function buildPrintHtml({
     }
 
     if (shouldRed) {
-      return `<span class="p-red">${escapeHtml(value)}</span>`;
+      return `<span class="p-red">${formatPrintMarkedText(value)}</span>`;
     }
 
-    return escapeHtml(value);
+    return formatPrintMarkedText(value);
   };
 
   const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
@@ -3831,15 +3832,15 @@ function buildPrintHtml({
         const isAnswer = side === answerSide;
         // 赤シート対応: 答え側を赤字で印刷（一覧・問題・解答すべてで有効）。赤シートを重ねると隠せる。
         if (redSheet && isAnswer) {
-          return `<span class="p-red">${escapeHtml(text)}</span>`;
+          return `<span class="p-red">${formatPrintMarkedText(text)}</span>`;
         }
         if (type === "list") return formatStyledText(text, side);
-        if (!isAnswer) return escapeHtml(text);
+        if (!isAnswer) return formatPrintMarkedText(text);
         // ここから下は「答え側 かつ 赤シートOFF」
-        if (type === "answer") return escapeHtml(text);
+        if (type === "answer") return formatPrintMarkedText(text);
         // type === "test"（問題PDF）: 答え側は空欄（スペルは先頭1文字だけ表示）
         if (isSpelling && side === "english") {
-          const first = (text.trim().charAt(0) || "");
+          const first = (stripPrintMarkers(text).trim().charAt(0) || "");
           return `<span class="p-hint">${escapeHtml(first)}</span>`;
         }
         return `<span class="p-blank"></span>`;
@@ -3969,6 +3970,7 @@ const printCss = `
   .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
   .p-fit.center { justify-content:center; text-align:center; }
   .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
+  .p-text strong { font-weight:800; }
   .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
   .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
   .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
@@ -4033,6 +4035,7 @@ body { margin:0; background:white; overflow:hidden; }
 .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
 .p-fit.center { justify-content:center; text-align:center; }
 .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
+.p-text strong { font-weight:800; }
 .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
 .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
 .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }

@@ -20,6 +20,18 @@ export function escapeHtml(value: string) {
     .replaceAll("'", "&#039;");
 }
 
+/**
+ * 単語データでは **重要語** のように書くと、その部分だけ太字で印刷する。
+ * 任意HTMLは許可せず、先に必ずエスケープするので登録データからのスクリプト実行はできない。
+ */
+export function formatPrintMarkedText(value: string) {
+  return escapeHtml(value).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+}
+
+export function stripPrintMarkers(value: string) {
+  return String(value || "").replaceAll("**", "");
+}
+
 export function directionLanguage(value: string, word: PrintWord): "english" | "japanese" {
   if (value === word.english) return "english";
   return "japanese";
@@ -128,10 +140,10 @@ export function buildPrintHtml({
     }
 
     if (shouldRed) {
-      return `<span class="p-red">${escapeHtml(value)}</span>`;
+      return `<span class="p-red">${formatPrintMarkedText(value)}</span>`;
     }
 
-    return escapeHtml(value);
+    return formatPrintMarkedText(value);
   };
 
   const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
@@ -164,15 +176,15 @@ export function buildPrintHtml({
         const isAnswer = side === answerSide;
         // 赤シート対応: 答え側を赤字で印刷（一覧・問題・解答すべてで有効）。赤シートを重ねると隠せる。
         if (redSheet && isAnswer) {
-          return `<span class="p-red">${escapeHtml(text)}</span>`;
+          return `<span class="p-red">${formatPrintMarkedText(text)}</span>`;
         }
         if (type === "list") return formatStyledText(text, side);
-        if (!isAnswer) return escapeHtml(text);
+        if (!isAnswer) return formatPrintMarkedText(text);
         // ここから下は「答え側 かつ 赤シートOFF」
-        if (type === "answer") return escapeHtml(text);
+        if (type === "answer") return formatPrintMarkedText(text);
         // type === "test"（問題PDF）: 答え側は空欄（スペルは先頭1文字だけ表示）
         if (isSpelling && side === "english") {
-          const first = (text.trim().charAt(0) || "");
+          const first = (stripPrintMarkers(text).trim().charAt(0) || "");
           return `<span class="p-hint">${escapeHtml(first)}</span>`;
         }
         return `<span class="p-blank"></span>`;
@@ -296,6 +308,7 @@ export const printCss = `
   .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
   .p-fit.center { justify-content:center; text-align:center; }
   .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
+  .p-text strong { font-weight:800; }
   .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
   .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
   .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
@@ -360,6 +373,7 @@ body { margin:0; background:white; overflow:hidden; }
 .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
 .p-fit.center { justify-content:center; text-align:center; }
 .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
+.p-text strong { font-weight:800; }
 .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
 .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
 .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
