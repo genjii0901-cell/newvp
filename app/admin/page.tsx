@@ -1206,7 +1206,7 @@ export default function AdminPage() {
       const total = selectedPdfBook.words.length;
       setPdfStartNo(1);
       setPdfEndNo(total);
-      setPdfCount(Math.min(total, 1900));
+      setPdfCount(total);
       setPdfTitle("");
     }
     // 単語帳を切り替えた時、または選択中の単語帳の語数が変わった時（編集後の再取得など）に範囲を初期化
@@ -1243,15 +1243,22 @@ export default function AdminPage() {
     if (!selectedPdfBook || pdfOutputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
     const now = new Date();
     const autoTitle = `${selectedPdfBook.title} ${pdfType === "list" ? "一覧" : pdfType === "test" ? "問題" : "解答"}`;
-    const outputKind = pdfType === "list"
-      ? "一覧"
-      : pdfType === "answer"
-        ? "解答"
+    const styleLabel = pdfPrintStyle === "blank-english"
+      ? "英語空欄"
+      : pdfPrintStyle === "blank-japanese"
+        ? "日本語空欄"
+        : pdfPrintStyle === "red-english"
+          ? "英語赤字"
+          : pdfPrintStyle === "red-japanese"
+            ? "日本語赤字"
+            : "";
+    const outputKind = pdfType === "answer"
+      ? "解答"
+      : pdfType === "list"
+        ? `${styleLabel || "単語"}一覧`
         : pdfDir === "spelling"
-          ? "スペルテスト"
-          : pdfDir === "ja-en"
-            ? "日本語→英語テスト"
-            : "英語→日本語テスト";
+          ? "英語スペルテスト"
+          : `${styleLabel || (pdfDir === "ja-en" ? "日本語→英語" : "英語→日本語")}テスト`;
     const outputTitle = [
       pdfTitle.trim() || selectedPdfBook.title,
       ...(pdfRandom ? ["ランダム"] : []),
