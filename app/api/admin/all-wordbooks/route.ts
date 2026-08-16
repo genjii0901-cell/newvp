@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   const filterIds = id ? [id] : undefined;
 
   if (!isSupabaseServerConfigured()) {
-    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds }).catch(() => ({
+    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds, deferDataCoverImages: !id && !includeWords }).catch(() => ({
       wordbooks: [],
     }));
     return NextResponse.json({
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds });
+    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds, deferDataCoverImages: !id && !includeWords });
     return NextResponse.json({
       ok: result.ok,
       supabaseConfigured: true,

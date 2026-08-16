@@ -45,6 +45,14 @@ export type LiveWordbook = {
   words: Array<{ no: number; label?: string; english: string; japanese: string; unit: string | null }>;
 };
 
+function publicCoverImage(id: string, coverImage: string | null | undefined, deferDataCoverImages: boolean) {
+  if (!coverImage) return null;
+  if (deferDataCoverImages && /^data:image\//i.test(coverImage)) {
+    return `/api/wordbooks/cover?id=${encodeURIComponent(id)}`;
+  }
+  return coverImage;
+}
+
 function dedupeWordbooksByTitle(wordbooks: LiveWordbook[]) {
   const deduped = new Map<string, LiveWordbook>();
 
@@ -105,11 +113,13 @@ export async function loadOfficialWordbooks(options?: {
   dedupeByTitle?: boolean;
   includeWords?: boolean;
   filterIds?: string[];
+  deferDataCoverImages?: boolean;
 }) {
   const includeAdmin = Boolean(options?.includeAdmin);
   const includeFallback = options?.includeFallback !== false;
   const dedupeByTitle = options?.dedupeByTitle !== false;
   const includeWords = options?.includeWords !== false;
+  const deferDataCoverImages = Boolean(options?.deferDataCoverImages);
   const filterIds = (options?.filterIds ?? []).map(String);
   const filterIdSet = filterIds.length > 0 ? new Set(filterIds) : null;
   const dbFilterIds = filterIds.filter(canFilterByDbId);
@@ -149,6 +159,7 @@ export async function loadOfficialWordbooks(options?: {
       .filter((book) => !filterIdSet || filterIdSet.has(String(book.id)))
       .map((book) => ({
         ...book,
+        coverImage: publicCoverImage(String(book.id), book.coverImage, deferDataCoverImages),
         wordCount: book.words.length,
         unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
         firstWord: book.words[0]?.english ?? null,
@@ -286,7 +297,7 @@ export async function loadOfficialWordbooks(options?: {
       id: String(row.id),
       title: row.title,
       description: stripEmbeddedWordbookMeta(row.description ?? ""),
-      coverImage: row.cover_image ?? embeddedMeta.coverImage ?? null,
+      coverImage: publicCoverImage(String(row.id), row.cover_image ?? embeddedMeta.coverImage ?? null, deferDataCoverImages),
       requiredPlan: requiredPlanFromVisibility(visibility),
       visibility,
       level: levelFromVisibility(visibility),
@@ -313,6 +324,7 @@ export async function loadOfficialWordbooks(options?: {
             )
             .map((book) => ({
               ...book,
+              coverImage: publicCoverImage(String(book.id), book.coverImage, deferDataCoverImages),
               wordCount: book.words.length,
               unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
               firstWord: book.words[0]?.english ?? null,

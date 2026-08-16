@@ -2351,7 +2351,7 @@ export default function AdminPage() {
                     ) : (
                       <div className="flex flex-wrap gap-4 items-start">
                         {book.coverImage && (
-                          <img src={book.coverImage} alt={book.title} className="h-20 w-28 rounded-2xl object-cover flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <img src={book.coverImage} alt={book.title} loading="lazy" className="h-20 w-28 rounded-2xl object-cover flex-shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                         )}
                         <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
