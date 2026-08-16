@@ -419,7 +419,7 @@ export default function WordbooksPage() {
                     ? book.unitCount
                     : new Set(words.map((word) => word.unit).filter(Boolean)).size;
                 const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
-                const firstWord = book.firstWord ?? words[0]?.english ?? "-";
+                const firstWord = book.firstWord ?? words[0]?.english ?? "";
                 const detailPath = buildWordbookPath(book.id, book.title);
                 return (
                   <article
@@ -449,7 +449,7 @@ export default function WordbooksPage() {
                       </div>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
                         {units > 0 ? <span>{units}ユニット</span> : null}
-                        <span>最初: {firstWord}</span>
+                        {firstWord ? <span>最初: {firstWord}</span> : null}
                       </div>
                       <div className="mt-auto grid gap-1.5 pt-1.5 sm:flex sm:flex-wrap sm:gap-2 sm:pt-4">
                         <Link

@@ -25,7 +25,9 @@ export function escapeHtml(value: string) {
  * 任意HTMLは許可せず、先に必ずエスケープするので登録データからのスクリプト実行はできない。
  */
 export function formatPrintMarkedText(value: string) {
-  return escapeHtml(value).replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  return escapeHtml(value)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/\r?\n/g, "<br>");
 }
 
 export function stripPrintMarkers(value: string) {

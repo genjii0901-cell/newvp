@@ -693,6 +693,8 @@ export default function AdminPage() {
   const [editMeta, setEditMeta] = useState({ title: "", desc: "", coverImage: "", visibility: "public" as Visibility });
   const [editPaste, setEditPaste] = useState("");
   const fetchBooksSeqRef = useRef(0);
+  const pendingWordbookFetchesRef = useRef(new Set<string>());
+  const [loadingPdfBookId, setLoadingPdfBookId] = useState("");
   const duplicateTitleGroups = useMemo(() => {
     const groups = new Map<string, OfficialBook[]>();
     for (const book of books) {
@@ -848,13 +850,16 @@ export default function AdminPage() {
   }
 
   /* 笏笏 fetch books 笏笏 */
-  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean; includeWords?: boolean }) {
+  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean; includeWords?: boolean; onlyBookId?: string }) {
     const requestSeq = ++fetchBooksSeqRef.current;
     const includeWords = options?.includeWords ?? false;
+    const onlyBookId = options?.onlyBookId;
     if (!options?.silent) setLoadingBooks(true);
     if (!options?.preserveMessage) setManageMsg("");
     const headers = await getAdminHeaders();
-    const res = await fetch(`/api/admin/all-wordbooks?includeWords=${includeWords ? "1" : "0"}`, {
+    const searchParams = new URLSearchParams({ includeWords: includeWords ? "1" : "0" });
+    if (onlyBookId) searchParams.set("id", onlyBookId);
+    const res = await fetch(`/api/admin/all-wordbooks?${searchParams.toString()}`, {
       headers,
       cache: "no-store",
     }).catch(() => null);
@@ -863,7 +868,14 @@ export default function AdminPage() {
     const data = await res.json().catch(() => ({}));
     if (requestSeq !== fetchBooksSeqRef.current) return null;
     const list = Array.isArray(data?.wordbooks) ? data.wordbooks : [];
-    setBooks(list);
+    if (onlyBookId) {
+      const updatedBook = list.find((book: OfficialBook) => book.id === onlyBookId);
+      if (updatedBook) {
+        setBooks((current) => current.map((book) => (book.id === onlyBookId ? updatedBook : book)));
+      }
+    } else {
+      setBooks(list);
+    }
     if (!options?.preserveMessage) {
       if (data?.message) setManageMsg(data.message);
       else if (list.length === 0) setManageMsg("Supabaseに単語帳がありません。「単語帳を登録」タブから追加してください。");
@@ -890,9 +902,9 @@ export default function AdminPage() {
   useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false }); fetchMetrics({ silent: true }); loadTwoFaStatus(); } }, [unlocked]);
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
   useEffect(() => {
-    if (!unlocked || (tab !== "manage" && tab !== "pdf")) return;
-    fetchBooks({ silent: true, includeWords: tab === "pdf" || tab === "quiz" });
-  }, [tab, unlocked]);
+    if (!unlocked || tab !== "manage" || books.length > 0) return;
+    void fetchBooks({ silent: true, includeWords: false });
+  }, [tab, unlocked, books.length]);
   useEffect(() => {
     if (!unlocked || tab !== "dashboard") return;
     fetchMetrics({ silent: false });
@@ -902,6 +914,21 @@ export default function AdminPage() {
       setPdfBookId(books[0].id);
     }
   }, [books, pdfBookId]);
+
+  useEffect(() => {
+    if (!unlocked || tab !== "pdf" || !pdfBookId) return;
+    const selected = books.find((book) => book.id === pdfBookId);
+    if (!selected || selected.words.length > 0 || getBookWordCount(selected) === 0) return;
+    if (pendingWordbookFetchesRef.current.has(pdfBookId)) return;
+
+    pendingWordbookFetchesRef.current.add(pdfBookId);
+    setLoadingPdfBookId(pdfBookId);
+    void fetchBooks({ silent: true, preserveMessage: true, includeWords: true, onlyBookId: pdfBookId })
+      .finally(() => {
+        pendingWordbookFetchesRef.current.delete(pdfBookId);
+        setLoadingPdfBookId((current) => (current === pdfBookId ? "" : current));
+      });
+  }, [tab, unlocked, pdfBookId, books]);
 
   /* 笏笏 auth 笏笏 */
   async function unlock() {
@@ -1046,7 +1073,7 @@ export default function AdminPage() {
   async function startEdit(book: OfficialBook, mode: "meta" | "words") {
     let sourceBook = book;
     if (book.words.length === 0 && (mode === "words" || tab === "pdf") && getBookWordCount(book) > 0) {
-      const refreshed = await fetchBooks({ silent: true, preserveMessage: true, includeWords: true });
+      const refreshed = await fetchBooks({ silent: true, preserveMessage: true, includeWords: true, onlyBookId: book.id });
       const matched = refreshed?.find((candidate) => candidate.id === book.id);
       if (matched) {
         sourceBook = matched;
@@ -2631,7 +2658,9 @@ export default function AdminPage() {
                 </div>
 
                 {!selectedPdfBook || pdfOutputWords.length === 0 ? (
-                  <p className="text-sm text-slate-400 text-center py-8">単語帳を選択してください</p>
+                  <p className="text-sm text-slate-400 text-center py-8">
+                    {selectedPdfBook && loadingPdfBookId === selectedPdfBook.id ? "単語データを読み込んでいます..." : "単語帳を選択してください"}
+                  </p>
                 ) : (
                   <div className="flex justify-center rounded-2xl border bg-slate-100 p-4">
                     <div

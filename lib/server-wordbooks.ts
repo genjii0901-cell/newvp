@@ -15,6 +15,7 @@ type WordbookRow = {
   description: string | null;
   visibility?: string | null;
   cover_image?: string | null;
+  words?: Array<{ count?: number | string | null }> | null;
 };
 
 type WordRow = {
@@ -115,6 +116,9 @@ export async function loadOfficialWordbooks(options?: {
   const supabase = getSupabaseAdmin();
 
   const selects = [
+    "id,title,description,visibility,cover_image,words(count)",
+    "id,title,description,visibility,words(count)",
+    "id,title,description,words(count)",
     "id,title,description,visibility,cover_image",
     "id,title,description,visibility",
     "id,title,description",
@@ -182,21 +186,32 @@ export async function loadOfficialWordbooks(options?: {
   let words: WordRow[] = [];
   const wordStatsByBookId = new Map<string, WordStats>();
   if (ids.length > 0 && !includeWords) {
-    const stats = await Promise.all(
-      ids.map(async (id) => {
-        const [{ count }, firstResult] = await Promise.all([
-          supabase
+    // PostgRESTの埋め込み集計なら、単語帳ごとの件数取得をN回行わず1回で済ませられる。
+    // 古いスキーマなどで集計が取れない単語帳だけ、従来の正確なcountにフォールバックする。
+    const missingCountIds: string[] = [];
+    for (const row of visibleRows) {
+      const nested = Array.isArray(row.words) ? row.words[0]?.count : null;
+      const count = typeof nested === "number" ? nested : Number(nested);
+      if (Number.isSafeInteger(count) && count >= 0) {
+        wordStatsByBookId.set(String(row.id), { count, firstWord: null });
+      } else {
+        missingCountIds.push(String(row.id));
+      }
+    }
+
+    if (missingCountIds.length > 0) {
+      const stats = await Promise.all(
+        missingCountIds.map(async (id) => {
+          const { count } = await supabase
             .from("words")
             .select("wordbook_id", { count: "exact", head: true })
-            .eq("wordbook_id", id),
-          supabase.from("words").select("english").eq("wordbook_id", id).limit(1),
-        ]);
-        const firstRows = (firstResult.data as unknown as Array<{ english?: string | null }> | null) ?? [];
-        return [String(id), { count: count ?? 0, firstWord: firstRows[0]?.english ?? null }] as const;
-      })
-    );
-    for (const [id, statsForBook] of stats) {
-      wordStatsByBookId.set(id, statsForBook);
+            .eq("wordbook_id", id);
+          return [String(id), { count: count ?? 0, firstWord: null }] as const;
+        })
+      );
+      for (const [id, statsForBook] of stats) {
+        wordStatsByBookId.set(id, statsForBook);
+      }
     }
   }
 

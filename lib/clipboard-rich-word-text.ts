@@ -49,11 +49,11 @@ export function richClipboardHtmlToWordTsv(html: string) {
   const tsv = rows
     .map((row) =>
       Array.from(row.querySelectorAll(":scope > th, :scope > td"))
-        .map((cell) => textWithBoldMarkers(cell, false, boldClassNames).replace(/\n+/g, " ").trim())
+        .map((cell) => textWithBoldMarkers(cell, false, boldClassNames).replace(/\n+/g, "\uE000").trim())
         .join("\t")
     )
     .filter(Boolean)
     .join("\n");
 
-  return tsv.includes("**") ? tsv : null;
+  return tsv || null;
 }

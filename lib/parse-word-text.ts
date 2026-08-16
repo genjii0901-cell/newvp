@@ -109,7 +109,8 @@ function joinExtras(parts: Array<string | undefined>) {
 }
 
 function cleanCell(value: string | undefined) {
-  return (value ?? "").trim();
+  // ExcelのHTML貼り付けでは、セル内改行を行区切りと区別するために内部記号で受け取る。
+  return (value ?? "").replaceAll("\uE000", "\n").trim();
 }
 
 export function parseWordText(text: string): ParsedWordRow[] {

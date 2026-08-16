@@ -1943,7 +1943,11 @@ export default function Home() {
         setPasteText(
           rows
             .filter((row) => Array.isArray(row) && row.length >= 2)
-            .map((row) => [row[0] ?? "", row[1] ?? "", row[2] ?? "", row[3] ?? ""].join("\t"))
+            .map((row) =>
+              [row[0] ?? "", row[1] ?? "", row[2] ?? "", row[3] ?? ""]
+                .map((cell) => String(cell).replace(/\r?\n/g, " / "))
+                .join("\t")
+            )
             .join("\n"),
         );
       } else if (name.endsWith(".csv") || name.endsWith(".tsv") || name.endsWith(".txt")) {

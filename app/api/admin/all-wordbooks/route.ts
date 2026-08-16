@@ -9,10 +9,13 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
-  const includeWords = new URL(request.url).searchParams.get("includeWords") === "1";
+  const searchParams = new URL(request.url).searchParams;
+  const includeWords = searchParams.get("includeWords") === "1";
+  const id = searchParams.get("id");
+  const filterIds = id ? [id] : undefined;
 
   if (!isSupabaseServerConfigured()) {
-    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords }).catch(() => ({
+    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds }).catch(() => ({
       wordbooks: [],
     }));
     return NextResponse.json({
@@ -25,7 +28,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords });
+    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds });
     return NextResponse.json({
       ok: result.ok,
       supabaseConfigured: true,
