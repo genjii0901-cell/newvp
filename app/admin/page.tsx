@@ -34,6 +34,7 @@ type OfficialBook = {
   requiredPlan: string;
   visibility: string;
   wordCount?: number;
+  wordCountKnown?: boolean;
   words: Array<{ no: number; english: string; japanese: string; unit?: string | null }>;
 };
 
@@ -255,6 +256,10 @@ function visibilityColor(v: string) {
 
 function getBookWordCount(book: OfficialBook) {
   return typeof book.wordCount === "number" ? book.wordCount : book.words.length;
+}
+
+function getBookWordCountLabel(book: OfficialBook) {
+  return book.wordCountKnown === false ? "語数を確認中" : `${getBookWordCount(book)}語`;
 }
 
 function formatAdminDate(iso: string | null | undefined) {
@@ -850,14 +855,15 @@ export default function AdminPage() {
   }
 
   /* 笏笏 fetch books 笏笏 */
-  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean; includeWords?: boolean; onlyBookId?: string }) {
+  async function fetchBooks(options?: { silent?: boolean; preserveMessage?: boolean; includeWords?: boolean; includeWordStats?: boolean; onlyBookId?: string }) {
     const requestSeq = ++fetchBooksSeqRef.current;
     const includeWords = options?.includeWords ?? false;
+    const includeWordStats = options?.includeWordStats ?? true;
     const onlyBookId = options?.onlyBookId;
     if (!options?.silent) setLoadingBooks(true);
     if (!options?.preserveMessage) setManageMsg("");
     const headers = await getAdminHeaders();
-    const searchParams = new URLSearchParams({ includeWords: includeWords ? "1" : "0" });
+    const searchParams = new URLSearchParams({ includeWords: includeWords ? "1" : "0", includeWordStats: includeWordStats ? "1" : "0" });
     if (onlyBookId) searchParams.set("id", onlyBookId);
     const res = await fetch(`/api/admin/all-wordbooks?${searchParams.toString()}`, {
       headers,
@@ -899,11 +905,11 @@ export default function AdminPage() {
     };
   }, [supabase]);
 
-  useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false }); fetchMetrics({ silent: true }); loadTwoFaStatus(); } }, [unlocked]);
+  useEffect(() => { if (unlocked) { fetchBooks({ includeWords: false, includeWordStats: false }); fetchMetrics({ silent: true }); loadTwoFaStatus(); } }, [unlocked]);
   // タブ切り替え時は初回のみ取得（編集中の変更を上書きしないようsilentで）
   useEffect(() => {
     if (!unlocked || tab !== "manage" || books.length > 0) return;
-    void fetchBooks({ silent: true, includeWords: false });
+    void fetchBooks({ silent: true, includeWords: false, includeWordStats: false });
   }, [tab, unlocked, books.length]);
   useEffect(() => {
     if (!unlocked || tab !== "dashboard") return;
@@ -918,7 +924,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!unlocked || tab !== "pdf" || !pdfBookId) return;
     const selected = books.find((book) => book.id === pdfBookId);
-    if (!selected || selected.words.length > 0 || getBookWordCount(selected) === 0) return;
+    if (!selected || selected.words.length > 0) return;
     if (pendingWordbookFetchesRef.current.has(pdfBookId)) return;
 
     pendingWordbookFetchesRef.current.add(pdfBookId);
@@ -1072,7 +1078,7 @@ export default function AdminPage() {
   /* 笏笏 edit 笏笏 */
   async function startEdit(book: OfficialBook, mode: "meta" | "words") {
     let sourceBook = book;
-    if (book.words.length === 0 && (mode === "words" || tab === "pdf") && getBookWordCount(book) > 0) {
+    if (book.words.length === 0 && (mode === "words" || tab === "pdf")) {
       const refreshed = await fetchBooks({ silent: true, preserveMessage: true, includeWords: true, onlyBookId: book.id });
       const matched = refreshed?.find((candidate) => candidate.id === book.id);
       if (matched) {
@@ -2357,7 +2363,7 @@ export default function AdminPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="font-black text-slate-900 text-lg">{book.title}</h3>
                             <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${visibilityColor(book.visibility)}`}>{visibilityLabel(book.visibility)}</span>
-                            <span className="text-xs text-slate-400">{getBookWordCount(book)}語</span>
+                            <span className="text-xs text-slate-400">{getBookWordCountLabel(book)}</span>
                           </div>
                           {book.description && <p className="mt-1 text-sm text-slate-500 line-clamp-1">{book.description}</p>}
                           <div className="mt-3 flex flex-wrap gap-2">
@@ -2395,7 +2401,7 @@ export default function AdminPage() {
                   <option value="">― 選択してください ―</option>
                   {books.filter((b) => bookMatchesQuery(b, pdfBookSearch)).map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.title}（{getBookWordCount(b)}語{b.visibility === "admin" ? " 🔒管理者限定" : ""})
+                      {b.title}（{getBookWordCountLabel(b)}{b.visibility === "admin" ? " 🔒管理者限定" : ""})
                     </option>
                   ))}
                 </select>
@@ -2416,7 +2422,7 @@ export default function AdminPage() {
                       </div>
                     ))}
                     <p className="col-span-3 text-xs text-slate-400">
-                      この単語帳は全{getBookWordCount(selectedPdfBook)}語。「開始／終了」はリストの何番目かで指定します。
+                      この単語帳は全{getBookWordCountLabel(selectedPdfBook)}。「開始／終了」はリストの何番目かで指定します。
                     </p>
                   </div>
                 )}
@@ -2756,7 +2762,7 @@ export default function AdminPage() {
                   <p className="mt-1 text-xs text-slate-500">公式単語帳</p>
                 </div>
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
-                  <p className="text-2xl font-black text-slate-700">{books.reduce((sum, book) => sum + getBookWordCount(book), 0).toLocaleString()}</p>
+                  <p className="text-2xl font-black text-slate-700">{books.some((book) => book.wordCountKnown === false) ? "確認中" : books.reduce((sum, book) => sum + getBookWordCount(book), 0).toLocaleString()}</p>
                   <p className="mt-1 text-xs text-slate-500">総単語数</p>
                 </div>
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">

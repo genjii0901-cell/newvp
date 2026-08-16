@@ -40,6 +40,7 @@ export type LiveWordbook = {
   visibility: Visibility;
   level: string;
   wordCount: number;
+  wordCountKnown: boolean;
   unitCount: number;
   firstWord: string | null;
   words: Array<{ no: number; label?: string; english: string; japanese: string; unit: string | null }>;
@@ -112,6 +113,7 @@ export async function loadOfficialWordbooks(options?: {
   includeFallback?: boolean;
   dedupeByTitle?: boolean;
   includeWords?: boolean;
+  includeWordStats?: boolean;
   filterIds?: string[];
   deferDataCoverImages?: boolean;
 }) {
@@ -119,6 +121,7 @@ export async function loadOfficialWordbooks(options?: {
   const includeFallback = options?.includeFallback !== false;
   const dedupeByTitle = options?.dedupeByTitle !== false;
   const includeWords = options?.includeWords !== false;
+  const includeWordStats = options?.includeWordStats !== false;
   const deferDataCoverImages = Boolean(options?.deferDataCoverImages);
   const filterIds = (options?.filterIds ?? []).map(String);
   const filterIdSet = filterIds.length > 0 ? new Set(filterIds) : null;
@@ -161,6 +164,7 @@ export async function loadOfficialWordbooks(options?: {
         ...book,
         coverImage: publicCoverImage(String(book.id), book.coverImage, deferDataCoverImages),
         wordCount: book.words.length,
+        wordCountKnown: true,
         unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
         firstWord: book.words[0]?.english ?? null,
         words: includeWords ? book.words : [],
@@ -196,7 +200,7 @@ export async function loadOfficialWordbooks(options?: {
 
   let words: WordRow[] = [];
   const wordStatsByBookId = new Map<string, WordStats>();
-  if (ids.length > 0 && !includeWords) {
+  if (ids.length > 0 && !includeWords && includeWordStats) {
     // PostgRESTの埋め込み集計なら、単語帳ごとの件数取得をN回行わず1回で済ませられる。
     // 古いスキーマなどで集計が取れない単語帳だけ、従来の正確なcountにフォールバックする。
     const missingCountIds: string[] = [];
@@ -302,6 +306,7 @@ export async function loadOfficialWordbooks(options?: {
       visibility,
       level: levelFromVisibility(visibility),
       wordCount: wordStats?.count ?? bookWords.length,
+      wordCountKnown: includeWords || wordStatsByBookId.has(String(row.id)),
       unitCount: new Set(bookWords.map((word) => word.unit).filter(Boolean)).size,
       firstWord: wordStats?.firstWord ?? bookWords.find((word) => word.english)?.english ?? null,
       words: includeWords ? bookWords : [],
@@ -326,6 +331,7 @@ export async function loadOfficialWordbooks(options?: {
               ...book,
               coverImage: publicCoverImage(String(book.id), book.coverImage, deferDataCoverImages),
               wordCount: book.words.length,
+              wordCountKnown: true,
               unitCount: new Set(book.words.map((word) => word.unit).filter(Boolean)).size,
               firstWord: book.words[0]?.english ?? null,
               words: includeWords ? book.words : [],

@@ -11,11 +11,12 @@ export async function GET(request: Request) {
   if (unauthorized) return unauthorized;
   const searchParams = new URL(request.url).searchParams;
   const includeWords = searchParams.get("includeWords") === "1";
+  const includeWordStats = searchParams.get("includeWordStats") !== "0";
   const id = searchParams.get("id");
   const filterIds = id ? [id] : undefined;
 
   if (!isSupabaseServerConfigured()) {
-    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds, deferDataCoverImages: !id && !includeWords }).catch(() => ({
+    const fallback = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, includeWordStats, filterIds, deferDataCoverImages: !id && !includeWords }).catch(() => ({
       wordbooks: [],
     }));
     return NextResponse.json({
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, filterIds, deferDataCoverImages: !id && !includeWords });
+    const result = await loadOfficialWordbooks({ includeAdmin: true, includeFallback: true, dedupeByTitle: true, includeWords, includeWordStats, filterIds, deferDataCoverImages: !id && !includeWords });
     return NextResponse.json({
       ok: result.ok,
       supabaseConfigured: true,
