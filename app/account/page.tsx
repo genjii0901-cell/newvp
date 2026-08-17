@@ -669,6 +669,9 @@ export default function AccountPage() {
           <Link href="/pricing" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
             料金プラン
           </Link>
+          <Link href="/notifications" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
+            メール設定
+          </Link>
         </div>
       </section>
 
