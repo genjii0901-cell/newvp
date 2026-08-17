@@ -1,16 +1,32 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "購入者用単語帳ポータルのサンプル | Vocab Print Pro", robots: { index: false, follow: false } };
+export const metadata: Metadata = {
+  title: "Note購入者用ページのサンプル | Vocab Print Pro",
+  robots: { index: false, follow: false },
+};
 
-const sampleWords = [
-  ["1", "achieve", "達成する"],
-  ["2", "benefit", "利益、恩恵"],
-  ["3", "challenge", "挑戦、課題"],
-  ["4", "develop", "発展させる"],
-  ["5", "essential", "不可欠な"],
+const samples = [
+  { href: "/access/sample/system-eitango", id: "84", title: "システム英単語", copy: "英単語の印刷・聞き流し・4択チェックを試せる購入前サンプルです。" },
+  { href: "/access/sample/koten-315", id: "31", title: "古典単語315", copy: "古語と意味の印刷・聞き流し・苦手確認を試せる購入前サンプルです。" },
 ];
 
-export default function LicenseSamplePage() {
-  return <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900"><div className="mx-auto max-w-4xl"><div className="mb-7 flex items-center justify-between"><Link href="/" className="text-sm font-black text-blue-700">Vocab Print Pro</Link><span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-bold">デモ画面</span></div><section className="overflow-hidden rounded-2xl border bg-white shadow-sm"><div className="grid md:grid-cols-[200px_1fr]"><div className="min-h-44 bg-gradient-to-br from-blue-700 to-sky-400" /><div className="p-6"><p className="text-sm font-bold text-blue-700">Note購入者向け・単語帳専用ポータル</p><h1 className="mt-1 text-2xl font-black">システム英単語（サンプル）</h1><p className="mt-3 text-sm leading-6 text-slate-600">実際の購入者は、Noteで案内された専用URLでメールアドレス・パスワード・ライセンスキーを登録します。使えるのは購入した単語帳だけです。</p></div></div></section><section className="mt-6 rounded-2xl border bg-white p-6 shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-black">単語チェック（機能を絞った例）</h2><p className="mt-1 text-sm text-slate-500">単語一覧と4択チェックだけを置いた、購入者用の最小構成です。</p></div><button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">4択チェックを始める</button></div><div className="mt-5 overflow-hidden rounded-xl border"><table className="w-full text-sm"><thead className="bg-slate-50 text-left text-slate-500"><tr><th className="p-3">番号</th><th>英単語</th><th>意味</th></tr></thead><tbody>{sampleWords.map(([no, english, japanese]) => <tr key={no} className="border-t"><td className="p-3 text-slate-500">{no}</td><td className="font-bold">{english}</td><td>{japanese}</td></tr>)}</tbody></table></div></section><aside className="mt-8 rounded-2xl border border-blue-100 bg-white p-5"><h2 className="font-black">Vocab Print Pro本体ではさらにできること</h2><p className="mt-2 text-sm leading-6 text-slate-600">他の単語帳、Excel/CSVの貼り付け、単語テスト印刷、聞き流し、印刷レイアウト設定をまとめて利用できます。</p><Link href="/" className="mt-3 inline-block text-sm font-black text-blue-700">Vocab Print Pro本体を見る</Link></aside></div></main>;
+export default function LicenseSampleIndexPage() {
+  return (
+    <main className="min-h-screen bg-slate-50 px-4 py-10 text-slate-900">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="text-sm font-black text-blue-700">Vocab Print Pro</Link>
+        <h1 className="mt-6 text-3xl font-black">購入者用ページのサンプル</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">Noteで購入する前に、対象教材ごとの画面と機能を確認できます。</p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {samples.map((sample) => (
+            <Link key={sample.href} href={sample.href} className="overflow-hidden rounded-lg border bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md">
+              <div className="aspect-[16/8] overflow-hidden bg-slate-100"><img src={`https://www.vocabprint.com/api/wordbooks/cover?id=${sample.id}`} alt={`${sample.title}の表紙`} className="h-full w-full object-cover" /></div>
+              <div className="p-5"><h2 className="text-lg font-black">{sample.title}</h2><p className="mt-2 text-sm leading-6 text-slate-600">{sample.copy}</p><span className="mt-4 inline-block text-sm font-black text-blue-700">サンプルを開く</span></div>
+            </Link>
+          ))}
+        </div>
+      </div>
+    </main>
+  );
 }
