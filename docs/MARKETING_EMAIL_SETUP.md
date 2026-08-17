@@ -1,6 +1,12 @@
 # Marketing email setup
 
-The app only sends to Free users who have explicitly enabled marketing email.
+The app provides two deliberately separate paths:
+
+- `運営・アカウントのお知らせ`: all Free users or selected Free users. Do not
+  include prices, trials, purchases, or other promotional calls to action.
+- `新機能・学習ヒント`: only Free users who have explicitly enabled marketing
+  email. Each message includes a recipient-specific unsubscribe link.
+
 It never sends promotional email to every existing account automatically.
 
 ## One-time Supabase setup
@@ -32,7 +38,7 @@ dedicated long random value is preferable.
 ## Sending
 
 1. Open `/admin` and choose `メール配信`.
-2. Check the recipient count. Only opted-in Free accounts are eligible.
+2. Choose the message kind and audience. The UI shows the eligible count.
 3. Send a test email to yourself and check its unsubscribe link.
 4. Enter `SEND` and confirm the final dialog.
 

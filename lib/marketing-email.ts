@@ -62,7 +62,13 @@ export function escapeHtml(value: string) {
   });
 }
 
-export function buildMarketingEmailHtml(body: string, unsubscribeUrl: string) {
+export function buildMarketingEmailHtml(
+  body: string,
+  options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null }
+) {
   const content = escapeHtml(body).replace(/\r?\n/g, "<br />");
-  return `<!doctype html><html lang="ja"><body style="margin:0;background:#f8fafc;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"><main style="max-width:600px;margin:0 auto;padding:32px 20px"><section style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px"><p style="margin:0 0 18px;font-weight:800;font-size:18px">Vocab Print Pro</p><div style="font-size:15px;line-height:1.8">${content}</div></section><p style="margin:18px 4px 0;color:#64748b;font-size:12px;line-height:1.7">このメールは、Vocab Print Proのお知らせを受け取る設定をした方へお送りしています。<br /><a href="${escapeHtml(unsubscribeUrl)}" style="color:#475569">お知らせメールの配信を停止する</a></p></main></body></html>`;
+  const footer = options.kind === "marketing" && options.unsubscribeUrl
+    ? `このメールは、Vocab Print Proのお知らせを受け取る設定をした方へお送りしています。<br /><a href="${escapeHtml(options.unsubscribeUrl)}" style="color:#475569">お知らせメールの配信を停止する</a>`
+    : "このメールは、Vocab Print Proの登録ユーザーへお送りする運営・アカウントに関するお知らせです。";
+  return `<!doctype html><html lang="ja"><body style="margin:0;background:#f8fafc;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"><main style="max-width:600px;margin:0 auto;padding:32px 20px"><section style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:28px"><p style="margin:0 0 18px;font-weight:800;font-size:18px">Vocab Print Pro</p><div style="font-size:15px;line-height:1.8">${content}</div></section><p style="margin:18px 4px 0;color:#64748b;font-size:12px;line-height:1.7">${footer}</p></main></body></html>`;
 }
