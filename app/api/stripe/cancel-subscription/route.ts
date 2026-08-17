@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 
 type Plan = "personal" | "teacher";
+type CancellationReason = "price" | "usage" | "features" | "temporary" | "other" | "skip";
+
+const cancellationReasons = new Set<CancellationReason>([
+  "price",
+  "usage",
+  "features",
+  "temporary",
+  "other",
+  "skip",
+]);
 
 function getString(value: unknown) {
   return typeof value === "string" ? value : null;
@@ -13,6 +23,16 @@ function getObject(value: unknown) {
 
 function getUnixDate(value: unknown) {
   return typeof value === "number" ? new Date(value * 1000).toISOString() : null;
+}
+
+function getCancellationReason(value: unknown): CancellationReason {
+  return typeof value === "string" && cancellationReasons.has(value as CancellationReason)
+    ? (value as CancellationReason)
+    : "skip";
+}
+
+function getCancellationFeedback(value: unknown) {
+  return typeof value === "string" ? value.trim().slice(0, 500) : "";
 }
 
 function formatJapaneseDate(isoDate: string | null) {
@@ -109,11 +129,44 @@ async function updateLocalSubscription({
   }
 }
 
+async function recordCancellationFeedback({
+  stripeSecretKey,
+  subscriptionId,
+  reason,
+  feedback,
+}: {
+  stripeSecretKey: string;
+  subscriptionId: string;
+  reason: CancellationReason;
+  feedback: string;
+}) {
+  if (reason === "skip" && !feedback) return;
+
+  const body = new URLSearchParams({ "metadata[cancellation_reason]": reason });
+  if (feedback) body.set("metadata[cancellation_feedback]", feedback);
+
+  const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+
+  if (!response.ok) {
+    console.warn("Unable to save cancellation feedback in Stripe.");
+  }
+}
+
 export async function POST(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
 
   try {
+    const requestBody = await request.json().catch(() => ({}));
+    const cancellationReason = getCancellationReason(requestBody?.reason);
+    const cancellationFeedback = getCancellationFeedback(requestBody?.feedback);
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeSecretKey) {
       return NextResponse.json(
@@ -160,6 +213,13 @@ export async function POST(request: Request) {
     const status = getString(subscription.status);
     const plan = planFromSubscription(subscription) ?? "personal";
     const currentPeriodEnd = getUnixDate(subscription.current_period_end);
+
+    await recordCancellationFeedback({
+      stripeSecretKey,
+      subscriptionId,
+      reason: cancellationReason,
+      feedback: cancellationFeedback,
+    });
 
     if (status === "trialing") {
       const response = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
