@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { japanDateKey, japanDateStart, utcDateKey } from "@/lib/analytics-date";
+import { loadSearchConsoleReport } from "@/lib/google-search-console";
 import {
   getSupabaseAdmin,
   isSupabaseServerConfigured,
@@ -101,6 +102,35 @@ function toPublicReferrerLabel(referrer: string) {
   }
 }
 
+type VisitAttribution = {
+  source: string;
+  medium: string;
+  campaign: string;
+  content: string;
+};
+
+function parseVisitAttribution(value: string): VisitAttribution | null {
+  try {
+    const parsed = getObject(JSON.parse(decodeURIComponent(value)));
+    if (!parsed) return null;
+    const attribution = {
+      source: getString(parsed.source).slice(0, 80),
+      medium: getString(parsed.medium).slice(0, 80),
+      campaign: getString(parsed.campaign).slice(0, 120),
+      content: getString(parsed.content).slice(0, 120),
+    };
+    return attribution.source || attribution.campaign ? attribution : null;
+  } catch {
+    return null;
+  }
+}
+
+function attributionLabel(attribution: VisitAttribution) {
+  return [attribution.source, attribution.medium, attribution.campaign, attribution.content]
+    .filter(Boolean)
+    .join(" / ");
+}
+
 function isActiveSubscription(subscription: SubscriptionRow | null | undefined) {
   return subscription?.status === "active" || subscription?.status === "trialing";
 }
@@ -186,10 +216,11 @@ export async function GET(request: Request) {
       "visit_unique_total::",
       "visit_path::",
       "visit_referrer::",
+      "visit_campaign::",
       "visit_unique::",
     ];
 
-    const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, analyticsResults] = await Promise.all([
+    const [authUsers, profilesResult, subscriptionsResult, pdfResult, wordbooksResult, analyticsResults, searchConsole] = await Promise.all([
       listAuthUsers(),
       safeSelect<ProfileRow>(
         () => supabase.from("profiles").select("id,email,plan,role,stripe_customer_id,created_at").limit(5000),
@@ -231,6 +262,7 @@ export async function GET(request: Request) {
           )
         )
       ),
+      loadSearchConsoleReport(),
     ]);
 
     const profiles = profilesResult.data;
@@ -382,6 +414,7 @@ export async function GET(request: Request) {
     let unique30d = 0;
     const pathCounts = new Map<string, number>();
     const referrerCounts = new Map<string, { url: string | null; views: number }>();
+    const campaignCounts = new Map<string, { attribution: VisitAttribution; views: number }>();
     const visitorGroups = new Map<
       string,
       {
@@ -443,6 +476,20 @@ export async function GET(request: Request) {
           url: referrer && referrer !== "direct" ? referrer : null,
           views: (existing?.views ?? 0) + count,
         });
+      } else if (key.startsWith("visit_campaign::")) {
+        const match = key.match(/^visit_campaign::(\d{4}-\d{2}-\d{2})::(.+)$/);
+        if (!match) continue;
+        const [, dateText, encodedAttribution] = match;
+        const time = japanDateStart(dateText);
+        if (!Number.isFinite(time) || time < date30dThreshold) continue;
+        const attribution = parseVisitAttribution(encodedAttribution);
+        if (!attribution) continue;
+        const label = attributionLabel(attribution);
+        const existing = campaignCounts.get(label);
+        campaignCounts.set(label, {
+          attribution,
+          views: (existing?.views ?? 0) + count,
+        });
       } else if (key.startsWith("visit_unique::")) {
         const match = key.match(/^visit_unique::(\d{4}-\d{2}-\d{2})::([a-f0-9]+)$/i);
         if (!match) continue;
@@ -497,6 +544,18 @@ export async function GET(request: Request) {
       .sort((a, b) => b[1].views - a[1].views)
       .slice(0, 5)
       .map(([label, value]) => ({ label, url: value.url, views: value.views }));
+
+    const topCampaigns = Array.from(campaignCounts.entries())
+      .sort((a, b) => b[1].views - a[1].views)
+      .slice(0, 10)
+      .map(([label, value]) => ({
+        label,
+        source: value.attribution.source,
+        medium: value.attribution.medium,
+        campaign: value.attribution.campaign,
+        content: value.attribution.content,
+        views: value.views,
+      }));
 
     const recentVisitors = Array.from(visitorGroups.values())
       .sort((a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime())
@@ -576,7 +635,9 @@ export async function GET(request: Request) {
           unique7d,
           unique30d,
           topReferrers,
+          topCampaigns,
           topPaths,
+          searchConsole,
           recentVisitors,
           currentBrowserSummary: currentBrowserSummary
             ? {

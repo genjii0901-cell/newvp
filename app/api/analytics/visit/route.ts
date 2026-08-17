@@ -20,6 +20,18 @@ function normalizeReferrer(value: string) {
   return trimmed.slice(0, 300);
 }
 
+function normalizeAttribution(value: unknown) {
+  const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const clean = (key: string, maxLength: number) =>
+    typeof input[key] === "string" ? input[key].trim().slice(0, maxLength) : "";
+  return {
+    source: clean("source", 80),
+    medium: clean("medium", 80),
+    campaign: clean("campaign", 120),
+    content: clean("content", 120),
+  };
+}
+
 async function getSettingValue(key: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.from("app_settings").select("value").eq("key", key).maybeSingle();
@@ -49,6 +61,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const path = normalizePath(body.path);
     const referrer = typeof body.referrer === "string" ? normalizeReferrer(body.referrer) : "";
+    const attribution = normalizeAttribution(body.attribution);
     const ua = request.headers.get("user-agent") ?? "";
     const forwardedFor = request.headers.get("x-forwarded-for") ?? "";
     const ip = forwardedFor.split(",")[0]?.trim() || "unknown";
@@ -62,6 +75,10 @@ export async function POST(request: Request) {
     const viewsToday = await incrementSetting(`visit_total::${date}`);
     await incrementSetting(`visit_path::${date}::${encodedPath}`);
     await incrementSetting(`visit_referrer::${date}::${encodedReferrer}`);
+    if (attribution.source || attribution.campaign) {
+      const encodedAttribution = encodeURIComponent(JSON.stringify(attribution));
+      await incrementSetting(`visit_campaign::${date}::${encodedAttribution}`);
+    }
 
     const uniqueKey = `visit_unique::${date}::${visitorHash}`;
     const existingUnique = await getSettingValue(uniqueKey);
@@ -71,6 +88,7 @@ export async function POST(request: Request) {
         JSON.stringify({
           path,
           referrer,
+          attribution,
           visitorHash,
           stableVisitorHash,
           ua: uaLabel,

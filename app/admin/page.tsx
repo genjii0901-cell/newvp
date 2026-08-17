@@ -51,6 +51,30 @@ type AdminMetrics = {
     unique30d?: number;
     topPaths?: Array<{ path: string; views: number; href?: string }>;
     topReferrers?: Array<{ label: string; url: string | null; views: number }>;
+    topCampaigns?: Array<{
+      label: string;
+      source: string;
+      medium: string;
+      campaign: string;
+      content: string;
+      views: number;
+    }>;
+    searchConsole?: {
+      configured: boolean;
+      message: string;
+      periodLabel?: string;
+      clicks?: number;
+      impressions?: number;
+      ctr?: number;
+      position?: number;
+      queries?: Array<{
+        query: string;
+        clicks: number;
+        impressions: number;
+        ctr: number;
+        position: number;
+      }>;
+    };
     recentVisitors?: Array<{
       stableVisitorHash: string;
       visits: number;
@@ -1920,6 +1944,74 @@ export default function AdminPage() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900">記事・キャンペーン別の流入</h3>
+                        <p className="mt-1 text-xs text-slate-500">30日間・note記事やSNS投稿ごとの計測</p>
+                      </div>
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">UTM</span>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      {(metrics.visitorMetrics?.topCampaigns?.length ?? 0) === 0 ? (
+                        <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                          まだ記事別の計測データがありません。noteの記事内リンクに
+                          <code className="mx-1 rounded bg-white px-1.5 py-0.5 text-xs text-slate-700">?utm_source=note&amp;utm_medium=article&amp;utm_campaign=記事ID</code>
+                          を付けると、ここで記事ごとに比較できます。
+                        </div>
+                      ) : (
+                        metrics.visitorMetrics?.topCampaigns?.map((item) => (
+                          <div key={`${item.label}-${item.views}`} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-slate-800">{item.label}</p>
+                              <p className="mt-1 truncate text-xs text-slate-400">{item.campaign || "キャンペーン名なし"}</p>
+                            </div>
+                            <span className="shrink-0 rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">{item.views} PV</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border bg-white p-5 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-black text-slate-900">Google検索で使われた言葉</h3>
+                        <p className="mt-1 text-xs text-slate-500">Google Search Console・直近約90日</p>
+                      </div>
+                      <a
+                        href="https://search.google.com/search-console/performance/search-analytics?resource_id=https%3A%2F%2Fwww.vocabprint.com%2F"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 text-xs font-bold text-blue-700 hover:underline"
+                      >
+                        Search Consoleを開く
+                      </a>
+                    </div>
+                    {metrics.visitorMetrics?.searchConsole?.configured ? (
+                      <>
+                        <div className="mt-4 grid grid-cols-2 gap-3">
+                          <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-700"><p className="text-xs font-bold">クリック</p><p className="mt-1 text-xl font-black">{metrics.visitorMetrics.searchConsole.clicks ?? 0}</p></div>
+                          <div className="rounded-2xl bg-violet-50 p-3 text-violet-700"><p className="text-xs font-bold">表示回数</p><p className="mt-1 text-xl font-black">{metrics.visitorMetrics.searchConsole.impressions ?? 0}</p></div>
+                        </div>
+                        <div className="mt-4 space-y-2">
+                          {(metrics.visitorMetrics.searchConsole.queries ?? []).map((item) => (
+                            <div key={item.query} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2">
+                              <p className="min-w-0 truncate text-sm font-bold text-slate-800">{item.query}</p>
+                              <span className="shrink-0 text-xs text-slate-500">{item.clicks}クリック / {item.impressions}表示</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+                        {metrics.visitorMetrics?.searchConsole?.message ?? "Search Console連携を確認しています。"}
+                      </div>
+                    )}
                   </div>
                 </section>
 
