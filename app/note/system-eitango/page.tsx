@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import SystemEitangoNotePortal from "./portal";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "システム英単語 購入者用ポータル | Vocab Print Pro",
@@ -7,5 +7,6 @@ export const metadata: Metadata = {
 };
 
 export default function SystemEitangoNotePage() {
-  return <SystemEitangoNotePortal />;
+  // Keep the URL shared from Note, but use the server-validated license flow.
+  redirect("/access/system-eitango");
 }
