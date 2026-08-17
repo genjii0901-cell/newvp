@@ -9,6 +9,7 @@ import type { User } from "@supabase/supabase-js";
 type Plan = "free" | "personal" | "teacher";
 type Role = "user" | "admin";
 type CancellationReason = "price" | "usage" | "features" | "temporary" | "other" | "skip";
+type AccountManagementView = "overview" | "cancel-reason" | "cancel-confirm" | "delete";
 
 const cancellationReasons: Array<{ value: CancellationReason; label: string }> = [
   { value: "price", label: "料金が合わなかった" },
@@ -74,12 +75,13 @@ export default function AccountPage() {
   const [portalLoading, setPortalLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [showContractManagement, setShowContractManagement] = useState(false);
-  const [cancelStep, setCancelStep] = useState<"reason" | "confirm">("reason");
+  const [accountManagementView, setAccountManagementView] = useState<AccountManagementView>("overview");
   const [cancellationReason, setCancellationReason] = useState<CancellationReason | "">("");
   const [cancellationFeedback, setCancellationFeedback] = useState("");
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -198,11 +200,16 @@ export default function AccountPage() {
     setPortalLoading(false);
   }
 
-  function openCancellationFlow() {
-    setCancelStep("reason");
+  function openAccountManagement() {
+    setAccountManagementView("overview");
     setCancellationReason("");
     setCancellationFeedback("");
+    setDeleteAcknowledged(false);
     setShowContractManagement(true);
+  }
+
+  function openCancellationFlow() {
+    setAccountManagementView("cancel-reason");
   }
 
   async function cancelSubscription() {
@@ -226,6 +233,7 @@ export default function AccountPage() {
       if (result.profile?.plan) setPlan(normalizePlan(result.profile.plan));
       setMsg(result.message ?? "解約処理が完了しました。");
       setShowContractManagement(false);
+      setAccountManagementView("overview");
     } else {
       setMsg(result.error ?? "解約処理に失敗しました。時間をおいて再度お試しください。");
     }
@@ -268,11 +276,6 @@ export default function AccountPage() {
 
   async function deleteAccount() {
     if (!supabase || !user) return;
-
-    const confirmed = window.confirm(
-      "本当にアカウントを削除しますか？\n\n保存した履歴や作成データも削除されます。"
-    );
-    if (!confirmed) return;
 
     setDeleteLoading(true);
     const { data: session } = await supabase.auth.getSession();
@@ -340,20 +343,7 @@ export default function AccountPage() {
             <p className="text-sm text-slate-500">{info.limit}</p>
           </div>
         </div>
-        {plan !== "free" ? (
-          <>
-            <button
-              onClick={openPortal}
-              disabled={portalLoading}
-              className="mt-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-            >
-              {portalLoading ? "開いています..." : "支払い方法を管理する"}
-            </button>
-            <p className="mt-2 text-xs text-slate-500">
-              支払い方法の変更や請求情報の確認はStripeの安全な画面で行えます。
-            </p>
-          </>
-        ) : (
+        {plan === "free" && (
           <>
             <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
               有料プランを見る
@@ -365,118 +355,213 @@ export default function AccountPage() {
         )}
       </section>
 
-      {plan !== "free" && (
-        <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-black text-slate-900">契約管理</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            契約内容の確認、支払い方法の変更、解約手続きはこちらから行えます。
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              if (showContractManagement) {
-                setShowContractManagement(false);
-              } else {
-                openCancellationFlow();
-              }
-            }}
-            aria-expanded={showContractManagement}
-            className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
-          >
-            {showContractManagement ? "契約管理を閉じる" : "契約管理を開く"}
-          </button>
+      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+        <h2 className="text-lg font-black text-slate-900">アカウント・契約管理</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          支払い方法、契約の解約、アカウント削除などの重要な手続きはこちらにまとめています。
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            if (showContractManagement) {
+              setShowContractManagement(false);
+            } else {
+              openAccountManagement();
+            }
+          }}
+          aria-expanded={showContractManagement}
+          className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
+        >
+          {showContractManagement ? "管理画面を閉じる" : "アカウント・契約管理を開く"}
+        </button>
 
-          {showContractManagement && (
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              {cancelStep === "reason" ? (
-                <>
-                  <h3 className="font-black text-slate-900">解約理由を教えてください</h3>
+        {showContractManagement && (
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            {accountManagementView === "overview" && (
+              <div className="space-y-3">
+                {plan !== "free" ? (
+                  <div className="rounded-2xl border border-blue-100 bg-white p-4">
+                    <h3 className="font-black text-slate-900">支払い・契約</h3>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">
+                      支払い方法や請求情報の確認はStripeの安全な画面で行えます。解約は理由と確認を経て行います。
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={openPortal}
+                        disabled={portalLoading}
+                        className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        {portalLoading ? "開いています..." : "支払い方法・請求を管理"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={openCancellationFlow}
+                        disabled={portalLoading}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                      >
+                        契約の解約手続き
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <h3 className="font-black text-slate-900">現在はFreeプランです</h3>
+                    <p className="mt-1 text-sm text-slate-500">有料契約はありません。プランの変更は料金ページから行えます。</p>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-red-100 bg-white p-4">
+                  <h3 className="font-black text-slate-900">アカウント削除</h3>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
-                    今後の改善の参考にします。回答しないことを選んでも、解約手続きは進められます。
+                    保存した単語帳、履歴、利用情報を含むアカウントの削除手続きです。削除後は元に戻せません。
                   </p>
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    {cancellationReasons.map((reason) => {
-                      const selected = cancellationReason === reason.value;
-                      return (
-                        <button
-                          key={reason.value}
-                          type="button"
-                          onClick={() => setCancellationReason(reason.value)}
-                          className={`rounded-xl border px-3 py-2 text-left text-sm font-bold transition ${
-                            selected
-                              ? "border-blue-600 bg-blue-600 text-white"
-                              : "border-slate-200 bg-white text-slate-700 hover:border-blue-300"
-                          }`}
-                        >
-                          {reason.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <label className="mt-4 block text-sm font-bold text-slate-700" htmlFor="cancellation-feedback">
-                    ご意見（任意）
-                  </label>
-                  <textarea
-                    id="cancellation-feedback"
-                    value={cancellationFeedback}
-                    onChange={(event) => setCancellationFeedback(event.target.value)}
-                    maxLength={500}
-                    rows={3}
-                    placeholder="改善してほしい点があれば教えてください"
-                    className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteAcknowledged(false);
+                      setAccountManagementView("delete");
+                    }}
+                    className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100"
+                  >
+                    アカウント削除を確認する
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {accountManagementView === "cancel-reason" && (
+              <>
+                <h3 className="font-black text-slate-900">解約理由を教えてください</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  今後の改善の参考にします。回答しないことを選んでも、解約手続きは進められます。
+                </p>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {cancellationReasons.map((reason) => {
+                    const selected = cancellationReason === reason.value;
+                    return (
+                      <button
+                        key={reason.value}
+                        type="button"
+                        onClick={() => setCancellationReason(reason.value)}
+                        className={`rounded-xl border px-3 py-2 text-left text-sm font-bold transition ${
+                          selected
+                            ? "border-blue-600 bg-blue-600 text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:border-blue-300"
+                        }`}
+                      >
+                        {reason.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <label className="mt-4 block text-sm font-bold text-slate-700" htmlFor="cancellation-feedback">
+                  ご意見（任意）
+                </label>
+                <textarea
+                  id="cancellation-feedback"
+                  value={cancellationFeedback}
+                  onChange={(event) => setCancellationFeedback(event.target.value)}
+                  maxLength={500}
+                  rows={3}
+                  placeholder="改善してほしい点があれば教えてください"
+                  className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAccountManagementView("overview")}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
+                  >
+                    戻る
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountManagementView("cancel-confirm")}
+                    disabled={!cancellationReason}
+                    className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
+                  >
+                    確認へ進む
+                  </button>
+                </div>
+              </>
+            )}
+
+            {accountManagementView === "cancel-confirm" && (
+              <>
+                <h3 className="font-black text-red-700">契約を終了しますか？</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  無料トライアル中に解約すると、この時点でPersonal機能は使えなくなり、Freeプランに戻ります。
+                  すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
+                </p>
+                <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">
+                  選択した理由: {cancellationReasons.find((reason) => reason.value === cancellationReason)?.label ?? "回答しない"}
+                </p>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAccountManagementView("cancel-reason")}
+                    disabled={cancelLoading}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    理由を変更する
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelSubscription}
+                    disabled={cancelLoading || portalLoading}
+                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
+                  >
+                    {cancelLoading ? "解約処理中..." : "契約を解約する"}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {accountManagementView === "delete" && (
+              <>
+                <h3 className="font-black text-red-700">アカウントを削除しますか？</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-700">
+                  削除すると、保存した単語帳、生成履歴、利用情報を含むアカウント情報が削除され、元に戻せません。
+                </p>
+                {plan !== "free" && (
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+                    有料契約またはトライアル中のため、先に契約の解約手続きを完了してください。支払い済み期間が残る契約は、期間終了後に削除できます。
+                  </p>
+                )}
+                <label className="mt-4 flex items-start gap-3 rounded-xl bg-white p-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={deleteAcknowledged}
+                    onChange={(event) => setDeleteAcknowledged(event.target.checked)}
+                    disabled={plan !== "free" || deleteLoading}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
                   />
-                  <div className="mt-4 flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowContractManagement(false)}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"
-                    >
-                      戻る
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCancelStep("confirm")}
-                      disabled={!cancellationReason}
-                      className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-300"
-                    >
-                      確認へ進む
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h3 className="font-black text-red-700">契約を終了しますか？</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">
-                    無料トライアル中に解約すると、この時点でPersonal機能は使えなくなり、Freeプランに戻ります。
-                    すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
-                  </p>
-                  <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">
-                    選択した理由: {cancellationReasons.find((reason) => reason.value === cancellationReason)?.label ?? "回答しない"}
-                  </p>
-                  <div className="mt-4 flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setCancelStep("reason")}
-                      disabled={cancelLoading}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                    >
-                      理由を変更する
-                    </button>
-                    <button
-                      type="button"
-                      onClick={cancelSubscription}
-                      disabled={cancelLoading || portalLoading}
-                      className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
-                    >
-                      {cancelLoading ? "解約処理中..." : "契約を解約する"}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </section>
-      )}
+                  <span>削除後はアカウントと保存データを復元できないことを理解しました。</span>
+                </label>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAccountManagementView("overview")}
+                    disabled={deleteLoading}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                  >
+                    戻る
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteAccount}
+                    disabled={plan !== "free" || !deleteAcknowledged || deleteLoading}
+                    className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
+                  >
+                    {deleteLoading ? "削除中..." : "アカウントを削除する"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </section>
 
       {role === "admin" && (
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
@@ -585,23 +670,6 @@ export default function AccountPage() {
             料金プラン
           </Link>
         </div>
-      </section>
-
-      <section className="mt-4 rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
-        <h2 className="text-lg font-black text-red-700">アカウント削除</h2>
-        <p className="mt-2 text-sm text-red-700">
-          アカウントを削除すると、保存済みの履歴や利用情報も削除されます。
-        </p>
-        <p className="mt-2 text-xs text-red-600">
-          有料プラン利用中の場合は、先に請求ページから解約しておくと安心です。
-        </p>
-        <button
-          onClick={deleteAccount}
-          disabled={deleteLoading}
-          className="mt-4 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white disabled:bg-red-300"
-        >
-          {deleteLoading ? "削除中..." : "アカウントを削除"}
-        </button>
       </section>
 
       <div className="mt-6 text-center">
