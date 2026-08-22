@@ -15,12 +15,11 @@ function randomOwnerPassword() {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-export async function downloadLockedPdf(
+export async function createLockedPdfBlob(
   fullDocHtml: string,
-  fileName: string,
   allowPrint = true,
   options: { ownerPassword?: string; lockEditing?: boolean } = {}
-): Promise<void> {
+): Promise<Blob> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
     import("html2canvas"),
@@ -41,10 +40,24 @@ export async function downloadLockedPdf(
     doc.close();
 
     const pdfFixStyle = doc.createElement("style");
+    // html2canvas can crop the lower half of Japanese glyphs when line-clamp,
+    // flex centering and overflow clipping are combined. The table cell remains
+    // the clipping boundary, so raster output can safely use ordinary blocks.
     pdfFixStyle.textContent = `
-      .p-fit { padding-top:.45mm!important; padding-bottom:.45mm!important; }
-      .p-text { line-height:1.12!important; padding-bottom:.25mm!important; }
       .print-table th, .print-table td { vertical-align:middle!important; }
+      .p-fit {
+        padding:.35mm 1.05mm!important;
+        overflow:visible!important;
+        align-items:center!important;
+      }
+      .p-text {
+        display:block!important;
+        overflow:visible!important;
+        line-height:1.28!important;
+        padding:.12em 0 .2em!important;
+        -webkit-line-clamp:unset!important;
+        line-clamp:unset!important;
+      }
     `;
     doc.head?.appendChild(pdfFixStyle);
 
@@ -76,21 +89,43 @@ export async function downloadLockedPdf(
 
     for (let i = 0; i < pages.length; i += 1) {
       const canvas = await html2canvas(pages[i], {
-        scale: 2,
+        scale: 2.25,
         backgroundColor: "#ffffff",
         useCORS: true,
         logging: false,
-        windowWidth: 820,
+        removeContainer: true,
+        windowWidth: Math.ceil(pages[i].scrollWidth || pages[i].clientWidth || 726),
+        windowHeight: Math.ceil(pages[i].scrollHeight || pages[i].clientHeight || 1058),
       });
-      const imgData = canvas.toDataURL("image/jpeg", 0.92);
+      const imgData = canvas.toDataURL("image/png");
       if (i > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(imgData, "JPEG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+      pdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
       void A4_WIDTH_MM;
       void A4_HEIGHT_MM;
     }
 
-    pdf.save(fileName);
+    return pdf.output("blob");
   } finally {
     try { iframe.remove(); } catch { /* ignore */ }
+  }
+}
+
+export async function downloadLockedPdf(
+  fullDocHtml: string,
+  fileName: string,
+  allowPrint = true,
+  options: { ownerPassword?: string; lockEditing?: boolean } = {}
+): Promise<void> {
+  const blob = await createLockedPdfBlob(fullDocHtml, allowPrint, options);
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 }

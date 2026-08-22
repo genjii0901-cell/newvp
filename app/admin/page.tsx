@@ -16,9 +16,10 @@ import {
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
 import { richClipboardHtmlToWordTsv } from "@/lib/clipboard-rich-word-text";
-import { downloadLockedPdf } from "@/lib/pdf/locked-pdf";
+import { createLockedPdfBlob, downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 import AdminQuizPanel from "./admin-quiz-panel";
+import AdminPdfLibrary from "./admin-pdf-library";
 import LicenseAdminPanel from "./license-admin-panel";
 import MarketingEmailPanel from "./marketing-email-panel";
 
@@ -1297,10 +1298,17 @@ export default function AdminPage() {
     };
   }, [dragging, dragStart]);
 
-  function buildAdminPrintDocument(mode: "all" | "first" = "all", target: "print" | "render" = "render") {
-    if (!selectedPdfBook || pdfOutputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
+  function buildAdminPrintDocument(
+    mode: "all" | "first" = "all",
+    target: "print" | "render" = "render",
+    bookOverride?: OfficialBook,
+    wordsOverride?: Array<{ no: number; english: string; japanese: string }>,
+  ) {
+    const outputBook = bookOverride ?? selectedPdfBook;
+    const outputWords = wordsOverride ?? pdfOutputWords;
+    if (!outputBook || outputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
     const now = new Date();
-    const autoTitle = `${selectedPdfBook.title} ${pdfType === "list" ? "一覧" : pdfType === "test" ? "問題" : "解答"}`;
+    const autoTitle = `${outputBook.title} ${pdfType === "list" ? "一覧" : pdfType === "test" ? "問題" : "解答"}`;
     const styleLabel = pdfPrintStyle === "blank-english"
       ? "英語空欄"
       : pdfPrintStyle === "blank-japanese"
@@ -1318,14 +1326,14 @@ export default function AdminPage() {
           ? "英語スペルテスト"
           : `${styleLabel || (pdfDir === "ja-en" ? "日本語→英語" : "英語→日本語")}テスト`;
     const outputTitle = [
-      pdfTitle.trim() || selectedPdfBook.title,
+      bookOverride ? outputBook.title : (pdfTitle.trim() || outputBook.title),
       ...(pdfRandom ? ["ランダム"] : []),
       outputKind,
       ...(mode === "first" ? ["サンプル"] : []),
     ].join(" ");
     const html = buildPrintHtml({
-      title: pdfTitle.trim() || autoTitle,
-      words: pdfOutputWords,
+      title: bookOverride ? autoTitle : (pdfTitle.trim() || autoTitle),
+      words: outputWords,
       type: pdfType,
       makeQuestion: (w) => makeQuestion(w, pdfDir),
       direction: pdfDir,
@@ -1454,6 +1462,75 @@ export default function AdminPage() {
       setPdfMsg(pdfLockEditing ? "PDFを保存しました。編集制限も設定されています。" : "PDFを保存しました。");
     } catch (error) {
       setPdfMsg(error instanceof Error ? `PDF出力に失敗しました: ${error.message}` : "PDF出力に失敗しました。");
+    } finally {
+      setExportingAction(null);
+    }
+  }
+
+  async function uploadGeneratedPdf(blob: Blob, title: string, book: OfficialBook) {
+    const headers = await getAdminHeaders();
+    const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.pdf`;
+    const form = new FormData();
+    form.set("file", new File([blob], safeFileName, { type: "application/pdf" }));
+    form.set("title", title);
+    form.set("description", `${book.title}から作成した保存済みPDFです。`);
+    form.set("wordbookId", book.id);
+    form.set("wordbookTitle", book.title);
+    form.set("kind", "generated");
+    form.set("visibility", "public");
+    const response = await fetch("/api/admin/pdf-assets", { method: "POST", headers, body: form });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result?.message ?? `${book.title}のPDFを保存できませんでした。`);
+  }
+
+  async function storeCurrentPdfAsset() {
+    const built = buildAdminPrintDocument("all", "render");
+    if (!built || !selectedPdfBook) return false;
+    setExportingAction("pdf-store");
+    setPdfMsg("");
+    try {
+      const blob = await createLockedPdfBlob(built.fullDoc, true, { lockEditing: pdfLockEditing, ownerPassword: pdfOwnerPassword });
+      await uploadGeneratedPdf(blob, built.title, selectedPdfBook);
+      setPdfMsg("保存済みPDFライブラリに登録しました。");
+      return true;
+    } catch (error) {
+      setPdfMsg(error instanceof Error ? error.message : "保存済みPDFを登録できませんでした。");
+      return false;
+    } finally {
+      setExportingAction(null);
+    }
+  }
+
+  async function loadFullAdminBook(id: string) {
+    const headers = await getAdminHeaders();
+    const response = await fetch(`/api/admin/all-wordbooks?includeWords=1&includeWordStats=1&id=${encodeURIComponent(id)}`, { headers, cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    const book = Array.isArray(result?.wordbooks) ? result.wordbooks.find((item: OfficialBook) => item.id === id) : null;
+    if (!response.ok || !book?.words?.length) throw new Error(result?.message ?? "単語帳を読み込めませんでした。");
+    return book as OfficialBook;
+  }
+
+  async function storeBatchPdfAssets(ids: string[]) {
+    if (ids.length === 0) return 0;
+    setExportingAction("pdf-batch");
+    setPdfMsg(`一括PDFを準備しています（0/${ids.length}冊）`);
+    let saved = 0;
+    try {
+      for (const id of ids) {
+        const book = await loadFullAdminBook(id);
+        const words = book.words.map((word) => ({ no: word.no, english: word.english, japanese: word.japanese }));
+        const built = buildAdminPrintDocument("all", "render", book, words);
+        if (!built) continue;
+        const blob = await createLockedPdfBlob(built.fullDoc, true, { lockEditing: pdfLockEditing, ownerPassword: pdfOwnerPassword });
+        await uploadGeneratedPdf(blob, built.title, book);
+        saved += 1;
+        setPdfMsg(`一括PDFを保存しています（${saved}/${ids.length}冊）`);
+      }
+      setPdfMsg(`${saved}冊の保存済みPDFを登録しました。`);
+      return saved;
+    } catch (error) {
+      setPdfMsg(error instanceof Error ? `${saved}冊保存後に停止しました: ${error.message}` : `${saved}冊保存後に停止しました。`);
+      return saved;
     } finally {
       setExportingAction(null);
     }
@@ -2850,6 +2927,15 @@ export default function AdminPage() {
 	                印刷はダイアログを開き、PDFはファイル保存、画像はPNG保存です。
 	              </p>
 
+              <AdminPdfLibrary
+                books={books.map((book) => ({ id: book.id, title: book.title, wordCount: getBookWordCount(book) }))}
+                currentBookId={pdfBookId}
+                getHeaders={getAdminHeaders}
+                onStoreCurrent={storeCurrentPdfAsset}
+                onStoreBatch={storeBatchPdfAssets}
+                busy={exportingAction !== null}
+              />
+
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
                   <p className="text-2xl font-black text-blue-600">{books.length}</p>
@@ -2868,7 +2954,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "quiz" && <AdminQuizPanel books={books} />}
+        {tab === "quiz" && <AdminQuizPanel books={books} getHeaders={getAdminHeaders} />}
         {tab === "licenses" && <LicenseAdminPanel books={books} />}
         {tab === "email" && <MarketingEmailPanel />}
       </div>

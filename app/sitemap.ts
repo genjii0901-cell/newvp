@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const paths = [
     "",
     "/wordbooks",
+    "/materials",
     "/guides/word-test-generator",
     "/guides/wordbooks-for-printing",
     "/pricing",

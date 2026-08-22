@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { formatMeaning } from "@/lib/meaning";
+import { buildClozePrintDocument, buildClozeQuestion, isClozeEligibleWord, isClozePilotBook } from "@/lib/cloze-quiz";
 
 type QuizWord = { no: number; english: string; japanese: string };
-type Mode = "card" | "choice";
+type Mode = "card" | "choice" | "cloze";
 type Direction = "en-ja" | "ja-en";
 
 function shuffle<T>(items: T[]): T[] {
@@ -31,10 +32,12 @@ function uniqueChoices(values: string[]) {
 
 export default function QuizPanel({
   words,
+  bookTitle,
   markedKeys,
   onToggleMark,
 }: {
   words: QuizWord[];
+  bookTitle: string;
   markedKeys?: Set<string>;
   onToggleMark?: (word: Pick<QuizWord, "no" | "english">) => void;
 }) {
@@ -53,24 +56,40 @@ export default function QuizPanel({
   const total = order.length;
   const current = order[index] ?? null;
   const canUseChoice = words.length >= 4;
+  const clozeWords = useMemo(() => words.filter(isClozeEligibleWord), [words]);
+  const canUseCloze = clozeWords.length >= 4 && isClozePilotBook(bookTitle);
   const currentKey = current ? `${current.no}-${current.english}` : "";
   const isMarked = Boolean(currentKey && markedKeys?.has(currentKey));
 
-  const promptText = current ? (direction === "en-ja" ? current.english : compactMeaning(current.japanese)) : "";
-  const answerText = current ? (direction === "en-ja" ? compactMeaning(current.japanese) : current.english) : "";
+  const clozeQuestion = current && mode === "cloze" ? buildClozeQuestion(current, clozeWords, bookTitle) : null;
+  const promptText = current ? (mode === "cloze" ? clozeQuestion?.sentence ?? "" : direction === "en-ja" ? current.english : compactMeaning(current.japanese)) : "";
+  const answerText = current ? (mode === "cloze" ? current.english : direction === "en-ja" ? compactMeaning(current.japanese) : current.english) : "";
 
   const choices = useMemo(() => {
-    if (mode !== "choice" || !current) return [];
+    if ((mode !== "choice" && mode !== "cloze") || !current) return [];
+    if (mode === "cloze") return clozeQuestion?.choices ?? [];
     const distractors = shuffle(words.filter((word) => word.no !== current.no))
       .map((word) => (direction === "en-ja" ? compactMeaning(word.japanese) : word.english))
       .filter((value) => value !== answerText);
     return shuffle([answerText, ...uniqueChoices(distractors).slice(0, 3)]);
-  }, [answerText, current, direction, mode, words]);
+  }, [answerText, clozeQuestion, current, direction, mode, words]);
+
+  function printCloze() {
+    const html = buildClozePrintDocument(bookTitle, words, 20);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument;
+    if (!doc) { iframe.remove(); return; }
+    doc.open(); doc.write(html); doc.close();
+    window.setTimeout(() => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); window.setTimeout(() => iframe.remove(), 30_000); }, 350);
+  }
 
   function begin(nextMode: Mode, sourceWords = words) {
-    if (sourceWords.length === 0) return;
+    const actualWords = nextMode === "cloze" && sourceWords === words ? clozeWords : sourceWords;
+    if (actualWords.length === 0) return;
     setMode(nextMode);
-    setOrder(shuffle(sourceWords));
+    setOrder(shuffle(actualWords));
     setIndex(0);
     setShowAnswer(false);
     setSelected(null);
@@ -132,7 +151,7 @@ export default function QuizPanel({
           </div>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <div className={`mt-4 grid gap-2 ${canUseCloze ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <button
             type="button"
             onClick={() => setSelectedMode("choice")}
@@ -149,14 +168,29 @@ export default function QuizPanel({
           >
             カードで覚える
           </button>
+          {canUseCloze ? (
+            <button
+              type="button"
+              onClick={() => setSelectedMode("cloze")}
+              className={`rounded-2xl border px-4 py-4 text-base font-black transition ${selectedMode === "cloze" ? "border-blue-600 bg-blue-600 text-white" : "border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"}`}
+            >
+              英検形式の穴埋め
+            </button>
+          ) : null}
         </div>
+        {selectedMode === "cloze" ? (
+          <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+            この機能は試験提供中です。まず単語形式の{clozeWords.length}語を対象に、品詞とレベルを合わせたオリジナル例文で4択問題を作ります。
+            <button type="button" onClick={printCloze} className="mt-2 block rounded-xl border border-amber-200 bg-white px-3 py-2 text-amber-900">問題・解答を印刷</button>
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() => begin(selectedMode)}
           disabled={selectedMode === "choice" && !canUseChoice}
           className="mt-4 w-full rounded-2xl bg-slate-900 px-4 py-4 text-base font-black text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400"
         >
-          {selectedMode === "choice" ? "4択単語チェックを始める" : "カード学習を始める"}
+          {selectedMode === "choice" ? "4択単語チェックを始める" : selectedMode === "cloze" ? "穴埋め4択テストを始める" : "カード学習を始める"}
         </button>
       </div>
     );
@@ -221,7 +255,7 @@ export default function QuizPanel({
     <div className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black text-slate-500">
-          {mode === "choice" ? "4択チェック" : "フラッシュカード"} ・ {index + 1} / {total}
+          {mode === "choice" ? "4択チェック" : mode === "cloze" ? "英検形式の穴埋め" : "フラッシュカード"} ・ {index + 1} / {total}
         </p>
         <button type="button" onClick={() => setStarted(false)} className="text-xs font-bold text-slate-400 hover:text-slate-600">
           やめる

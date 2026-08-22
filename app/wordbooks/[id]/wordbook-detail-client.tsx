@@ -1731,6 +1731,7 @@ export default function WordbookDetailPage({
           </div>
           <div className="min-w-0">
             <QuizPanel
+              bookTitle={book.title}
               words={visibleWords.map((word) => ({
                 no: word.no,
                 english: word.english,

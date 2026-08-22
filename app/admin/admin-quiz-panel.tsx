@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { buildClozePrintDocument, buildOriginalClozeSentence, isClozeEligibleWord, isClozePilotBook } from "@/lib/cloze-quiz";
 
 type QuizWord = {
   no: number;
@@ -35,15 +36,18 @@ function mainMeaning(value: string) {
     .trim() || value.trim();
 }
 
-function getSentence(word: QuizWord) {
+function getSentence(word: QuizWord, bookTitle: string) {
   const explicit = word.example?.trim();
   if (explicit) return explicit;
   const english = word.english.trim();
-  return /[.!?]/.test(english) && english.split(/\s+/).length >= 4 ? english : null;
+  if (/[.!?]/.test(english) && english.split(/\s+/).length >= 4) return english;
+  return isClozePilotBook(bookTitle) && isClozeEligibleWord(word) ? buildOriginalClozeSentence(word, bookTitle) : null;
 }
 
-export default function AdminQuizPanel({ books }: { books: Book[] }) {
+export default function AdminQuizPanel({ books, getHeaders }: { books: Book[]; getHeaders: () => Promise<Record<string, string>> }) {
   const [bookId, setBookId] = useState("");
+  const [loadedBooks, setLoadedBooks] = useState<Record<string, Book>>({});
+  const [loadingBook, setLoadingBook] = useState(false);
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [style, setStyle] = useState<QuestionStyle>("meaning");
   const [order, setOrder] = useState<QuizWord[]>([]);
@@ -52,9 +56,22 @@ export default function AdminQuizPanel({ books }: { books: Book[] }) {
   const [correct, setCorrect] = useState(0);
   const [finished, setFinished] = useState(false);
 
-  const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
+  const selectedBook = loadedBooks[bookId] ?? books.find((book) => book.id === bookId) ?? null;
+  useEffect(() => {
+    if (!bookId || loadedBooks[bookId]?.words.length) return;
+    const listed = books.find((book) => book.id === bookId);
+    if (listed?.words.length) { setLoadedBooks((current) => ({ ...current, [bookId]: listed })); return; }
+    setLoadingBook(true);
+    void getHeaders().then((headers) => fetch(`/api/admin/all-wordbooks?includeWords=1&includeWordStats=1&id=${encodeURIComponent(bookId)}`, { headers, cache: "no-store" }))
+      .then((response) => response.json())
+      .then((result) => {
+        const book = Array.isArray(result?.wordbooks) ? result.wordbooks.find((item: Book) => item.id === bookId) : null;
+        if (book) setLoadedBooks((current) => ({ ...current, [bookId]: book }));
+      })
+      .finally(() => setLoadingBook(false));
+  }, [bookId, books, getHeaders, loadedBooks]);
   const sentenceWords = useMemo(
-    () => (selectedBook?.words ?? []).filter((word) => Boolean(getSentence(word))),
+    () => (selectedBook?.words ?? []).filter((word) => Boolean(getSentence(word, selectedBook?.title ?? ""))),
     [selectedBook],
   );
   const current = order[index] ?? null;
@@ -65,7 +82,7 @@ export default function AdminQuizPanel({ books }: { books: Book[] }) {
     : "";
   const prompt = current
     ? style === "sentence"
-      ? getSentence(current)?.replace(current.english, "＿＿＿＿") ?? "例文データがありません"
+      ? getSentence(current, selectedBook?.title ?? "")?.replace(current.english, "＿＿＿＿") ?? "例文データがありません"
       : direction === "en-ja"
         ? current.english
         : mainMeaning(current.japanese)
@@ -100,6 +117,18 @@ export default function AdminQuizPanel({ books }: { books: Book[] }) {
     setCorrect(nextCorrect);
     setIndex((value) => value + 1);
     setSelected(null);
+  }
+
+  function printSentenceQuiz() {
+    if (!selectedBook) return;
+    const html = buildClozePrintDocument(selectedBook.title, selectedBook.words, 20);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:1px;height:1px;border:0";
+    document.body.appendChild(iframe);
+    const doc = iframe.contentDocument;
+    if (!doc) { iframe.remove(); return; }
+    doc.open(); doc.write(html); doc.close();
+    window.setTimeout(() => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); window.setTimeout(() => iframe.remove(), 30_000); }, 350);
   }
 
   return (
@@ -139,14 +168,17 @@ export default function AdminQuizPanel({ books }: { books: Book[] }) {
         </div>
 
         {style === "sentence" && (
-          <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
-            文章の空欄問題は、例文列が登録された語だけが対象です。現在の対象は {sentenceWords.length}語です。例文がない語を勝手な文章で補わないため、公式例文として表示しません。
-          </p>
+          <div className="mt-4 rounded-2xl bg-amber-50 p-3 text-xs font-bold leading-6 text-amber-800">
+            {isClozePilotBook(selectedBook?.title ?? "")
+              ? `試験対応中の単語帳です。レベルに合わせた学習用オリジナル例文を使います（対象 ${sentenceWords.length}語）。`
+              : `文章の空欄問題は、例文列が登録された語だけが対象です（対象 ${sentenceWords.length}語）。`}
+            {isClozePilotBook(selectedBook?.title ?? "") ? <button type="button" onClick={printSentenceQuiz} className="mt-2 block rounded-xl border border-amber-200 bg-white px-3 py-2 text-amber-900">20問の問題・解答を印刷</button> : null}
+          </div>
         )}
 
         {!current && !finished && (
-          <button type="button" onClick={start} disabled={!selectedBook || (style === "sentence" ? sentenceWords.length < 4 : (selectedBook?.words.length ?? 0) < 4)} className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400">
-            この条件でテストを開始
+          <button type="button" onClick={start} disabled={loadingBook || !selectedBook || (style === "sentence" ? sentenceWords.length < 4 : (selectedBook?.words.length ?? 0) < 4)} className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-400">
+            {loadingBook ? "単語を読み込んでいます..." : "この条件でテストを開始"}
           </button>
         )}
       </div>
