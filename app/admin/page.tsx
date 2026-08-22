@@ -16,10 +16,16 @@ import {
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
 import { richClipboardHtmlToWordTsv } from "@/lib/clipboard-rich-word-text";
-import { createLockedPdfBlob, downloadLockedPdf } from "@/lib/pdf/locked-pdf";
+import { createLockedPdfBlob, createRenderedPageImageBlob, downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 import AdminQuizPanel from "./admin-quiz-panel";
-import AdminPdfLibrary from "./admin-pdf-library";
+import AdminPdfLibrary, {
+  type PdfBatchOutput,
+  type PdfBatchProgress,
+  type PdfBatchRequest,
+  type PdfBatchResult,
+  type PdfBatchVariantId,
+} from "./admin-pdf-library";
 import LicenseAdminPanel from "./license-admin-panel";
 import MarketingEmailPanel from "./marketing-email-panel";
 
@@ -39,6 +45,50 @@ type OfficialBook = {
   wordCountKnown?: boolean;
   words: Array<{ no: number; english: string; japanese: string; unit?: string | null }>;
 };
+
+type BatchVariantConfig = {
+  label: string;
+  type: PdfType;
+  direction: Direction;
+  printStyle: PrintStyle;
+  random: boolean;
+  showSpellingHint: boolean;
+};
+
+const BATCH_VARIANTS: Record<PdfBatchVariantId, BatchVariantConfig> = {
+  "list": { label: "単語一覧", type: "list", direction: "en-ja", printStyle: "standard", random: false, showSpellingHint: true },
+  "translation-test": { label: "和訳テスト 問題", type: "test", direction: "en-ja", printStyle: "standard", random: false, showSpellingHint: true },
+  "translation-answer": { label: "和訳テスト 解答", type: "answer", direction: "en-ja", printStyle: "standard", random: false, showSpellingHint: true },
+  "spelling-hint-test": { label: "スペルテスト 頭文字あり 問題", type: "test", direction: "spelling", printStyle: "standard", random: false, showSpellingHint: true },
+  "spelling-blank-test": { label: "スペルテスト 頭文字なし 問題", type: "test", direction: "spelling", printStyle: "standard", random: false, showSpellingHint: false },
+  "spelling-answer": { label: "スペルテスト 解答", type: "answer", direction: "spelling", printStyle: "standard", random: false, showSpellingHint: true },
+  "random-list": { label: "ランダム 単語一覧", type: "list", direction: "en-ja", printStyle: "standard", random: true, showSpellingHint: true },
+  "random-translation-test": { label: "ランダム 和訳テスト 問題", type: "test", direction: "en-ja", printStyle: "standard", random: true, showSpellingHint: true },
+  "random-translation-answer": { label: "ランダム 和訳テスト 解答", type: "answer", direction: "en-ja", printStyle: "standard", random: true, showSpellingHint: true },
+  "random-spelling-hint-test": { label: "ランダム スペルテスト 頭文字あり 問題", type: "test", direction: "spelling", printStyle: "standard", random: true, showSpellingHint: true },
+  "random-spelling-blank-test": { label: "ランダム スペルテスト 頭文字なし 問題", type: "test", direction: "spelling", printStyle: "standard", random: true, showSpellingHint: false },
+  "random-spelling-answer": { label: "ランダム スペルテスト 解答", type: "answer", direction: "spelling", printStyle: "standard", random: true, showSpellingHint: true },
+  "red-japanese-list": { label: "赤シート一覧 日本語赤字", type: "list", direction: "en-ja", printStyle: "red-japanese", random: false, showSpellingHint: true },
+  "red-english-list": { label: "赤シート一覧 英語赤字", type: "list", direction: "ja-en", printStyle: "red-english", random: false, showSpellingHint: true },
+};
+
+function seededShuffle<T>(items: T[], seedText: string) {
+  let seed = 2166136261;
+  for (const char of seedText) seed = Math.imul(seed ^ char.charCodeAt(0), 16777619);
+  const next = () => {
+    seed += 0x6d2b79f5;
+    let value = seed;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(next() * (index + 1));
+    [shuffled[index], shuffled[target]] = [shuffled[target], shuffled[index]];
+  }
+  return shuffled;
+}
 
 type AdminMetrics = {
   warnings?: string[];
@@ -1303,43 +1353,55 @@ export default function AdminPage() {
     target: "print" | "render" = "render",
     bookOverride?: OfficialBook,
     wordsOverride?: Array<{ no: number; english: string; japanese: string }>,
+    configOverride?: BatchVariantConfig,
   ) {
     const outputBook = bookOverride ?? selectedPdfBook;
-    const outputWords = wordsOverride ?? pdfOutputWords;
+    const config = configOverride ?? {
+      label: "",
+      type: pdfType,
+      direction: pdfDir,
+      printStyle: pdfPrintStyle,
+      random: pdfRandom,
+      showSpellingHint: true,
+    };
+    const baseWords = wordsOverride ?? pdfOutputWords;
+    const outputWords = configOverride?.random && outputBook
+      ? seededShuffle(baseWords, `${outputBook.id}:${config.label}`)
+      : baseWords;
     if (!outputBook || outputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
     const now = new Date();
-    const autoTitle = `${outputBook.title} ${pdfType === "list" ? "一覧" : pdfType === "test" ? "問題" : "解答"}`;
-    const styleLabel = pdfPrintStyle === "blank-english"
+    const autoTitle = `${outputBook.title} ${config.type === "list" ? "一覧" : config.type === "test" ? "問題" : "解答"}`;
+    const styleLabel = config.printStyle === "blank-english"
       ? "英語空欄"
-      : pdfPrintStyle === "blank-japanese"
+      : config.printStyle === "blank-japanese"
         ? "日本語空欄"
-        : pdfPrintStyle === "red-english"
+        : config.printStyle === "red-english"
           ? "英語赤字"
-          : pdfPrintStyle === "red-japanese"
+          : config.printStyle === "red-japanese"
             ? "日本語赤字"
             : "";
-    const outputKind = pdfType === "answer"
+    const outputKind = configOverride?.label || (config.type === "answer"
       ? "解答"
-      : pdfType === "list"
+      : config.type === "list"
         ? `${styleLabel || "単語"}一覧`
-        : pdfDir === "spelling"
+        : config.direction === "spelling"
           ? "英語スペルテスト"
-          : `${styleLabel || (pdfDir === "ja-en" ? "日本語→英語" : "英語→日本語")}テスト`;
+          : `${styleLabel || (config.direction === "ja-en" ? "日本語→英語" : "英語→日本語")}テスト`);
     const outputTitle = [
       bookOverride ? outputBook.title : (pdfTitle.trim() || outputBook.title),
-      ...(pdfRandom ? ["ランダム"] : []),
+      ...(!configOverride && config.random ? ["ランダム"] : []),
       outputKind,
       ...(mode === "first" ? ["サンプル"] : []),
     ].join(" ");
     const html = buildPrintHtml({
       title: bookOverride ? autoTitle : (pdfTitle.trim() || autoTitle),
       words: outputWords,
-      type: pdfType,
-      makeQuestion: (w) => makeQuestion(w, pdfDir),
-      direction: pdfDir,
+      type: config.type,
+      makeQuestion: (w) => makeQuestion(w, config.direction),
+      direction: config.direction,
       showPageNo: pdfShowPageNo,
       plan: "admin",
-      printStyle: pdfPrintStyle,
+      printStyle: config.printStyle,
       includeWatermark: pdfWatermark,
       showRecordFields: pdfShowRecord,
       showClassField: pdfClass,
@@ -1366,6 +1428,7 @@ export default function AdminPage() {
       gridOffsetY: pdfGridOffset.y,
       pageNoOffsetX: pdfPageNoOffset.x,
       pageNoOffsetY: pdfPageNoOffset.y,
+      showSpellingHint: config.showSpellingHint,
     });
     const safeTitle = outputTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const titleBase = outputTitle.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, " ").trim();
@@ -1457,6 +1520,7 @@ export default function AdminPage() {
         {
           lockEditing: pdfLockEditing,
           ownerPassword: pdfOwnerPassword,
+          maxPages: mode === "first" ? 1 : undefined,
         }
       );
       setPdfMsg(pdfLockEditing ? "PDFを保存しました。編集制限も設定されています。" : "PDFを保存しました。");
@@ -1467,20 +1531,44 @@ export default function AdminPage() {
     }
   }
 
-  async function uploadGeneratedPdf(blob: Blob, title: string, book: OfficialBook) {
+  async function uploadGeneratedAsset({
+    blob,
+    title,
+    book,
+    variant,
+    output,
+    visibility,
+    priceJpy = 500,
+    bundlePriceJpy = 980,
+  }: {
+    blob: Blob;
+    title: string;
+    book: OfficialBook;
+    variant: string;
+    output: PdfBatchOutput;
+    visibility: "admin" | "sale" | "public";
+    priceJpy?: number;
+    bundlePriceJpy?: number;
+  }) {
     const headers = await getAdminHeaders();
-    const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.pdf`;
+    const isImage = output === "sample-image";
+    const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${isImage ? "png" : "pdf"}`;
     const form = new FormData();
-    form.set("file", new File([blob], safeFileName, { type: "application/pdf" }));
+    form.set("file", new File([blob], safeFileName, { type: isImage ? "image/png" : "application/pdf" }));
     form.set("title", title);
-    form.set("description", `${book.title}から作成した保存済みPDFです。`);
+    form.set("description", `${book.title}から作成した${isImage ? "サンプル画像" : "PDF教材"}です。`);
     form.set("wordbookId", book.id);
     form.set("wordbookTitle", book.title);
     form.set("kind", "generated");
-    form.set("visibility", "public");
+    form.set("visibility", visibility);
+    form.set("variant", variant);
+    form.set("outputKind", output);
+    form.set("assetKey", `${book.id}::${variant}::${output}::${visibility}`);
+    form.set("priceJpy", String(priceJpy));
+    form.set("bundlePriceJpy", String(bundlePriceJpy));
     const response = await fetch("/api/admin/pdf-assets", { method: "POST", headers, body: form });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result?.message ?? `${book.title}のPDFを保存できませんでした。`);
+    if (!response.ok) throw new Error(result?.message ?? `${book.title}の教材を保存できませんでした。`);
   }
 
   async function storeCurrentPdfAsset() {
@@ -1490,7 +1578,14 @@ export default function AdminPage() {
     setPdfMsg("");
     try {
       const blob = await createLockedPdfBlob(built.fullDoc, true, { lockEditing: pdfLockEditing, ownerPassword: pdfOwnerPassword });
-      await uploadGeneratedPdf(blob, built.title, selectedPdfBook);
+      await uploadGeneratedAsset({
+        blob,
+        title: built.title,
+        book: selectedPdfBook,
+        variant: "custom-current",
+        output: "full-pdf",
+        visibility: "admin",
+      });
       setPdfMsg("保存済みPDFライブラリに登録しました。");
       return true;
     } catch (error) {
@@ -1510,27 +1605,71 @@ export default function AdminPage() {
     return book as OfficialBook;
   }
 
-  async function storeBatchPdfAssets(ids: string[]) {
-    if (ids.length === 0) return 0;
+  async function storeBatchPdfAssets(
+    request: PdfBatchRequest,
+    onProgress: (progress: PdfBatchProgress) => void,
+  ): Promise<PdfBatchResult> {
+    const total = request.bookIds.length * request.variants.length * request.outputs.length;
+    if (total === 0) return { saved: 0, failed: [] };
     setExportingAction("pdf-batch");
-    setPdfMsg(`一括PDFを準備しています（0/${ids.length}冊）`);
+    setPdfMsg(`一括教材を準備しています（0/${total}件）`);
     let saved = 0;
+    let completed = 0;
+    const failed: Array<{ key: string; message: string }> = [];
     try {
-      for (const id of ids) {
-        const book = await loadFullAdminBook(id);
+      for (const id of request.bookIds) {
+        let book: OfficialBook;
+        try {
+          book = await loadFullAdminBook(id);
+        } catch (error) {
+          for (const variant of request.variants) for (const output of request.outputs) {
+            failed.push({ key: `${id}::${variant}::${output}`, message: error instanceof Error ? error.message : "単語帳を読み込めませんでした。" });
+            completed += 1;
+          }
+          onProgress({ completed, total, current: `${id}の読み込みに失敗`, failed: failed.length });
+          continue;
+        }
         const words = book.words.map((word) => ({ no: word.no, english: word.english, japanese: word.japanese }));
-        const built = buildAdminPrintDocument("all", "render", book, words);
-        if (!built) continue;
-        const blob = await createLockedPdfBlob(built.fullDoc, true, { lockEditing: pdfLockEditing, ownerPassword: pdfOwnerPassword });
-        await uploadGeneratedPdf(blob, built.title, book);
-        saved += 1;
-        setPdfMsg(`一括PDFを保存しています（${saved}/${ids.length}冊）`);
+        for (const variantId of request.variants) {
+          const config = BATCH_VARIANTS[variantId];
+          const built = buildAdminPrintDocument("all", "render", book, words, config);
+          if (!built) continue;
+          for (const output of request.outputs) {
+            const key = `${id}::${variantId}::${output}`;
+            const label = output === "full-pdf" ? "完全版" : output === "sample-pdf" ? "サンプルPDF" : "サンプル画像";
+            onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
+            try {
+              const sample = output !== "full-pdf";
+              const blob = output === "sample-image"
+                ? await createRenderedPageImageBlob(built.fullDoc)
+                : await createLockedPdfBlob(built.fullDoc, true, {
+                    lockEditing: request.lockEditing,
+                    ownerPassword: request.ownerPassword,
+                    maxPages: sample ? 1 : undefined,
+                  });
+              await uploadGeneratedAsset({
+                blob,
+                title: `${book.title} ${config.label}${sample ? " サンプル" : ""}`,
+                book,
+                variant: variantId,
+                output,
+                visibility: sample && request.visibility === "sale" ? "public" : request.visibility,
+                priceJpy: request.individualPriceJpy,
+                bundlePriceJpy: request.bundlePriceJpy,
+              });
+              saved += 1;
+            } catch (error) {
+              failed.push({ key, message: error instanceof Error ? error.message : "保存に失敗しました。" });
+            }
+            completed += 1;
+            onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
+            setPdfMsg(`一括教材を保存しています（${completed}/${total}件、失敗 ${failed.length}件）`);
+            await new Promise((resolve) => setTimeout(resolve, 40));
+          }
+        }
       }
-      setPdfMsg(`${saved}冊の保存済みPDFを登録しました。`);
-      return saved;
-    } catch (error) {
-      setPdfMsg(error instanceof Error ? `${saved}冊保存後に停止しました: ${error.message}` : `${saved}冊保存後に停止しました。`);
-      return saved;
+      setPdfMsg(failed.length ? `${saved}件を保存し、${failed.length}件は失敗しました。` : `${saved}件の教材を保存しました。`);
+      return { saved, failed };
     } finally {
       setExportingAction(null);
     }

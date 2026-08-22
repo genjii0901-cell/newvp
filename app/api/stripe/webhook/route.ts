@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isMaterialPurchaseSchemaError, recordMaterialPurchase } from "@/lib/material-purchases";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -233,6 +234,26 @@ export async function POST(request: Request) {
             await supabase.from("profiles").update({ trial_used: true }).eq("id", userId);
           } catch (error) {
             console.error("Failed to mark trial_used", error);
+          }
+        }
+      }
+
+      if (userId && getString(metadata.kind) === "pdf_material" && getString(object.payment_status) === "paid") {
+        const sessionId = getString(object.id);
+        const purchaseType = getString(metadata.purchase_type) === "wordbook" ? "wordbook" : "asset";
+        if (sessionId) {
+          try {
+            await recordMaterialPurchase({
+              userId,
+              stripeSessionId: sessionId,
+              purchaseType,
+              assetId: getString(metadata.asset_id),
+              wordbookId: getString(metadata.wordbook_id),
+              amountJpy: Math.max(1, Math.floor(Number(metadata.amount_jpy) || Number(object.amount_total) || 0)),
+            });
+          } catch (error) {
+            if (!isMaterialPurchaseSchemaError(error)) throw error;
+            console.error("material_purchases table is not configured yet");
           }
         }
       }

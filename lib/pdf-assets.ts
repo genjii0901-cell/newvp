@@ -10,7 +10,14 @@ export type PdfAsset = {
   wordbookId: string | null;
   wordbookTitle: string | null;
   kind: "generated" | "uploaded";
-  visibility: "public" | "admin";
+  visibility: "public" | "admin" | "sale";
+  assetKey?: string | null;
+  variant?: string | null;
+  outputKind?: "full-pdf" | "sample-pdf" | "sample-image" | "uploaded";
+  priceJpy?: number | null;
+  bundlePriceJpy?: number | null;
+  isSample?: boolean;
+  mimeType?: "application/pdf" | "image/png" | "image/jpeg";
   storagePath: string;
   fileName: string;
   sizeBytes: number;
@@ -33,11 +40,19 @@ export async function ensurePdfAssetBucket() {
   const supabase = getSupabaseAdmin();
   const { data: buckets, error: listError } = await supabase.storage.listBuckets();
   if (listError) throw listError;
-  if (buckets?.some((bucket) => bucket.name === PDF_ASSET_BUCKET)) return;
+  if (buckets?.some((bucket) => bucket.name === PDF_ASSET_BUCKET)) {
+    const { error } = await supabase.storage.updateBucket(PDF_ASSET_BUCKET, {
+      public: false,
+      fileSizeLimit: 30 * 1024 * 1024,
+      allowedMimeTypes: ["application/pdf", "image/png", "image/jpeg"],
+    });
+    if (error) throw error;
+    return;
+  }
   const { error } = await supabase.storage.createBucket(PDF_ASSET_BUCKET, {
     public: false,
     fileSizeLimit: 30 * 1024 * 1024,
-    allowedMimeTypes: ["application/pdf"],
+    allowedMimeTypes: ["application/pdf", "image/png", "image/jpeg"],
   });
   if (error && !/already exists/i.test(error.message)) throw error;
 }
@@ -69,4 +84,3 @@ export async function createPdfAssetSignedUrl(storagePath: string, expiresIn = 3
   if (error) throw error;
   return data.signedUrl;
 }
-

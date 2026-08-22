@@ -90,6 +90,8 @@ export interface BuildPrintHtmlOptions {
   wordsPerPage?: number;
   /** 管理者用: 英語列の幅（番号列10%を除いた表内の割合）。 */
   wordColumnWidth?: number;
+  /** スペルテストで英単語の先頭文字を表示する。 */
+  showSpellingHint?: boolean;
 }
 
 export function buildPrintHtml({
@@ -127,6 +129,7 @@ export function buildPrintHtml({
   layoutColumns = "two",
   wordsPerPage = 50,
   wordColumnWidth = 26,
+  showSpellingHint = true,
 }: BuildPrintHtmlOptions) {
   const isOneColumn = layoutColumns === "one";
   const maxWordsPerPage = isOneColumn ? 50 : 100;
@@ -207,7 +210,7 @@ export function buildPrintHtml({
         // ここから下は「答え側 かつ 赤シートOFF」
         if (type === "answer") return formatPrintMarkedText(text);
         // type === "test"（問題PDF）: 答え側は空欄（スペルは先頭1文字だけ表示）
-        if (isSpelling && side === "english") {
+        if (isSpelling && side === "english" && showSpellingHint) {
           const first = (stripPrintMarkers(text).trim().charAt(0) || "");
           return `<span class="p-hint">${escapeHtml(first)}</span>`;
         }

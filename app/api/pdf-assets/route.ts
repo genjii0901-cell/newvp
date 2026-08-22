@@ -8,8 +8,12 @@ export async function GET() {
   if (!isSupabaseServerConfigured()) return NextResponse.json({ ok: true, assets: [] });
   try {
     const assets = (await readPdfAssetCatalog())
-      .filter((asset) => asset.visibility === "public")
-      .map(({ storagePath: _storagePath, ...asset }) => ({ ...asset, downloadUrl: `/api/pdf-assets/${asset.id}` }));
+      .filter((asset) => asset.visibility === "public" || asset.visibility === "sale")
+      .map(({ storagePath: _storagePath, ...asset }) => ({
+        ...asset,
+        locked: asset.visibility === "sale",
+        downloadUrl: asset.visibility === "public" ? `/api/pdf-assets/${asset.id}` : null,
+      }));
     return NextResponse.json({ ok: true, assets }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ ok: true, assets: [] });

@@ -1,9 +1,38 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { FileText, Printer, RefreshCw, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, Download, FileImage, FileText, Printer, RefreshCw, Trash2, Upload } from "lucide-react";
 
 type Book = { id: string; title: string; wordCount?: number };
+export type PdfBatchVariantId =
+  | "list"
+  | "translation-test"
+  | "translation-answer"
+  | "spelling-hint-test"
+  | "spelling-blank-test"
+  | "spelling-answer"
+  | "random-list"
+  | "random-translation-test"
+  | "random-translation-answer"
+  | "random-spelling-hint-test"
+  | "random-spelling-blank-test"
+  | "random-spelling-answer"
+  | "red-japanese-list"
+  | "red-english-list";
+export type PdfBatchOutput = "full-pdf" | "sample-pdf" | "sample-image";
+export type PdfBatchRequest = {
+  bookIds: string[];
+  variants: PdfBatchVariantId[];
+  outputs: PdfBatchOutput[];
+  visibility: "admin" | "sale";
+  lockEditing: boolean;
+  ownerPassword: string;
+  individualPriceJpy: number;
+  bundlePriceJpy: number;
+};
+export type PdfBatchProgress = { completed: number; total: number; current: string; failed: number };
+export type PdfBatchResult = { saved: number; failed: Array<{ key: string; message: string }> };
+
 type Asset = {
   id: string;
   title: string;
@@ -11,12 +40,36 @@ type Asset = {
   wordbookId: string | null;
   wordbookTitle: string | null;
   kind: "generated" | "uploaded";
-  visibility: "public" | "admin";
+  visibility: "public" | "admin" | "sale";
+  variant?: string | null;
+  outputKind?: PdfBatchOutput | "uploaded";
+  priceJpy?: number | null;
+  bundlePriceJpy?: number | null;
+  mimeType?: string;
   fileName: string;
   sizeBytes: number;
   createdAt: string;
   downloadUrl?: string | null;
 };
+
+const VARIANTS: Array<{ id: PdfBatchVariantId; label: string; group: string }> = [
+  { id: "list", label: "単語一覧", group: "書籍順" },
+  { id: "translation-test", label: "和訳テスト（問題）", group: "書籍順" },
+  { id: "translation-answer", label: "和訳テスト（解答）", group: "書籍順" },
+  { id: "spelling-hint-test", label: "スペルテスト（頭文字あり）", group: "書籍順" },
+  { id: "spelling-blank-test", label: "スペルテスト（頭文字なし）", group: "書籍順" },
+  { id: "spelling-answer", label: "スペルテスト（解答）", group: "書籍順" },
+  { id: "random-list", label: "ランダム単語一覧", group: "ランダム" },
+  { id: "random-translation-test", label: "ランダム和訳テスト（問題）", group: "ランダム" },
+  { id: "random-translation-answer", label: "ランダム和訳テスト（解答）", group: "ランダム" },
+  { id: "random-spelling-hint-test", label: "ランダムスペル（頭文字あり）", group: "ランダム" },
+  { id: "random-spelling-blank-test", label: "ランダムスペル（頭文字なし）", group: "ランダム" },
+  { id: "random-spelling-answer", label: "ランダムスペル（解答）", group: "ランダム" },
+  { id: "red-japanese-list", label: "赤シート一覧（日本語を赤字）", group: "赤シート" },
+  { id: "red-english-list", label: "赤シート一覧（英語を赤字）", group: "赤シート" },
+];
+
+const DEFAULT_VARIANTS: PdfBatchVariantId[] = ["list", "translation-test", "translation-answer", "spelling-hint-test", "spelling-answer", "random-translation-test", "red-japanese-list"];
 
 export default function AdminPdfLibrary({
   books,
@@ -30,31 +83,48 @@ export default function AdminPdfLibrary({
   currentBookId: string;
   getHeaders: () => Promise<Record<string, string>>;
   onStoreCurrent: () => Promise<boolean>;
-  onStoreBatch: (ids: string[]) => Promise<number>;
+  onStoreBatch: (request: PdfBatchRequest, onProgress: (progress: PdfBatchProgress) => void) => Promise<PdfBatchResult>;
   busy: boolean;
 }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [variants, setVariants] = useState<PdfBatchVariantId[]>(DEFAULT_VARIANTS);
+  const [outputs, setOutputs] = useState<PdfBatchOutput[]>(["full-pdf", "sample-pdf", "sample-image"]);
+  const [batchVisibility, setBatchVisibility] = useState<"admin" | "sale">("admin");
+  const [lockEditing, setLockEditing] = useState(true);
+  const [ownerPassword, setOwnerPassword] = useState("");
+  const [individualPriceJpy, setIndividualPriceJpy] = useState(500);
+  const [bundlePriceJpy, setBundlePriceJpy] = useState(980);
+  const [progress, setProgress] = useState<PdfBatchProgress | null>(null);
+  const [lastFailed, setLastFailed] = useState<string[]>([]);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState<"public" | "admin">("public");
+  const [visibility, setVisibility] = useState<"public" | "admin" | "sale">("admin");
+  const [uploadPrice, setUploadPrice] = useState(500);
+  const [uploadBundlePrice, setUploadBundlePrice] = useState(980);
+  const [uploadBookId, setUploadBookId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const selectedCount = selectedIds.length;
   const sortedBooks = useMemo(() => [...books].sort((a, b) => a.title.localeCompare(b.title, "ja")), [books]);
+  const totalJobs = selectedIds.length * variants.length * outputs.length;
 
   async function load() {
     setLoading(true);
     const headers = await getHeaders();
     const response = await fetch("/api/admin/pdf-assets", { headers, cache: "no-store" }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
-    if (!response?.ok) setMessage(result?.message ?? "保存済みPDFを読み込めませんでした。");
+    if (!response?.ok) setMessage(result?.message ?? "保存済み教材を読み込めませんでした。");
     else setAssets(Array.isArray(result.assets) ? result.assets : []);
     setLoading(false);
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { queueMicrotask(() => void load()); }, []);
+
+  function toggle<T extends string>(value: T, current: T[], setter: (next: T[]) => void) {
+    setter(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  }
 
   async function upload() {
     if (!file) return;
@@ -67,17 +137,51 @@ export default function AdminPdfLibrary({
     form.set("description", description);
     form.set("visibility", visibility);
     form.set("kind", "uploaded");
+    form.set("outputKind", "uploaded");
+    form.set("priceJpy", String(uploadPrice));
+    form.set("bundlePriceJpy", String(uploadBundlePrice));
+    const book = sortedBooks.find((item) => item.id === uploadBookId);
+    if (book) {
+      form.set("wordbookId", book.id);
+      form.set("wordbookTitle", book.title);
+    }
     const response = await fetch("/api/admin/pdf-assets", { method: "POST", headers, body: form }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
-    if (!response?.ok) setMessage(result?.message ?? "PDF教材を登録できませんでした。");
+    if (!response?.ok) setMessage(result?.message ?? "教材を登録できませんでした。");
     else {
-      setMessage("PDF教材を登録しました。");
+      setMessage("教材を登録しました。");
       setFile(null);
       setTitle("");
       setDescription("");
       await load();
     }
     setLoading(false);
+  }
+
+  async function runBatch(bookIds = selectedIds) {
+    if (!bookIds.length || !variants.length || !outputs.length) return;
+    if (lockEditing && !ownerPassword.trim()) {
+      setMessage("販売用・保護用PDFには変更用パスワードを入力してください。");
+      return;
+    }
+    setMessage("");
+    setLastFailed([]);
+    const result = await onStoreBatch({
+      bookIds,
+      variants,
+      outputs,
+      visibility: batchVisibility,
+      lockEditing,
+      ownerPassword,
+      individualPriceJpy,
+      bundlePriceJpy,
+    }, setProgress);
+    setProgress(null);
+    setLastFailed(result.failed.map((item) => item.key));
+    setMessage(result.failed.length
+      ? `${result.saved}件を保存し、${result.failed.length}件は失敗しました。失敗分だけ再実行できます。`
+      : `${result.saved}件をすべて保存しました。`);
+    if (result.saved) await load();
   }
 
   async function remove(asset: Asset) {
@@ -93,78 +197,108 @@ export default function AdminPdfLibrary({
     if (response.ok) await load();
   }
 
+  function downloadManifest() {
+    const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), assets }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vocab-print-pro-materials-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+
   return (
-    <section className="rounded-3xl border bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-blue-700">保存済みPDF</p>
-          <h2 className="mt-1 text-xl font-black text-slate-950">PDF教材ライブラリ</h2>
-          <p className="mt-1 text-sm text-slate-500">よく使う単語帳を一度PDFにして保存し、次回からそのまま開いて印刷できます。</p>
+          <p className="text-sm font-black text-blue-700">教材管理</p>
+          <h2 className="mt-1 text-xl font-black text-slate-950">PDF・サンプル一括作成</h2>
+          <p className="mt-1 text-sm text-slate-500">管理用の保管と、購入者向け教材を分けて作成できます。</p>
         </div>
-        <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600">
-          <RefreshCw size={15} /> 再読み込み
-        </button>
+        <div className="flex gap-2">
+          <button type="button" onClick={downloadManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> 管理一覧JSON</button>
+          <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600"><RefreshCw size={15} /> 再読み込み</button>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+        <div className="grid gap-4 xl:grid-cols-3">
+          <div>
+            <p className="text-sm font-black text-slate-900">1. 単語帳を選ぶ</p>
+            <div className="mt-2 flex gap-2">
+              <button type="button" onClick={() => setSelectedIds(sortedBooks.map((book) => book.id))} className="rounded-lg border bg-white px-2.5 py-1.5 text-xs font-bold">すべて選択</button>
+              <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border bg-white px-2.5 py-1.5 text-xs font-bold">解除</button>
+            </div>
+            <details className="mt-2 rounded-xl border bg-white p-3" open={selectedIds.length === 0}>
+              <summary className="cursor-pointer text-sm font-black">選択中 {selectedIds.length}冊</summary>
+              <div className="mt-2 max-h-56 space-y-1 overflow-auto">
+                {sortedBooks.map((book) => <label key={book.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-bold hover:bg-slate-50"><input type="checkbox" checked={selectedIds.includes(book.id)} onChange={() => toggle(book.id, selectedIds, setSelectedIds)} /><span className="min-w-0 flex-1 truncate">{book.title}</span><span className="text-slate-400">{book.wordCount ?? 0}語</span></label>)}
+              </div>
+            </details>
+          </div>
+
+          <div>
+            <p className="text-sm font-black text-slate-900">2. 作る形式を選ぶ</p>
+            <div className="mt-2 max-h-72 space-y-3 overflow-auto rounded-xl border bg-white p-3">
+              {["書籍順", "ランダム", "赤シート"].map((group) => <div key={group}><p className="mb-1 text-[11px] font-black text-slate-400">{group}</p>{VARIANTS.filter((item) => item.group === group).map((item) => <label key={item.id} className="flex cursor-pointer items-center gap-2 py-1 text-xs font-bold"><input type="checkbox" checked={variants.includes(item.id)} onChange={() => toggle(item.id, variants, setVariants)} />{item.label}</label>)}</div>)}
+            </div>
+          </div>
+
+          <div>
+            <p className="text-sm font-black text-slate-900">3. 保存方法を決める</p>
+            <div className="mt-2 space-y-3 rounded-xl border bg-white p-3 text-xs">
+              <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={outputs.includes("full-pdf")} onChange={() => toggle("full-pdf", outputs, setOutputs)} /> 完全版PDF</label>
+                <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={outputs.includes("sample-pdf")} onChange={() => toggle("sample-pdf", outputs, setOutputs)} /> 先頭1枚PDF</label>
+                <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={outputs.includes("sample-image")} onChange={() => toggle("sample-image", outputs, setOutputs)} /> 先頭1枚画像</label>
+              </div>
+              <label className="block font-bold">用途<select value={batchVisibility} onChange={(event) => setBatchVisibility(event.target.value as "admin" | "sale")} className="mt-1 w-full rounded-lg border px-2 py-2"><option value="admin">管理者だけで保管</option><option value="sale">PDF教材として販売</option></select></label>
+              <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={lockEditing} onChange={(event) => setLockEditing(event.target.checked)} /> PDFの変更を制限する</label>
+              {lockEditing ? <label className="block font-bold">変更用パスワード<input type="password" value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} autoComplete="new-password" placeholder="購入者には渡さないパスワード" className="mt-1 w-full rounded-lg border px-3 py-2" /></label> : null}
+              {batchVisibility === "sale" ? <div className="grid grid-cols-2 gap-2"><label className="font-bold">単品価格<input type="number" min={50} step={10} value={individualPriceJpy} onChange={(event) => setIndividualPriceJpy(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label><label className="font-bold">1冊セット<input type="number" min={100} step={10} value={bundlePriceJpy} onChange={(event) => setBundlePriceJpy(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label></div> : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-white p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-black text-slate-700">作成予定: {totalJobs}ファイル</span><span className="text-slate-500">1件ずつ保存するため、途中で失敗しても成功分は残ります。</span></div>
+          {progress ? <div className="mt-2"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{ width: `${Math.round((progress.completed / Math.max(1, progress.total)) * 100)}%` }} /></div><p className="mt-1 truncate text-xs font-bold text-blue-700">{progress.completed}/{progress.total}・失敗 {progress.failed}・{progress.current}</p></div> : null}
+          <button type="button" onClick={() => runBatch()} disabled={!totalJobs || busy || Boolean(progress)} className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">選んだ教材を一括作成・保存</button>
+          {lastFailed.length ? <button type="button" onClick={() => runBatch([...new Set(lastFailed.map((key) => key.split("::")[0]))])} disabled={busy || Boolean(progress)} className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">失敗した単語帳だけ再実行</button> : null}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl bg-blue-50 p-4">
-          <p className="text-sm font-black text-blue-950">単語帳から保存</p>
-          <p className="mt-1 text-xs leading-5 text-blue-700">上の印刷設定を使って保存します。複数選択では各単語帳の全語を順番に作成します。</p>
-          <button type="button" onClick={async () => { if (await onStoreCurrent()) { setMessage("現在のPDFを保存しました。"); await load(); } }} disabled={!currentBookId || busy} className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">
-            現在の単語帳PDFを保存
-          </button>
-          <details className="mt-3 rounded-xl border border-blue-100 bg-white p-3">
-            <summary className="cursor-pointer text-sm font-black text-slate-700">複数の単語帳をまとめて保存 {selectedCount ? `（${selectedCount}冊）` : ""}</summary>
-            <div className="mt-3 max-h-56 space-y-1 overflow-auto pr-1">
-              {sortedBooks.map((book) => (
-                <label key={book.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-xs font-bold hover:bg-slate-50">
-                  <input type="checkbox" checked={selectedIds.includes(book.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, book.id] : current.filter((id) => id !== book.id))} />
-                  <span className="min-w-0 flex-1 truncate">{book.title}</span>
-                  <span className="text-slate-400">{book.wordCount ?? 0}語</span>
-                </label>
-              ))}
-            </div>
-            <button type="button" onClick={async () => { const count = await onStoreBatch(selectedIds); setMessage(`${count}冊のPDFを保存しました。`); if (count) await load(); }} disabled={!selectedCount || busy} className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">
-              選んだ単語帳を一括保存
-            </button>
-          </details>
+        <div className="rounded-2xl bg-slate-50 p-4">
+          <p className="text-sm font-black text-slate-900">現在の印刷設定を1件保存</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">上の管理者印刷画面で調整したレイアウトを、そのまま保存します。</p>
+          <button type="button" onClick={async () => { if (await onStoreCurrent()) { setMessage("現在のPDFを保存しました。"); await load(); } }} disabled={!currentBookId || busy} className="mt-3 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">現在のPDFを保存</button>
         </div>
 
         <div className="rounded-2xl bg-slate-50 p-4">
-          <p className="text-sm font-black text-slate-900">PDFだけの教材を登録</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">単語データがない教材、解説資料、配布用PDFも登録できます。</p>
-          <input type="file" accept="application/pdf,.pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-3 block w-full text-xs" />
-          <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="教材名（未入力ならファイル名）" className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm" />
-          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="説明（任意）" rows={2} className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm" />
-          <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
-            公開範囲
-            <select value={visibility} onChange={(event) => setVisibility(event.target.value as "public" | "admin")} className="rounded-lg border bg-white px-2 py-1.5">
-              <option value="public">利用者に公開</option>
-              <option value="admin">管理者のみ</option>
-            </select>
-          </label>
-          <button type="button" onClick={upload} disabled={!file || loading} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm font-black text-slate-700 disabled:text-slate-300">
-            <Upload size={16} /> PDF教材を登録
-          </button>
+          <p className="text-sm font-black text-slate-900">手元・AIで作った教材を登録</p>
+          <p className="mt-1 text-xs leading-5 text-slate-500">PDFのほか、告知やサンプル用のPNG・JPEGも保管できます。</p>
+          <input type="file" accept="application/pdf,image/png,image/jpeg,.pdf,.png,.jpg,.jpeg" onChange={(event) => setFile(event.target.files?.[0] ?? null)} className="mt-3 block w-full text-xs" />
+          <div className="mt-2 grid gap-2 sm:grid-cols-2"><input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="教材名" className="w-full rounded-xl border bg-white px-3 py-2 text-sm" /><select value={uploadBookId} onChange={(event) => setUploadBookId(event.target.value)} className="w-full rounded-xl border bg-white px-3 py-2 text-sm"><option value="">単語帳に紐付けない</option>{sortedBooks.map((book) => <option key={book.id} value={book.id}>{book.title}</option>)}</select></div>
+          <textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="説明" rows={2} className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-sm" />
+          <div className="mt-2 grid gap-2 sm:grid-cols-3"><label className="text-xs font-bold">公開範囲<select value={visibility} onChange={(event) => setVisibility(event.target.value as "public" | "admin" | "sale")} className="mt-1 w-full rounded-lg border bg-white px-2 py-2"><option value="admin">管理者のみ</option><option value="public">無料公開</option><option value="sale">販売</option></select></label>{visibility === "sale" ? <><label className="text-xs font-bold">単品価格<input type="number" value={uploadPrice} onChange={(event) => setUploadPrice(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label><label className="text-xs font-bold">セット価格<input type="number" value={uploadBundlePrice} onChange={(event) => setUploadBundlePrice(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label></> : null}</div>
+          <button type="button" onClick={upload} disabled={!file || loading} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border bg-white px-4 py-3 text-sm font-black text-slate-700 disabled:text-slate-300"><Upload size={16} /> 教材を登録</button>
         </div>
       </div>
 
       {message ? <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{message}</p> : null}
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        {assets.length === 0 ? <p className="text-sm text-slate-400">保存済みPDFはまだありません。</p> : assets.map((asset) => (
-          <div key={asset.id} className="flex items-center gap-3 rounded-2xl border p-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-600"><FileText size={20} /></span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-black text-slate-900">{asset.title}</p>
-              <p className="truncate text-[11px] text-slate-400">{asset.wordbookTitle || "PDF教材"} ・ {(asset.sizeBytes / 1024 / 1024).toFixed(1)}MB ・ {asset.visibility === "public" ? "公開" : "管理者のみ"}</p>
-            </div>
-            {asset.downloadUrl ? <a href={asset.downloadUrl} target="_blank" rel="noreferrer" title="開いて印刷" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Printer size={17} /></a> : null}
+      <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {assets.length === 0 ? <p className="text-sm text-slate-400">保存済み教材はまだありません。</p> : assets.map((asset) => (
+          <article key={asset.id} className="flex items-center gap-3 rounded-2xl border p-3">
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${asset.mimeType?.startsWith("image/") ? "bg-violet-50 text-violet-600" : "bg-red-50 text-red-600"}`}>{asset.mimeType?.startsWith("image/") ? <FileImage size={20} /> : <FileText size={20} />}</span>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-slate-900">{asset.title}</p><p className="truncate text-[11px] text-slate-400">{asset.wordbookTitle || "独自教材"}・{(asset.sizeBytes / 1024 / 1024).toFixed(1)}MB</p><p className="mt-0.5 text-[10px] font-bold text-blue-600">{asset.visibility === "sale" ? `販売 ¥${asset.priceJpy ?? 500}` : asset.visibility === "public" ? "無料公開" : "管理者のみ"}</p></div>
+            {asset.downloadUrl ? <a href={asset.downloadUrl} target="_blank" rel="noreferrer" title="開く" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Printer size={17} /></a> : null}
             <button type="button" onClick={() => remove(asset)} title="削除" className="rounded-lg p-2 text-red-500 hover:bg-red-50"><Trash2 size={17} /></button>
-          </div>
+          </article>
         ))}
       </div>
+      <p className="mt-4 flex items-center gap-2 text-xs text-slate-500"><CheckCircle2 size={14} className="text-emerald-500" /> 販売用完全版は購入者だけが開けます。サンプルは購入前に確認できます。</p>
     </section>
   );
 }
-

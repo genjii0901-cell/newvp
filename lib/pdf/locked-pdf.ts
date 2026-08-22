@@ -18,7 +18,7 @@ function randomOwnerPassword() {
 export async function createLockedPdfBlob(
   fullDocHtml: string,
   allowPrint = true,
-  options: { ownerPassword?: string; lockEditing?: boolean } = {}
+  options: { ownerPassword?: string; lockEditing?: boolean; maxPages?: number } = {}
 ): Promise<Blob> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
@@ -66,7 +66,8 @@ export async function createLockedPdfBlob(
       try { await doc.fonts.ready; } catch { /* ignore */ }
     }
 
-    const pages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
+    const allPages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
+    const pages = options.maxPages ? allPages.slice(0, Math.max(1, options.maxPages)) : allPages;
     if (pages.length === 0) throw new Error("PDFにするページが見つかりませんでした。");
 
     const lockEditing = options.lockEditing ?? true;
@@ -110,11 +111,47 @@ export async function createLockedPdfBlob(
   }
 }
 
+export async function createRenderedPageImageBlob(fullDocHtml: string): Promise<Blob> {
+  const { default: html2canvas } = await import("html2canvas");
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:820px;height:1300px;border:none;background:white;visibility:hidden;";
+  document.body.appendChild(iframe);
+
+  try {
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!doc) throw new Error("画像出力用の画面を準備できませんでした。");
+    doc.open();
+    doc.write(fullDocHtml);
+    doc.close();
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    if (doc.fonts?.ready) {
+      try { await doc.fonts.ready; } catch { /* ignore */ }
+    }
+    const page = doc.querySelector<HTMLElement>(".print-page");
+    if (!page) throw new Error("画像にする先頭ページが見つかりませんでした。");
+    const canvas = await html2canvas(page, {
+      scale: 2.2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      logging: false,
+      removeContainer: true,
+      windowWidth: Math.ceil(page.scrollWidth || page.clientWidth || 726),
+      windowHeight: Math.ceil(page.scrollHeight || page.clientHeight || 1058),
+    });
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("画像データを作成できませんでした。")), "image/png");
+    });
+  } finally {
+    try { iframe.remove(); } catch { /* ignore */ }
+  }
+}
+
 export async function downloadLockedPdf(
   fullDocHtml: string,
   fileName: string,
   allowPrint = true,
-  options: { ownerPassword?: string; lockEditing?: boolean } = {}
+  options: { ownerPassword?: string; lockEditing?: boolean; maxPages?: number } = {}
 ): Promise<void> {
   const blob = await createLockedPdfBlob(fullDocHtml, allowPrint, options);
   const url = URL.createObjectURL(blob);
