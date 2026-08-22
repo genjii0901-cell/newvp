@@ -753,7 +753,7 @@ export default function AdminPage() {
   const [twoFaConfirming, setTwoFaConfirming] = useState(false);
   const [twoFaOk, setTwoFaOk] = useState(false);
 
-  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "quiz" | "licenses" | "email">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "materials" | "quiz" | "licenses" | "email">("dashboard");
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -1898,6 +1898,7 @@ export default function AdminPage() {
             ["create", "📚 単語帳を登録"],
             ["manage", `📋 管理（${loadingBooks && books.length === 0 ? "読込中" : `${books.length}件`}）`],
             ["pdf", "📄 単語テスト印刷"],
+            ["materials", "🗂 PDF教材管理"],
             ["quiz", "🧪 4択単語チェック"],
             ["licenses", "🔑 Noteライセンス"],
             ["email", "✉️ メール配信"],
@@ -3066,15 +3067,6 @@ export default function AdminPage() {
 	                印刷はダイアログを開き、PDFはファイル保存、画像はPNG保存です。
 	              </p>
 
-              <AdminPdfLibrary
-                books={books.map((book) => ({ id: book.id, title: book.title, wordCount: getBookWordCount(book) }))}
-                currentBookId={pdfBookId}
-                getHeaders={getAdminHeaders}
-                onStoreCurrent={storeCurrentPdfAsset}
-                onStoreBatch={storeBatchPdfAssets}
-                busy={exportingAction !== null}
-              />
-
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border bg-white p-4 text-center shadow-sm">
                   <p className="text-2xl font-black text-blue-600">{books.length}</p>
@@ -3090,6 +3082,19 @@ export default function AdminPage() {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {tab === "materials" && (
+          <div className="mt-6">
+            <AdminPdfLibrary
+              books={books.map((book) => ({ id: book.id, title: book.title, wordCount: getBookWordCount(book) }))}
+              currentBookId={pdfBookId}
+              getHeaders={getAdminHeaders}
+              onStoreCurrent={storeCurrentPdfAsset}
+              onStoreBatch={storeBatchPdfAssets}
+              busy={exportingAction !== null}
+            />
           </div>
         )}
 

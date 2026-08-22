@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, FileImage, FileText, Printer, RefreshCw, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, Download, FileImage, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
 
 type Book = { id: string; title: string; wordCount?: number };
 export type PdfBatchVariantId =
@@ -87,6 +87,7 @@ export default function AdminPdfLibrary({
   busy: boolean;
 }) {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [variants, setVariants] = useState<PdfBatchVariantId[]>(DEFAULT_VARIANTS);
   const [outputs, setOutputs] = useState<PdfBatchOutput[]>(["full-pdf", "sample-pdf", "sample-image"]);
@@ -207,6 +208,58 @@ export default function AdminPdfLibrary({
     setTimeout(() => URL.revokeObjectURL(url), 1_000);
   }
 
+  function downloadCsvManifest() {
+    const quote = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = [
+      ["title", "wordbook", "file_name", "format", "visibility", "price_jpy", "size_bytes", "download_url"],
+      ...assets.map((asset) => [asset.title, asset.wordbookTitle ?? "", asset.fileName, asset.outputKind ?? "uploaded", asset.visibility, asset.priceJpy ?? "", asset.sizeBytes, asset.downloadUrl ?? ""]),
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map(quote).join(",")).join("\r\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `vocab-print-pro-materials-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+
+  async function downloadAsset(asset: Asset, quiet = false) {
+    if (!asset.downloadUrl) return false;
+    try {
+      const response = await fetch(asset.downloadUrl);
+      if (!response.ok) throw new Error("download failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = asset.fileName || `${asset.title}.${asset.mimeType?.startsWith("image/") ? "png" : "pdf"}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2_000);
+      if (!quiet) setMessage(`「${asset.title}」をダウンロードしました。`);
+      return true;
+    } catch {
+      window.open(asset.downloadUrl, "_blank", "noopener,noreferrer");
+      if (!quiet) setMessage("ブラウザで教材を開きました。表示後に保存してください。");
+      return false;
+    }
+  }
+
+  async function downloadSelectedAssets() {
+    const targets = assets.filter((asset) => selectedAssetIds.includes(asset.id) && asset.downloadUrl);
+    if (!targets.length) return;
+    setLoading(true);
+    let completed = 0;
+    for (const asset of targets) {
+      if (await downloadAsset(asset, true)) completed += 1;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    setMessage(`${completed}/${targets.length}件をダウンロードしました。ブラウザから複数ダウンロードの確認が出た場合は許可してください。`);
+    setLoading(false);
+  }
+
   return (
     <section className="rounded-2xl border bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -215,11 +268,16 @@ export default function AdminPdfLibrary({
           <h2 className="mt-1 text-xl font-black text-slate-950">PDF・サンプル一括作成</h2>
           <p className="mt-1 text-sm text-slate-500">管理用の保管と、購入者向け教材を分けて作成できます。</p>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={downloadManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> 管理一覧JSON</button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={downloadManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> JSON一覧</button>
+          <button type="button" onClick={downloadCsvManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> CSV一覧</button>
           <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600"><RefreshCw size={15} /> 再読み込み</button>
         </div>
       </div>
+
+      <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold leading-relaxed text-blue-800">
+        作成したPDF・画像はここに保存されます。「管理者のみ」はこの画面だけ、「無料公開」「販売」はPDF教材ストアにも表示されます。
+      </p>
 
       <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
         <div className="grid gap-4 xl:grid-cols-3">
@@ -288,12 +346,20 @@ export default function AdminPdfLibrary({
 
       {message ? <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{message}</p> : null}
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {assets.length ? <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border bg-slate-50 p-3">
+        <button type="button" onClick={() => setSelectedAssetIds(assets.map((asset) => asset.id))} className="rounded-lg border bg-white px-3 py-2 text-xs font-black text-slate-600">すべて選択</button>
+        <button type="button" onClick={() => setSelectedAssetIds([])} className="rounded-lg border bg-white px-3 py-2 text-xs font-black text-slate-600">選択解除</button>
+        <button type="button" onClick={downloadSelectedAssets} disabled={!selectedAssetIds.length || loading} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300"><Download size={15} /> 選択した{selectedAssetIds.length || ""}件を外部保存</button>
+        <span className="text-[11px] text-slate-500">AIや別サービスへ渡す場合は、ダウンロードしたPDF・画像とCSV一覧を使用できます。</span>
+      </div> : null}
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {assets.length === 0 ? <p className="text-sm text-slate-400">保存済み教材はまだありません。</p> : assets.map((asset) => (
           <article key={asset.id} className="flex items-center gap-3 rounded-2xl border p-3">
+            <input type="checkbox" aria-label={`${asset.title}を選択`} checked={selectedAssetIds.includes(asset.id)} onChange={() => toggle(asset.id, selectedAssetIds, setSelectedAssetIds)} className="shrink-0" />
             <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${asset.mimeType?.startsWith("image/") ? "bg-violet-50 text-violet-600" : "bg-red-50 text-red-600"}`}>{asset.mimeType?.startsWith("image/") ? <FileImage size={20} /> : <FileText size={20} />}</span>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-slate-900">{asset.title}</p><p className="truncate text-[11px] text-slate-400">{asset.wordbookTitle || "独自教材"}・{(asset.sizeBytes / 1024 / 1024).toFixed(1)}MB</p><p className="mt-0.5 text-[10px] font-bold text-blue-600">{asset.visibility === "sale" ? `販売 ¥${asset.priceJpy ?? 500}` : asset.visibility === "public" ? "無料公開" : "管理者のみ"}</p></div>
-            {asset.downloadUrl ? <a href={asset.downloadUrl} target="_blank" rel="noreferrer" title="開く" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Printer size={17} /></a> : null}
+            {asset.downloadUrl ? <button type="button" onClick={() => downloadAsset(asset)} title="ダウンロード" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Download size={17} /></button> : null}
             <button type="button" onClick={() => remove(asset)} title="削除" className="rounded-lg p-2 text-red-500 hover:bg-red-50"><Trash2 size={17} /></button>
           </article>
         ))}
