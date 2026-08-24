@@ -98,7 +98,7 @@ export async function createLockedPdfBlob(
     for (let i = 0; i < pages.length; i += 1) {
       const optimizeSize = options.optimizeSize === true;
       const canvas = await html2canvas(pages[i], {
-        scale: optimizeSize ? 2 : 2.25,
+        scale: optimizeSize ? 1.85 : 2.25,
         backgroundColor: "#ffffff",
         useCORS: true,
         logging: false,
@@ -106,10 +106,9 @@ export async function createLockedPdfBlob(
         windowWidth: Math.ceil(pages[i].scrollWidth || pages[i].clientWidth || 726),
         windowHeight: Math.ceil(pages[i].scrollHeight || pages[i].clientHeight || 1058),
       });
-      const imageFormat = optimizeSize ? "JPEG" : "PNG";
-      const imgData = optimizeSize ? canvas.toDataURL("image/jpeg", 0.88) : canvas.toDataURL("image/png");
+      const imgData = canvas.toDataURL("image/png");
       if (i > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(imgData, imageFormat, PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, optimizeSize ? "MEDIUM" : "FAST");
+      pdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
       void A4_WIDTH_MM;
       void A4_HEIGHT_MM;
     }
