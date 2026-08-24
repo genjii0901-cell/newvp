@@ -5,6 +5,13 @@ const PAGE_H_MM = 280;
 const PAGE_X_MM = 9;
 const PAGE_Y_MM = 9;
 
+type LockedPdfOptions = {
+  ownerPassword?: string;
+  lockEditing?: boolean;
+  maxPages?: number;
+  optimizeSize?: boolean;
+};
+
 function randomOwnerPassword() {
   const bytes = new Uint8Array(24);
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
@@ -18,7 +25,7 @@ function randomOwnerPassword() {
 export async function createLockedPdfBlob(
   fullDocHtml: string,
   allowPrint = true,
-  options: { ownerPassword?: string; lockEditing?: boolean; maxPages?: number } = {}
+  options: LockedPdfOptions = {}
 ): Promise<Blob> {
   const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
     import("jspdf"),
@@ -89,8 +96,9 @@ export async function createLockedPdfBlob(
     });
 
     for (let i = 0; i < pages.length; i += 1) {
+      const optimizeSize = options.optimizeSize === true;
       const canvas = await html2canvas(pages[i], {
-        scale: 2.25,
+        scale: optimizeSize ? 2 : 2.25,
         backgroundColor: "#ffffff",
         useCORS: true,
         logging: false,
@@ -98,9 +106,10 @@ export async function createLockedPdfBlob(
         windowWidth: Math.ceil(pages[i].scrollWidth || pages[i].clientWidth || 726),
         windowHeight: Math.ceil(pages[i].scrollHeight || pages[i].clientHeight || 1058),
       });
-      const imgData = canvas.toDataURL("image/png");
+      const imageFormat = optimizeSize ? "JPEG" : "PNG";
+      const imgData = optimizeSize ? canvas.toDataURL("image/jpeg", 0.88) : canvas.toDataURL("image/png");
       if (i > 0) pdf.addPage("a4", "portrait");
-      pdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+      pdf.addImage(imgData, imageFormat, PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, optimizeSize ? "MEDIUM" : "FAST");
       void A4_WIDTH_MM;
       void A4_HEIGHT_MM;
     }
@@ -151,7 +160,7 @@ export async function downloadLockedPdf(
   fullDocHtml: string,
   fileName: string,
   allowPrint = true,
-  options: { ownerPassword?: string; lockEditing?: boolean; maxPages?: number } = {}
+  options: LockedPdfOptions = {}
 ): Promise<void> {
   const blob = await createLockedPdfBlob(fullDocHtml, allowPrint, options);
   const url = URL.createObjectURL(blob);

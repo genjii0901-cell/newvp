@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Download, FileImage, FileText, RefreshCw, Trash2, Upload } from "lucide-react";
+import { CheckCircle2, Download, FileImage, FileText, RefreshCw, Search, Trash2, Upload } from "lucide-react";
 
 type Book = { id: string; title: string; wordCount?: number };
 export type PdfBatchVariantId =
@@ -46,12 +46,14 @@ type Asset = {
   outputKind?: PdfBatchOutput | "uploaded";
   priceJpy?: number | null;
   bundlePriceJpy?: number | null;
+  isSample?: boolean;
   mimeType?: string;
   fileName: string;
   sizeBytes: number;
   createdAt: string;
   assetKey?: string | null;
   downloadUrl?: string | null;
+  storageProvider?: "supabase" | "r2";
 };
 
 const VARIANTS: Array<{ id: PdfBatchVariantId; label: string; group: string }> = [
@@ -72,6 +74,13 @@ const VARIANTS: Array<{ id: PdfBatchVariantId; label: string; group: string }> =
 ];
 
 const DEFAULT_VARIANTS: PdfBatchVariantId[] = ["list", "translation-test", "translation-answer", "spelling-hint-test", "spelling-answer", "random-translation-test", "red-japanese-list"];
+const VARIANT_LABELS = new Map(VARIANTS.map((item) => [item.id, item.label]));
+const OUTPUT_LABELS: Record<NonNullable<Asset["outputKind"]>, string> = {
+  "full-pdf": "完全版PDF",
+  "sample-pdf": "サンプルPDF",
+  "sample-image": "サンプル画像",
+  uploaded: "登録教材",
+};
 
 export default function AdminPdfLibrary({
   books,
@@ -111,8 +120,33 @@ export default function AdminPdfLibrary({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [storageProvider, setStorageProvider] = useState<"supabase" | "r2">("supabase");
+  const [assetFilter, setAssetFilter] = useState("");
   const sortedBooks = useMemo(() => [...books].sort((a, b) => a.title.localeCompare(b.title, "ja")), [books]);
   const totalJobs = selectedIds.length * variants.length * outputs.length;
+  const visibleAssets = useMemo(() => {
+    const query = assetFilter.trim().toLocaleLowerCase("ja");
+    if (!query) return assets;
+    return assets.filter((asset) => [asset.title, asset.wordbookTitle, asset.description, asset.fileName, asset.variant]
+      .some((value) => String(value ?? "").toLocaleLowerCase("ja").includes(query)));
+  }, [assetFilter, assets]);
+  const assetGroups = useMemo(() => {
+    const groups = new Map<string, { title: string; wordbookId: string | null; assets: Asset[] }>();
+    for (const asset of visibleAssets) {
+      const key = asset.wordbookId || `standalone:${asset.wordbookTitle || "独自教材"}`;
+      const current = groups.get(key) ?? { title: asset.wordbookTitle || "独自教材", wordbookId: asset.wordbookId, assets: [] };
+      current.assets.push(asset);
+      groups.set(key, current);
+    }
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        totalBytes: group.assets.reduce((sum, asset) => sum + asset.sizeBytes, 0),
+        fullCount: group.assets.filter((asset) => asset.outputKind === "full-pdf").length,
+        sampleCount: group.assets.filter((asset) => asset.isSample || asset.outputKind === "sample-pdf" || asset.outputKind === "sample-image").length,
+        assets: [...group.assets].sort((a, b) => `${a.variant}:${a.outputKind}`.localeCompare(`${b.variant}:${b.outputKind}`, "ja")),
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title, "ja"));
+  }, [visibleAssets]);
 
   async function load() {
     setLoading(true);
@@ -138,20 +172,60 @@ export default function AdminPdfLibrary({
     setLoading(true);
     setMessage("");
     const headers = await getHeaders();
+    const book = sortedBooks.find((item) => item.id === uploadBookId);
+    const metadata = {
+      title,
+      description,
+      visibility,
+      kind: "uploaded",
+      outputKind: "uploaded",
+      priceJpy: uploadPrice,
+      bundlePriceJpy: uploadBundlePrice,
+      wordbookId: book?.id ?? "",
+      wordbookTitle: book?.title ?? "",
+      mimeType: file.type,
+      fileName: file.name,
+    };
+
+    if (storageProvider === "r2") {
+      const prepareResponse = await fetch("/api/admin/pdf-assets/direct-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ action: "prepare", mimeType: file.type, sizeBytes: file.size }),
+      }).catch(() => null);
+      const prepared = await prepareResponse?.json().catch(() => ({}));
+      if (!prepareResponse?.ok) {
+        setMessage(prepared?.message ?? "教材の保存先を準備できませんでした。");
+        setLoading(false);
+        return;
+      }
+      const uploadResponse = await fetch(prepared.uploadUrl, { method: "PUT", headers: { "Content-Type": file.type }, body: file }).catch(() => null);
+      if (!uploadResponse?.ok) {
+        setMessage("教材ファイルを保存先へ送信できませんでした。");
+        setLoading(false);
+        return;
+      }
+      const finalizeResponse = await fetch("/api/admin/pdf-assets/direct-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ action: "finalize", id: prepared.id, storagePath: prepared.storagePath, ...metadata }),
+      }).catch(() => null);
+      const finalized = await finalizeResponse?.json().catch(() => ({}));
+      if (!finalizeResponse?.ok) setMessage(finalized?.message ?? "教材を登録できませんでした。");
+      else {
+        setMessage("教材を登録しました。");
+        setFile(null);
+        setTitle("");
+        setDescription("");
+        await load();
+      }
+      setLoading(false);
+      return;
+    }
+
     const form = new FormData();
     form.set("file", file);
-    form.set("title", title);
-    form.set("description", description);
-    form.set("visibility", visibility);
-    form.set("kind", "uploaded");
-    form.set("outputKind", "uploaded");
-    form.set("priceJpy", String(uploadPrice));
-    form.set("bundlePriceJpy", String(uploadBundlePrice));
-    const book = sortedBooks.find((item) => item.id === uploadBookId);
-    if (book) {
-      form.set("wordbookId", book.id);
-      form.set("wordbookTitle", book.title);
-    }
+    Object.entries(metadata).forEach(([key, value]) => form.set(key, String(value)));
     const response = await fetch("/api/admin/pdf-assets", { method: "POST", headers, body: form }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
     if (!response?.ok) setMessage(result?.message ?? "教材を登録できませんでした。");
@@ -398,21 +472,38 @@ export default function AdminPdfLibrary({
       {message ? <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">{message}</p> : null}
 
       {assets.length ? <div className="mt-5 flex flex-wrap items-center gap-2 rounded-xl border bg-slate-50 p-3">
-        <button type="button" onClick={() => setSelectedAssetIds(assets.map((asset) => asset.id))} className="rounded-lg border bg-white px-3 py-2 text-xs font-black text-slate-600">すべて選択</button>
+        <div className="relative min-w-[220px] flex-1 sm:max-w-sm"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)} placeholder="単語帳名・形式・ファイル名で検索" className="w-full rounded-lg border bg-white py-2 pl-9 pr-3 text-xs font-bold" /></div>
+        <button type="button" onClick={() => setSelectedAssetIds(visibleAssets.map((asset) => asset.id))} className="rounded-lg border bg-white px-3 py-2 text-xs font-black text-slate-600">表示中を選択</button>
         <button type="button" onClick={() => setSelectedAssetIds([])} className="rounded-lg border bg-white px-3 py-2 text-xs font-black text-slate-600">選択解除</button>
         <button type="button" onClick={downloadSelectedAssets} disabled={!selectedAssetIds.length || loading} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-black text-white disabled:bg-slate-300"><Download size={15} /> 選択した{selectedAssetIds.length || ""}件を外部保存</button>
-        <span className="text-[11px] text-slate-500">AIや別サービスへ渡す場合は、ダウンロードしたPDF・画像とCSV一覧を使用できます。</span>
+        <span className="w-full text-[11px] text-slate-500">{assetGroups.length}冊・{visibleAssets.length}件を表示中。AIや別サービスへ渡す場合は、ダウンロードしたPDF・画像とCSV一覧を使用できます。</span>
       </div> : null}
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {assets.length === 0 ? <p className="text-sm text-slate-400">保存済み教材はまだありません。</p> : assets.map((asset) => (
-          <article key={asset.id} className="flex items-center gap-3 rounded-2xl border p-3">
-            <input type="checkbox" aria-label={`${asset.title}を選択`} checked={selectedAssetIds.includes(asset.id)} onChange={() => toggle(asset.id, selectedAssetIds, setSelectedAssetIds)} className="shrink-0" />
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${asset.mimeType?.startsWith("image/") ? "bg-violet-50 text-violet-600" : "bg-red-50 text-red-600"}`}>{asset.mimeType?.startsWith("image/") ? <FileImage size={20} /> : <FileText size={20} />}</span>
-            <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-slate-900">{asset.title}</p><p className="truncate text-[11px] text-slate-400">{asset.wordbookTitle || "独自教材"}・{(asset.sizeBytes / 1024 / 1024).toFixed(1)}MB</p><p className="mt-0.5 text-[10px] font-bold text-blue-600">{asset.visibility === "sale" ? `販売 ¥${asset.priceJpy ?? 500}` : asset.visibility === "public" ? "無料公開" : "管理者のみ"}</p></div>
-            {asset.downloadUrl ? <button type="button" onClick={() => downloadAsset(asset)} title="ダウンロード" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Download size={17} /></button> : null}
-            <button type="button" onClick={() => remove(asset)} title="削除" className="rounded-lg p-2 text-red-500 hover:bg-red-50"><Trash2 size={17} /></button>
-          </article>
+      <div className="mt-3 space-y-2">
+        {assets.length === 0 ? <p className="text-sm text-slate-400">保存済み教材はまだありません。</p> : null}
+        {assets.length > 0 && assetGroups.length === 0 ? <p className="rounded-xl border border-dashed p-4 text-sm text-slate-400">検索に一致する教材はありません。</p> : null}
+        {assetGroups.map((group) => (
+          <details key={`${group.wordbookId}:${group.title}`} className="group rounded-2xl border bg-white" open={assetGroups.length === 1}>
+            <summary className="flex cursor-pointer list-none items-center gap-3 p-3 sm:p-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-700">{group.title.slice(0, 1)}</span>
+              <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-slate-900 sm:text-base">{group.title}</p><p className="mt-0.5 text-[11px] text-slate-500">完全版 {group.fullCount}件・サンプル {group.sampleCount}件・合計 {(group.totalBytes / 1024 / 1024).toFixed(1)}MB</p></div>
+              <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedAssetIds((current) => [...new Set([...current, ...group.assets.map((asset) => asset.id)])]); }} className="rounded-lg border px-2.5 py-1.5 text-[11px] font-black text-slate-600">この単語帳を選択</button>
+              <span className="text-slate-400 transition group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="border-t p-2 sm:p-3">
+              <div className="grid gap-2 lg:grid-cols-2">
+                {group.assets.map((asset) => (
+                  <article key={asset.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-100 bg-slate-50/60 p-2.5">
+                    <input type="checkbox" aria-label={`${asset.title}を選択`} checked={selectedAssetIds.includes(asset.id)} onChange={() => toggle(asset.id, selectedAssetIds, setSelectedAssetIds)} className="shrink-0" />
+                    <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${asset.mimeType?.startsWith("image/") ? "bg-violet-50 text-violet-600" : "bg-red-50 text-red-600"}`}>{asset.mimeType?.startsWith("image/") ? <FileImage size={18} /> : <FileText size={18} />}</span>
+                    <div className="min-w-0 flex-1"><p className="truncate text-xs font-black text-slate-900">{VARIANT_LABELS.get(asset.variant as PdfBatchVariantId) || asset.title}</p><div className="mt-1 flex flex-wrap gap-1"><span className="rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{OUTPUT_LABELS[asset.outputKind ?? "uploaded"]}</span><span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-400">{(asset.sizeBytes / 1024 / 1024).toFixed(1)}MB</span><span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold text-blue-600">{asset.visibility === "sale" ? `販売 ¥${asset.priceJpy ?? 500}` : asset.visibility === "public" ? "無料公開" : "管理者のみ"}</span></div></div>
+                    {asset.downloadUrl ? <button type="button" onClick={() => downloadAsset(asset)} title="ダウンロード" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Download size={16} /></button> : null}
+                    <button type="button" onClick={() => remove(asset)} title="削除" className="rounded-lg p-2 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </details>
         ))}
       </div>
       <p className="mt-4 flex items-center gap-2 text-xs text-slate-500"><CheckCircle2 size={14} className="text-emerald-500" /> 販売用完全版は購入者だけが開けます。サンプルは購入前に確認できます。</p>

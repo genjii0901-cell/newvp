@@ -1711,6 +1711,7 @@ export default function AdminPage() {
                     lockEditing: request.lockEditing,
                     ownerPassword: request.ownerPassword,
                     maxPages: sample ? 1 : undefined,
+                    optimizeSize: true,
                   });
               await uploadGeneratedAsset({
                 blob,
