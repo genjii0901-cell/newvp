@@ -127,7 +127,7 @@ export default function AdminPdfLibrary({
     const query = assetFilter.trim().toLocaleLowerCase("ja");
     if (!query) return assets;
     return assets.filter((asset) => [asset.title, asset.wordbookTitle, asset.description, asset.fileName, asset.variant]
-      .some((value) => String(value ?? "").toLocaleLowerCase("ja").includes(query)));
+      .map((value) => String(value ?? "")).join(" ").toLocaleLowerCase("ja").includes(query));
   }, [assetFilter, assets]);
   const assetGroups = useMemo(() => {
     const groups = new Map<string, { title: string; wordbookId: string | null; assets: Asset[] }>();
