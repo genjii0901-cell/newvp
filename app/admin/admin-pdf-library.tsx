@@ -110,6 +110,7 @@ export default function AdminPdfLibrary({
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [storageProvider, setStorageProvider] = useState<"supabase" | "r2">("supabase");
   const sortedBooks = useMemo(() => [...books].sort((a, b) => a.title.localeCompare(b.title, "ja")), [books]);
   const totalJobs = selectedIds.length * variants.length * outputs.length;
 
@@ -119,7 +120,10 @@ export default function AdminPdfLibrary({
     const response = await fetch("/api/admin/pdf-assets", { headers, cache: "no-store" }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
     if (!response?.ok) setMessage(result?.message ?? "保存済み教材を読み込めませんでした。");
-    else setAssets(Array.isArray(result.assets) ? result.assets : []);
+    else {
+      setAssets(Array.isArray(result.assets) ? result.assets : []);
+      setStorageProvider(result.preferredStorageProvider === "r2" ? "r2" : "supabase");
+    }
     setLoading(false);
   }
 
@@ -189,6 +193,10 @@ export default function AdminPdfLibrary({
   }
 
   async function runFullCatalog() {
+    if (storageProvider !== "r2") {
+      setMessage("全冊の一括作成にはCloudflare R2の設定が必要です。設定後は、この画面に「保存先: R2」と表示されます。");
+      return;
+    }
     if (!ownerPassword.trim()) {
       setMessage("全教材のPDFを保護するため、変更用パスワードを入力してください。");
       return;
@@ -316,6 +324,9 @@ export default function AdminPdfLibrary({
       <p className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold leading-relaxed text-blue-800">
         作成したPDF・画像はここに保存されます。「管理者のみ」はこの画面だけ、「無料公開」「販売」はPDF教材ストアにも表示されます。
       </p>
+      <p className={`mt-2 rounded-xl border px-3 py-2 text-xs font-bold ${storageProvider === "r2" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+        保存先: {storageProvider === "r2" ? "Cloudflare R2（全冊の一括作成が可能）" : "Supabase（少量保存のみ・全冊作成はR2設定後に有効）"}
+      </p>
 
       <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
         <div className="grid gap-4 xl:grid-cols-3">
@@ -360,7 +371,7 @@ export default function AdminPdfLibrary({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-black text-slate-700">作成予定: {totalJobs}ファイル</span><span className="text-slate-500">1件ずつ保存するため、途中で失敗しても成功分は残ります。</span></div>
           {progress ? <div className="mt-2"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{ width: `${Math.round((progress.completed / Math.max(1, progress.total)) * 100)}%` }} /></div><p className="mt-1 truncate text-xs font-bold text-blue-700">{progress.completed}/{progress.total}・失敗 {progress.failed}・{progress.current}</p></div> : null}
           <button type="button" onClick={() => runBatch()} disabled={!totalJobs || busy || Boolean(progress)} className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">選んだ教材を一括作成・保存</button>
-          <button type="button" onClick={runFullCatalog} disabled={busy || Boolean(progress) || sortedBooks.length === 0} className="mt-2 w-full rounded-xl border-2 border-blue-600 bg-white px-4 py-3 text-sm font-black text-blue-700 disabled:border-slate-200 disabled:text-slate-300">全{sortedBooks.length}冊・全{VARIANTS.length}形式の販売カタログを作成</button>
+          <button type="button" onClick={runFullCatalog} disabled={storageProvider !== "r2" || busy || Boolean(progress) || sortedBooks.length === 0} className="mt-2 w-full rounded-xl border-2 border-blue-600 bg-white px-4 py-3 text-sm font-black text-blue-700 disabled:border-slate-200 disabled:text-slate-300">全{sortedBooks.length}冊・全{VARIANTS.length}形式の販売カタログを作成</button>
           <p className="mt-2 text-[11px] leading-5 text-slate-500">完全版PDFは販売用、先頭1ページのPDF・画像は購入前サンプルとして保存します。管理者はすべてを確認・外部保存できます。再実行時は作成済みを飛ばします。</p>
           {lastFailed.length ? <button type="button" onClick={() => runBatch([...new Set(lastFailed.map((key) => key.split("::")[0]))])} disabled={busy || Boolean(progress)} className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">失敗した単語帳だけ再実行</button> : null}
         </div>

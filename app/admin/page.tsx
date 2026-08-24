@@ -1552,25 +1552,59 @@ export default function AdminPage() {
   }) {
     const headers = await getAdminHeaders();
     const isImage = output === "sample-image";
+    const mimeType = isImage ? "image/png" : "application/pdf";
     const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${isImage ? "png" : "pdf"}`;
-    const form = new FormData();
-    form.set("file", new File([blob], safeFileName, { type: isImage ? "image/png" : "application/pdf" }));
-    form.set("title", title);
     const outputDescription = output === "full-pdf"
       ? "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"
       : output === "sample-pdf"
         ? "購入前にレイアウトと内容を確認できる先頭1ページのサンプルPDFです。"
         : "購入前に仕上がりを確認できる先頭1ページのサンプル画像です。";
-    form.set("description", `${book.title}の${title.replace(book.title, "").trim()}。${outputDescription}`);
-    form.set("wordbookId", book.id);
-    form.set("wordbookTitle", book.title);
-    form.set("kind", "generated");
-    form.set("visibility", visibility);
-    form.set("variant", variant);
-    form.set("outputKind", output);
-    form.set("assetKey", `${book.id}::${variant}::${output}::${visibility}`);
-    form.set("priceJpy", String(priceJpy));
-    form.set("bundlePriceJpy", String(bundlePriceJpy));
+    const metadata = {
+      title,
+      description: `${book.title}の${title.replace(book.title, "").trim()}。${outputDescription}`,
+      wordbookId: book.id,
+      wordbookTitle: book.title,
+      kind: "generated",
+      visibility,
+      variant,
+      outputKind: output,
+      assetKey: `${book.id}::${variant}::${output}::${visibility}`,
+      priceJpy,
+      bundlePriceJpy,
+      mimeType,
+      fileName: safeFileName,
+    };
+
+    const prepareResponse = await fetch("/api/admin/pdf-assets/direct-upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({ action: "prepare", mimeType, sizeBytes: blob.size }),
+    });
+    if (prepareResponse.ok) {
+      const prepared = await prepareResponse.json();
+      const uploadResponse = await fetch(prepared.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": mimeType },
+        body: blob,
+      });
+      if (!uploadResponse.ok) throw new Error(`${book.title}のファイルを保存先へ送信できませんでした。`);
+      const finalizeResponse = await fetch("/api/admin/pdf-assets/direct-upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ action: "finalize", id: prepared.id, storagePath: prepared.storagePath, ...metadata }),
+      });
+      const finalizeResult = await finalizeResponse.json().catch(() => ({}));
+      if (!finalizeResponse.ok) throw new Error(finalizeResult?.message ?? `${book.title}の教材情報を保存できませんでした。`);
+      return;
+    }
+    if (prepareResponse.status !== 503) {
+      const prepareResult = await prepareResponse.json().catch(() => ({}));
+      throw new Error(prepareResult?.message ?? `${book.title}の保存先を準備できませんでした。`);
+    }
+
+    const form = new FormData();
+    form.set("file", new File([blob], safeFileName, { type: mimeType }));
+    Object.entries(metadata).forEach(([key, value]) => form.set(key, String(value)));
     const response = await fetch("/api/admin/pdf-assets", { method: "POST", headers, body: form });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result?.message ?? `${book.title}の教材を保存できませんでした。`);

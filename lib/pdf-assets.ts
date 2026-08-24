@@ -1,7 +1,10 @@
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const PDF_ASSET_BUCKET = "pdf-assets";
 const PDF_ASSET_CATALOG_KEY = "pdf_asset_catalog_v1";
+export type PdfAssetStorageProvider = "supabase" | "r2";
 
 export type PdfAsset = {
   id: string;
@@ -19,6 +22,7 @@ export type PdfAsset = {
   isSample?: boolean;
   mimeType?: "application/pdf" | "image/png" | "image/jpeg";
   storagePath: string;
+  storageProvider?: PdfAssetStorageProvider;
   fileName: string;
   sizeBytes: number;
   createdAt: string;
@@ -40,6 +44,7 @@ type PdfAssetRow = {
   is_sample: boolean;
   mime_type: NonNullable<PdfAsset["mimeType"]>;
   storage_path: string;
+  storage_provider?: PdfAssetStorageProvider | null;
   file_name: string;
   size_bytes: number;
   created_at: string;
@@ -67,6 +72,7 @@ function fromRow(row: PdfAssetRow): PdfAsset {
     isSample: row.is_sample,
     mimeType: row.mime_type,
     storagePath: row.storage_path,
+    storageProvider: row.storage_provider === "r2" ? "r2" : "supabase",
     fileName: row.file_name,
     sizeBytes: Number(row.size_bytes),
     createdAt: row.created_at,
@@ -90,10 +96,79 @@ function toRow(asset: PdfAsset): PdfAssetRow {
     is_sample: Boolean(asset.isSample),
     mime_type: asset.mimeType ?? "application/pdf",
     storage_path: asset.storagePath,
+    storage_provider: asset.storageProvider ?? "supabase",
     file_name: asset.fileName,
     size_bytes: asset.sizeBytes,
     created_at: asset.createdAt,
   };
+}
+
+function r2Config() {
+  const accountId = process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim();
+  const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim();
+  const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim();
+  const bucket = process.env.CLOUDFLARE_R2_BUCKET?.trim();
+  return accountId && accessKeyId && secretAccessKey && bucket
+    ? { accountId, accessKeyId, secretAccessKey, bucket }
+    : null;
+}
+
+let r2Client: S3Client | null = null;
+
+function getR2() {
+  const config = r2Config();
+  if (!config) throw new Error("Cloudflare R2 is not configured.");
+  r2Client ??= new S3Client({
+    region: "auto",
+    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: config.accessKeyId,
+      secretAccessKey: config.secretAccessKey,
+    },
+  });
+  return { client: r2Client, bucket: config.bucket };
+}
+
+export function preferredPdfAssetStorageProvider(): PdfAssetStorageProvider {
+  return r2Config() ? "r2" : "supabase";
+}
+
+export async function createPdfAssetUploadUrl(storagePath: string, contentType: string, expiresIn = 900) {
+  const { client, bucket } = getR2();
+  return getSignedUrl(client, new PutObjectCommand({ Bucket: bucket, Key: storagePath, ContentType: contentType }), { expiresIn });
+}
+
+export async function inspectR2PdfAsset(storagePath: string) {
+  const { client, bucket } = getR2();
+  const result = await client.send(new HeadObjectCommand({ Bucket: bucket, Key: storagePath }));
+  return {
+    sizeBytes: Number(result.ContentLength ?? 0),
+    contentType: result.ContentType ?? "application/octet-stream",
+  };
+}
+
+export async function uploadPdfAssetFile(storagePath: string, body: ArrayBuffer, contentType: string) {
+  const provider = preferredPdfAssetStorageProvider();
+  if (provider === "r2") {
+    const { client, bucket } = getR2();
+    await client.send(new PutObjectCommand({ Bucket: bucket, Key: storagePath, Body: new Uint8Array(body), ContentType: contentType }));
+    return provider;
+  }
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.storage.from(PDF_ASSET_BUCKET).upload(storagePath, body, { contentType, upsert: false });
+  if (error) throw error;
+  return provider;
+}
+
+export async function removePdfAssetFile(storagePath: string, provider: PdfAssetStorageProvider = "supabase") {
+  if (provider === "r2") {
+    const { client, bucket } = getR2();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: storagePath }));
+    return;
+  }
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.storage.from(PDF_ASSET_BUCKET).remove([storagePath]);
+  if (error) throw error;
 }
 
 function parseCatalog(value: unknown): PdfAsset[] {
@@ -109,6 +184,7 @@ function parseCatalog(value: unknown): PdfAsset[] {
 }
 
 export async function ensurePdfAssetBucket() {
+  if (preferredPdfAssetStorageProvider() === "r2") return;
   const supabase = getSupabaseAdmin();
   const { data: buckets, error: listError } = await supabase.storage.listBuckets();
   if (listError) throw listError;
@@ -192,7 +268,11 @@ export async function writePdfAssetCatalog(assets: PdfAsset[]) {
   if (error) throw error;
 }
 
-export async function createPdfAssetSignedUrl(storagePath: string, expiresIn = 300) {
+export async function createPdfAssetSignedUrl(storagePath: string, expiresIn = 300, provider: PdfAssetStorageProvider = "supabase") {
+  if (provider === "r2") {
+    const { client, bucket } = getR2();
+    return getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: storagePath }), { expiresIn });
+  }
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.storage.from(PDF_ASSET_BUCKET).createSignedUrl(storagePath, expiresIn);
   if (error) throw error;

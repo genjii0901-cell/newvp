@@ -14,10 +14,23 @@ create table if not exists public.pdf_assets (
   is_sample boolean not null default false,
   mime_type text not null check (mime_type in ('application/pdf', 'image/png', 'image/jpeg')),
   storage_path text not null unique,
+  storage_provider text not null default 'supabase' check (storage_provider in ('supabase', 'r2')),
   file_name text not null,
   size_bytes bigint not null default 0,
   created_at timestamptz not null default now()
 );
+
+alter table public.pdf_assets
+  add column if not exists storage_provider text not null default 'supabase';
+
+do $$
+begin
+  alter table public.pdf_assets
+    add constraint pdf_assets_storage_provider_check
+    check (storage_provider in ('supabase', 'r2'));
+exception
+  when duplicate_object then null;
+end $$;
 
 create index if not exists pdf_assets_wordbook_id_idx on public.pdf_assets(wordbook_id);
 create index if not exists pdf_assets_visibility_idx on public.pdf_assets(visibility);
@@ -36,7 +49,7 @@ with legacy_catalog as (
 insert into public.pdf_assets (
   id, asset_key, title, description, wordbook_id, wordbook_title, kind,
   visibility, variant, output_kind, price_jpy, bundle_price_jpy, is_sample,
-  mime_type, storage_path, file_name, size_bytes, created_at
+  mime_type, storage_path, storage_provider, file_name, size_bytes, created_at
 )
 select
   (item->>'id')::uuid,
@@ -54,6 +67,7 @@ select
   coalesce((item->>'isSample')::boolean, false),
   case when item->>'mimeType' in ('application/pdf', 'image/png', 'image/jpeg') then item->>'mimeType' else 'application/pdf' end,
   item->>'storagePath',
+  'supabase',
   coalesce(nullif(item->>'fileName', ''), 'material.pdf'),
   coalesce(nullif(item->>'sizeBytes', '')::bigint, 0),
   coalesce(nullif(item->>'createdAt', '')::timestamptz, now())

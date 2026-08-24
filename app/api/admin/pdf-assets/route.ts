@@ -2,15 +2,17 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
-  PDF_ASSET_BUCKET,
   createPdfAssetSignedUrl,
   deletePdfAsset,
   ensurePdfAssetBucket,
+  preferredPdfAssetStorageProvider,
   readPdfAssetCatalog,
+  removePdfAssetFile,
+  uploadPdfAssetFile,
   upsertPdfAsset,
   type PdfAsset,
 } from "@/lib/pdf-assets";
-import { getSupabaseAdmin, isSupabaseServerConfigured, supabaseServerConfigResponse } from "@/lib/supabase/admin";
+import { isSupabaseServerConfigured, supabaseServerConfigResponse } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -57,9 +59,13 @@ export async function GET(request: Request) {
     const assets = await readPdfAssetCatalog();
     const withUrls = await Promise.all(assets.map(async (asset) => ({
       ...asset,
-      downloadUrl: await createPdfAssetSignedUrl(asset.storagePath).catch(() => null),
+      downloadUrl: await createPdfAssetSignedUrl(asset.storagePath, 300, asset.storageProvider ?? "supabase").catch(() => null),
     })));
-    return NextResponse.json({ ok: true, assets: withUrls }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({
+      ok: true,
+      assets: withUrls,
+      preferredStorageProvider: preferredPdfAssetStorageProvider(),
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "教材を読み込めませんでした。" }, { status: 500 });
   }
@@ -80,11 +86,7 @@ export async function POST(request: Request) {
 
     const id = randomUUID();
     const storagePath = `materials/${id}.${extension}`;
-    const supabase = getSupabaseAdmin();
-    const { error: uploadError } = await supabase.storage
-      .from(PDF_ASSET_BUCKET)
-      .upload(storagePath, await file.arrayBuffer(), { contentType: file.type, upsert: false });
-    if (uploadError) throw uploadError;
+    const storageProvider = await uploadPdfAssetFile(storagePath, await file.arrayBuffer(), file.type);
 
     const visibilityValue = formString(form, "visibility");
     const visibility: PdfAsset["visibility"] = visibilityValue === "admin" || visibilityValue === "sale" ? visibilityValue : "public";
@@ -109,6 +111,7 @@ export async function POST(request: Request) {
       isSample: outputKind === "sample-pdf" || outputKind === "sample-image",
       mimeType: file.type as PdfAsset["mimeType"],
       storagePath,
+      storageProvider,
       fileName: file.name,
       sizeBytes: file.size,
       createdAt: new Date().toISOString(),
@@ -118,11 +121,11 @@ export async function POST(request: Request) {
     try {
       replaced = await upsertPdfAsset(asset);
     } catch (error) {
-      await supabase.storage.from(PDF_ASSET_BUCKET).remove([storagePath]);
+      await removePdfAssetFile(storagePath, storageProvider).catch(() => null);
       throw error;
     }
     if (replaced) {
-      await supabase.storage.from(PDF_ASSET_BUCKET).remove([replaced.storagePath]).catch(() => null);
+      await removePdfAssetFile(replaced.storagePath, replaced.storageProvider ?? "supabase").catch(() => null);
     }
     return NextResponse.json({ ok: true, asset, replaced: Boolean(replaced) });
   } catch (error) {
@@ -139,9 +142,7 @@ export async function DELETE(request: Request) {
     const catalog = await readPdfAssetCatalog();
     const target = catalog.find((asset) => asset.id === id);
     if (!target) return NextResponse.json({ ok: false, message: "教材が見つかりません。" }, { status: 404 });
-    const supabase = getSupabaseAdmin();
-    const { error } = await supabase.storage.from(PDF_ASSET_BUCKET).remove([target.storagePath]);
-    if (error) throw error;
+    await removePdfAssetFile(target.storagePath, target.storageProvider ?? "supabase");
     await deletePdfAsset(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
