@@ -29,6 +29,7 @@ export type PdfBatchRequest = {
   ownerPassword: string;
   individualPriceJpy: number;
   bundlePriceJpy: number;
+  existingAssetKeys?: string[];
 };
 export type PdfBatchProgress = { completed: number; total: number; current: string; failed: number };
 export type PdfBatchResult = { saved: number; failed: Array<{ key: string; message: string }> };
@@ -49,6 +50,7 @@ type Asset = {
   fileName: string;
   sizeBytes: number;
   createdAt: string;
+  assetKey?: string | null;
   downloadUrl?: string | null;
 };
 
@@ -176,12 +178,48 @@ export default function AdminPdfLibrary({
       ownerPassword,
       individualPriceJpy,
       bundlePriceJpy,
+      existingAssetKeys: assets.map((asset) => asset.assetKey).filter((key): key is string => Boolean(key)),
     }, setProgress);
     setProgress(null);
     setLastFailed(result.failed.map((item) => item.key));
     setMessage(result.failed.length
       ? `${result.saved}件を保存し、${result.failed.length}件は失敗しました。失敗分だけ再実行できます。`
       : `${result.saved}件をすべて保存しました。`);
+    if (result.saved) await load();
+  }
+
+  async function runFullCatalog() {
+    if (!ownerPassword.trim()) {
+      setMessage("全教材のPDFを保護するため、変更用パスワードを入力してください。");
+      return;
+    }
+    const allVariants = VARIANTS.map((item) => item.id);
+    const allOutputs: PdfBatchOutput[] = ["full-pdf", "sample-pdf", "sample-image"];
+    const allBookIds = sortedBooks.map((book) => book.id);
+    const possibleJobs = allBookIds.length * allVariants.length * allOutputs.length;
+    if (!window.confirm(`${allBookIds.length}冊・${allVariants.length}形式を準備します。最大${possibleJobs.toLocaleString()}件です。作成済みファイルは自動で飛ばします。開始しますか？`)) return;
+    setSelectedIds(allBookIds);
+    setVariants(allVariants);
+    setOutputs(allOutputs);
+    setBatchVisibility("sale");
+    setMessage("");
+    setLastFailed([]);
+    const result = await onStoreBatch({
+      bookIds: allBookIds,
+      variants: allVariants,
+      outputs: allOutputs,
+      visibility: "sale",
+      lockEditing: true,
+      ownerPassword,
+      individualPriceJpy,
+      bundlePriceJpy,
+      existingAssetKeys: assets.map((asset) => asset.assetKey).filter((key): key is string => Boolean(key)),
+    }, setProgress);
+    setProgress(null);
+    setLastFailed(result.failed.map((item) => item.key));
+    setMessage(result.failed.length
+      ? `${result.saved}件を保存し、${result.failed.length}件は失敗しました。もう一度実行すると未作成分から再開できます。`
+      : `${result.saved}件を保存しました。販売用完全版と公開サンプルの準備が完了しました。`);
     if (result.saved) await load();
   }
 
@@ -322,6 +360,8 @@ export default function AdminPdfLibrary({
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs"><span className="font-black text-slate-700">作成予定: {totalJobs}ファイル</span><span className="text-slate-500">1件ずつ保存するため、途中で失敗しても成功分は残ります。</span></div>
           {progress ? <div className="mt-2"><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-blue-600 transition-all" style={{ width: `${Math.round((progress.completed / Math.max(1, progress.total)) * 100)}%` }} /></div><p className="mt-1 truncate text-xs font-bold text-blue-700">{progress.completed}/{progress.total}・失敗 {progress.failed}・{progress.current}</p></div> : null}
           <button type="button" onClick={() => runBatch()} disabled={!totalJobs || busy || Boolean(progress)} className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white disabled:bg-slate-300">選んだ教材を一括作成・保存</button>
+          <button type="button" onClick={runFullCatalog} disabled={busy || Boolean(progress) || sortedBooks.length === 0} className="mt-2 w-full rounded-xl border-2 border-blue-600 bg-white px-4 py-3 text-sm font-black text-blue-700 disabled:border-slate-200 disabled:text-slate-300">全{sortedBooks.length}冊・全{VARIANTS.length}形式の販売カタログを作成</button>
+          <p className="mt-2 text-[11px] leading-5 text-slate-500">完全版PDFは販売用、先頭1ページのPDF・画像は購入前サンプルとして保存します。管理者はすべてを確認・外部保存できます。再実行時は作成済みを飛ばします。</p>
           {lastFailed.length ? <button type="button" onClick={() => runBatch([...new Set(lastFailed.map((key) => key.split("::")[0]))])} disabled={busy || Boolean(progress)} className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800">失敗した単語帳だけ再実行</button> : null}
         </div>
       </div>

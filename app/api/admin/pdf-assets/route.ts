@@ -4,9 +4,10 @@ import { requireAdmin } from "@/lib/admin-auth";
 import {
   PDF_ASSET_BUCKET,
   createPdfAssetSignedUrl,
+  deletePdfAsset,
   ensurePdfAssetBucket,
   readPdfAssetCatalog,
-  writePdfAssetCatalog,
+  upsertPdfAsset,
   type PdfAsset,
 } from "@/lib/pdf-assets";
 import { getSupabaseAdmin, isSupabaseServerConfigured, supabaseServerConfigResponse } from "@/lib/supabase/admin";
@@ -115,10 +116,7 @@ export async function POST(request: Request) {
 
     let replaced: PdfAsset | undefined;
     try {
-      const catalog = await readPdfAssetCatalog();
-      replaced = assetKey ? catalog.find((item) => item.assetKey === assetKey) : undefined;
-      const next = replaced ? [asset, ...catalog.filter((item) => item.id !== replaced?.id)] : [asset, ...catalog];
-      await writePdfAssetCatalog(next);
+      replaced = await upsertPdfAsset(asset);
     } catch (error) {
       await supabase.storage.from(PDF_ASSET_BUCKET).remove([storagePath]);
       throw error;
@@ -144,7 +142,7 @@ export async function DELETE(request: Request) {
     const supabase = getSupabaseAdmin();
     const { error } = await supabase.storage.from(PDF_ASSET_BUCKET).remove([target.storagePath]);
     if (error) throw error;
-    await writePdfAssetCatalog(catalog.filter((asset) => asset.id !== id));
+    await deletePdfAsset(id);
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "教材を削除できませんでした。" }, { status: 500 });

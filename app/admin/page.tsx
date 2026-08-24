@@ -1556,7 +1556,12 @@ export default function AdminPage() {
     const form = new FormData();
     form.set("file", new File([blob], safeFileName, { type: isImage ? "image/png" : "application/pdf" }));
     form.set("title", title);
-    form.set("description", `${book.title}から作成した${isImage ? "サンプル画像" : "PDF教材"}です。`);
+    const outputDescription = output === "full-pdf"
+      ? "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"
+      : output === "sample-pdf"
+        ? "購入前にレイアウトと内容を確認できる先頭1ページのサンプルPDFです。"
+        : "購入前に仕上がりを確認できる先頭1ページのサンプル画像です。";
+    form.set("description", `${book.title}の${title.replace(book.title, "").trim()}。${outputDescription}`);
     form.set("wordbookId", book.id);
     form.set("wordbookTitle", book.title);
     form.set("kind", "generated");
@@ -1611,6 +1616,7 @@ export default function AdminPage() {
   ): Promise<PdfBatchResult> {
     const total = request.bookIds.length * request.variants.length * request.outputs.length;
     if (total === 0) return { saved: 0, failed: [] };
+    const existingAssetKeys = new Set(request.existingAssetKeys ?? []);
     setExportingAction("pdf-batch");
     setPdfMsg(`一括教材を準備しています（0/${total}件）`);
     let saved = 0;
@@ -1618,6 +1624,15 @@ export default function AdminPage() {
     const failed: Array<{ key: string; message: string }> = [];
     try {
       for (const id of request.bookIds) {
+        const bookHasPendingOutput = request.variants.some((variantId) => request.outputs.some((output) => {
+          const visibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
+          return !existingAssetKeys.has(`${id}::${variantId}::${output}::${visibility}`);
+        }));
+        if (!bookHasPendingOutput) {
+          completed += request.variants.length * request.outputs.length;
+          onProgress({ completed, total, current: `${id}はすべて作成済み`, failed: failed.length });
+          continue;
+        }
         let book: OfficialBook;
         try {
           book = await loadFullAdminBook(id);
@@ -1632,10 +1647,26 @@ export default function AdminPage() {
         const words = book.words.map((word) => ({ no: word.no, english: word.english, japanese: word.japanese }));
         for (const variantId of request.variants) {
           const config = BATCH_VARIANTS[variantId];
+          const pendingOutputs = request.outputs.filter((output) => {
+            const visibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
+            return !existingAssetKeys.has(`${id}::${variantId}::${output}::${visibility}`);
+          });
+          if (pendingOutputs.length === 0) {
+            completed += request.outputs.length;
+            onProgress({ completed, total, current: `${book.title}・${config.label}は作成済み`, failed: failed.length });
+            continue;
+          }
           const built = buildAdminPrintDocument("all", "render", book, words, config);
           if (!built) continue;
           for (const output of request.outputs) {
             const key = `${id}::${variantId}::${output}`;
+            const outputVisibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
+            const assetKey = `${id}::${variantId}::${output}::${outputVisibility}`;
+            if (existingAssetKeys.has(assetKey)) {
+              completed += 1;
+              onProgress({ completed, total, current: `${book.title}・${config.label}・作成済み`, failed: failed.length });
+              continue;
+            }
             const label = output === "full-pdf" ? "完全版" : output === "sample-pdf" ? "サンプルPDF" : "サンプル画像";
             onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
             try {
@@ -1657,6 +1688,7 @@ export default function AdminPage() {
                 priceJpy: request.individualPriceJpy,
                 bundlePriceJpy: request.bundlePriceJpy,
               });
+              existingAssetKeys.add(assetKey);
               saved += 1;
             } catch (error) {
               failed.push({ key, message: error instanceof Error ? error.message : "保存に失敗しました。" });

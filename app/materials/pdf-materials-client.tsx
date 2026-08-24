@@ -12,6 +12,7 @@ type Asset = {
   wordbookId: string | null;
   wordbookTitle: string | null;
   visibility: "public" | "sale";
+  variant?: string | null;
   outputKind?: "full-pdf" | "sample-pdf" | "sample-image" | "uploaded";
   priceJpy?: number | null;
   bundlePriceJpy?: number | null;
@@ -153,6 +154,15 @@ export default function PdfMaterialsClient() {
         {loading ? <p className="text-sm text-slate-400">教材を読み込んでいます...</p> : groups.length === 0 ? <div className="rounded-2xl border bg-white p-8 text-center"><p className="font-bold text-slate-500">販売中の教材はまだありません。</p><Link href="/wordbooks" className="mt-3 inline-block text-sm font-black text-blue-600">みんなの単語帳を見る</Link></div> : groups.map((group) => {
           const saleAssets = group.assets.filter((asset) => asset.visibility === "sale");
           const sampleAssets = group.assets.filter((asset) => asset.visibility === "public");
+          const products = [...group.assets.reduce((map, asset) => {
+            const key = asset.variant || `asset:${asset.id}`;
+            const product = map.get(key) ?? { key, assets: [] as Asset[] };
+            product.assets.push(asset);
+            map.set(key, product);
+            return map;
+          }, new Map<string, { key: string; assets: Asset[] }>()).values()]
+            .sort((a, b) => (a.assets.find((asset) => asset.visibility === "sale")?.title ?? a.key)
+              .localeCompare(b.assets.find((asset) => asset.visibility === "sale")?.title ?? b.key, "ja"));
           const bundleUnlocked = Boolean(group.id && purchases.some((purchase) => purchase.purchase_type === "wordbook" && purchase.wordbook_id === group.id));
           const bundlePrice = saleAssets[0]?.bundlePriceJpy ?? 980;
           return <article key={group.id || group.title} className="overflow-hidden rounded-2xl border bg-white shadow-sm">
@@ -161,13 +171,22 @@ export default function PdfMaterialsClient() {
               {group.id && saleAssets.length ? bundleUnlocked ? <span className="inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-4 py-2.5 text-sm font-black text-emerald-800"><PackageCheck size={17} /> セット購入済み</span> : <button type="button" onClick={() => startPurchase({ purchaseType: "wordbook", wordbookId: group.id! })} disabled={Boolean(busyKey)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white disabled:bg-slate-300"><ShoppingCart size={17} /> 全形式セット ¥{bundlePrice.toLocaleString()}</button> : null}
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3 sm:p-5">
-              {[...sampleAssets, ...saleAssets].map((asset) => {
-                const unlocked = isUnlocked(asset);
-                const isImage = asset.mimeType?.startsWith("image/");
-                return <div key={asset.id} className="flex min-h-40 flex-col rounded-xl border p-3">
-                  <div className="flex items-start gap-3"><span className={`rounded-lg p-2.5 ${isImage ? "bg-violet-50 text-violet-600" : "bg-red-50 text-red-600"}`}>{isImage ? <FileImage size={20} /> : <FileText size={20} />}</span><div className="min-w-0"><h3 className="text-sm font-black text-slate-900">{asset.title}</h3><p className="mt-1 text-[11px] font-bold text-slate-400">{asset.visibility === "public" ? "無料サンプル" : `単品 ¥${(asset.priceJpy ?? 500).toLocaleString()}`}</p></div></div>
-                  {asset.description ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{asset.description}</p> : null}
-                  <div className="mt-auto pt-3">{unlocked ? <button type="button" onClick={() => openAsset(asset)} disabled={busyKey === asset.id} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-xs font-black text-white"><Printer size={15} /> {asset.visibility === "public" ? "サンプルを見る" : "購入済み教材を開く"}</button> : <button type="button" onClick={() => startPurchase({ purchaseType: "asset", assetId: asset.id })} disabled={Boolean(busyKey)} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700"><LockKeyhole size={15} /> 単品で購入</button>}</div>
+              {products.map((product) => {
+                const full = product.assets.find((asset) => asset.visibility === "sale" && asset.outputKind === "full-pdf");
+                const sampleImage = product.assets.find((asset) => asset.visibility === "public" && asset.outputKind === "sample-image");
+                const samplePdf = product.assets.find((asset) => asset.visibility === "public" && asset.outputKind === "sample-pdf");
+                const fallback = full ?? samplePdf ?? sampleImage ?? product.assets[0];
+                const unlocked = full ? isUnlocked(full) : false;
+                return <div key={product.key} className="flex min-h-64 flex-col overflow-hidden rounded-xl border bg-white">
+                  {sampleImage?.downloadUrl ? <div className="aspect-[210/125] overflow-hidden border-b bg-slate-100"><img src={sampleImage.downloadUrl} alt={`${fallback.title}のサンプル`} loading="lazy" className="h-full w-full object-cover object-top" /></div> : <div className="flex aspect-[210/125] items-center justify-center border-b bg-slate-50 text-slate-300"><FileImage size={34} /></div>}
+                  <div className="flex flex-1 flex-col p-3">
+                    <div className="flex items-start gap-3"><span className="rounded-lg bg-red-50 p-2.5 text-red-600"><FileText size={20} /></span><div className="min-w-0"><h3 className="text-sm font-black text-slate-900">{full?.title ?? fallback.title.replace(/\s+サンプル$/, "")}</h3><p className="mt-1 text-[11px] font-bold text-blue-600">{full ? `単品 ¥${(full.priceJpy ?? 500).toLocaleString()}` : "サンプルのみ"}</p></div></div>
+                    {fallback.description ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">{fallback.description}</p> : null}
+                    <div className="mt-auto grid gap-2 pt-3 sm:grid-cols-2">
+                      {samplePdf ? <button type="button" onClick={() => openAsset(samplePdf)} className="inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-xs font-black text-slate-700"><Printer size={15} /> サンプルPDF</button> : <span />}
+                      {full ? unlocked ? <button type="button" onClick={() => openAsset(full)} disabled={busyKey === full.id} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-xs font-black text-white"><Printer size={15} /> PDFをダウンロード</button> : <button type="button" onClick={() => startPurchase({ purchaseType: "asset", assetId: full.id })} disabled={Boolean(busyKey)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-black text-blue-700"><LockKeyhole size={15} /> 単品で購入</button> : null}
+                    </div>
+                  </div>
                 </div>;
               })}
             </div>
