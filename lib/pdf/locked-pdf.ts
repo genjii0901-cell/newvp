@@ -12,6 +12,12 @@ type LockedPdfOptions = {
   optimizeSize?: boolean;
 };
 
+export type GeneratedPdfOutputKind = "full-pdf" | "sample-pdf" | "sample-image";
+
+type GeneratedPdfOutputOptions = LockedPdfOptions & {
+  outputs: GeneratedPdfOutputKind[];
+};
+
 function randomOwnerPassword() {
   const bytes = new Uint8Array(24);
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
@@ -20,6 +26,124 @@ function randomOwnerPassword() {
     for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
   }
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function createLockedPdfOutputBlobs(
+  fullDocHtml: string,
+  allowPrint = true,
+  options: GeneratedPdfOutputOptions,
+): Promise<Partial<Record<GeneratedPdfOutputKind, Blob>>> {
+  const requested = new Set(options.outputs);
+  if (requested.size === 0) return {};
+
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText =
+    "position:fixed;left:-10000px;top:0;width:820px;height:2000px;border:none;background:white;visibility:hidden;";
+  document.body.appendChild(iframe);
+
+  try {
+    const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
+    if (!doc) throw new Error("PDF出力用の画面を準備できませんでした。");
+
+    doc.open();
+    doc.write(fullDocHtml);
+    doc.close();
+
+    const pdfFixStyle = doc.createElement("style");
+    pdfFixStyle.textContent = `
+      .print-table th, .print-table td { vertical-align:middle!important; }
+      .p-fit {
+        padding:.35mm 1.05mm!important;
+        overflow:visible!important;
+        align-items:center!important;
+      }
+      .p-text {
+        display:block!important;
+        overflow:visible!important;
+        line-height:1.28!important;
+        padding:.12em 0 .2em!important;
+        -webkit-line-clamp:unset!important;
+        line-clamp:unset!important;
+      }
+    `;
+    doc.head?.appendChild(pdfFixStyle);
+
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    if (doc.fonts?.ready) {
+      try { await doc.fonts.ready; } catch { /* ignore */ }
+    }
+
+    const allPages = Array.from(doc.querySelectorAll<HTMLElement>(".print-page"));
+    if (allPages.length === 0) throw new Error("PDFにするページが見つかりませんでした。");
+    const pages = requested.has("full-pdf") ? allPages : allPages.slice(0, 1);
+    const lockEditing = options.lockEditing ?? true;
+    const ownerPassword = options.ownerPassword?.trim() || randomOwnerPassword();
+    const createPdf = () => new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+      ...(lockEditing
+        ? {
+            encryption: {
+              userPassword: "",
+              ownerPassword,
+              userPermissions: allowPrint ? ["print"] : [],
+            },
+          }
+        : {}),
+    });
+    const fullPdf = requested.has("full-pdf") ? createPdf() : null;
+    const samplePdf = requested.has("sample-pdf") ? createPdf() : null;
+    let sampleImage: Blob | undefined;
+
+    for (let index = 0; index < pages.length; index += 1) {
+      const page = pages[index];
+      const canvas = await html2canvas(page, {
+        scale: options.optimizeSize === true ? 1.85 : 2.25,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+        logging: false,
+        removeContainer: true,
+        windowWidth: Math.ceil(page.scrollWidth || page.clientWidth || 726),
+        windowHeight: Math.ceil(page.scrollHeight || page.clientHeight || 1058),
+      });
+      const imgData = canvas.toDataURL("image/png");
+
+      if (fullPdf) {
+        if (index > 0) fullPdf.addPage("a4", "portrait");
+        fullPdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+      }
+      if (index === 0 && samplePdf) {
+        samplePdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+      }
+      if (index === 0 && requested.has("sample-image")) {
+        sampleImage = await new Promise<Blob>((resolve, reject) => {
+          canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("画像データを作成できませんでした。")), "image/png");
+        });
+      }
+
+      canvas.width = 1;
+      canvas.height = 1;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    const result: Partial<Record<GeneratedPdfOutputKind, Blob>> = {};
+    if (fullPdf) result["full-pdf"] = fullPdf.output("blob");
+    if (samplePdf) result["sample-pdf"] = samplePdf.output("blob");
+    if (sampleImage) result["sample-image"] = sampleImage;
+    void A4_WIDTH_MM;
+    void A4_HEIGHT_MM;
+    return result;
+  } finally {
+    try { iframe.remove(); } catch { /* ignore */ }
+  }
 }
 
 export async function createLockedPdfBlob(

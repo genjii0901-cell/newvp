@@ -82,6 +82,32 @@ const OUTPUT_LABELS: Record<NonNullable<Asset["outputKind"]>, string> = {
   uploaded: "登録教材",
 };
 
+function createStrongOwnerPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_";
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+}
+
+function downloadOwnerPasswordBackup(password: string) {
+  const body = [
+    "Vocab Print Pro PDF editing password",
+    `Created: ${new Date().toISOString()}`,
+    "",
+    password,
+    "",
+    "Keep this file private. Buyers do not need this password to open or print PDFs.",
+  ].join("\r\n");
+  const url = URL.createObjectURL(new Blob([body], { type: "text/plain;charset=utf-8" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `vocab-print-pro-pdf-owner-password-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 export default function AdminPdfLibrary({
   books,
   currentBookId,
@@ -273,9 +299,10 @@ export default function AdminPdfLibrary({
       setMessage("全冊の一括作成にはCloudflare R2の設定が必要です。設定後は、この画面に「保存先: R2」と表示されます。");
       return;
     }
+    const catalogOwnerPassword = ownerPassword.trim() || createStrongOwnerPassword();
     if (!ownerPassword.trim()) {
-      setMessage("全教材のPDFを保護するため、変更用パスワードを入力してください。");
-      return;
+      setOwnerPassword(catalogOwnerPassword);
+      downloadOwnerPasswordBackup(catalogOwnerPassword);
     }
     const allVariants = VARIANTS.map((item) => item.id);
     const allOutputs: PdfBatchOutput[] = ["full-pdf", "sample-pdf", "sample-image"];
@@ -294,7 +321,7 @@ export default function AdminPdfLibrary({
       outputs: allOutputs,
       visibility: "sale",
       lockEditing: true,
-      ownerPassword,
+      ownerPassword: catalogOwnerPassword,
       individualPriceJpy,
       bundlePriceJpy,
       existingAssetKeys: assets.map((asset) => asset.assetKey).filter((key): key is string => Boolean(key)),
@@ -440,7 +467,7 @@ export default function AdminPdfLibrary({
               </div>
               <label className="block font-bold">用途<select value={batchVisibility} onChange={(event) => setBatchVisibility(event.target.value as "admin" | "sale")} className="mt-1 w-full rounded-lg border px-2 py-2"><option value="admin">管理者だけで保管</option><option value="sale">PDF教材として販売</option></select></label>
               <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={lockEditing} onChange={(event) => setLockEditing(event.target.checked)} /> PDFの変更を制限する</label>
-              {lockEditing ? <label className="block font-bold">変更用パスワード<input type="password" value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} autoComplete="new-password" placeholder="購入者には渡さないパスワード" className="mt-1 w-full rounded-lg border px-3 py-2" /></label> : null}
+              {lockEditing ? <div><label className="block font-bold">変更用パスワード<input type="password" value={ownerPassword} onChange={(event) => setOwnerPassword(event.target.value)} autoComplete="new-password" placeholder="空欄なら全冊作成時に自動生成" className="mt-1 w-full rounded-lg border px-3 py-2" /></label><button type="button" onClick={() => { const password = createStrongOwnerPassword(); setOwnerPassword(password); downloadOwnerPasswordBackup(password); setMessage("安全な変更用パスワードを作成し、控えを保存しました。"); }} className="mt-2 w-full rounded-lg border bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600">安全なパスワードを自動生成・控えを保存</button></div> : null}
               {batchVisibility === "sale" ? <div className="grid grid-cols-2 gap-2"><label className="font-bold">単品価格<input type="number" min={50} step={10} value={individualPriceJpy} onChange={(event) => setIndividualPriceJpy(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label><label className="font-bold">1冊セット<input type="number" min={100} step={10} value={bundlePriceJpy} onChange={(event) => setBundlePriceJpy(Number(event.target.value))} className="mt-1 w-full rounded-lg border px-2 py-2" /></label></div> : null}
             </div>
           </div>

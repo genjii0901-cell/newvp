@@ -16,7 +16,7 @@ import {
 } from "@/lib/print/full-builder";
 import { parseWordText } from "@/lib/parse-word-text";
 import { richClipboardHtmlToWordTsv } from "@/lib/clipboard-rich-word-text";
-import { createLockedPdfBlob, createRenderedPageImageBlob, downloadLockedPdf } from "@/lib/pdf/locked-pdf";
+import { createLockedPdfBlob, createLockedPdfOutputBlobs, downloadLockedPdf } from "@/lib/pdf/locked-pdf";
 import { createClient } from "@/lib/supabase/client";
 import AdminQuizPanel from "./admin-quiz-panel";
 import AdminPdfLibrary, {
@@ -1692,6 +1692,23 @@ export default function AdminPage() {
           }
           const built = buildAdminPrintDocument("all", "render", book, words, config);
           if (!built) continue;
+          let outputBlobs: Partial<Record<PdfBatchOutput, Blob>>;
+          try {
+            outputBlobs = await createLockedPdfOutputBlobs(built.fullDoc, true, {
+              outputs: pendingOutputs,
+              lockEditing: request.lockEditing,
+              ownerPassword: request.ownerPassword,
+              optimizeSize: true,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : "PDFの作成に失敗しました。";
+            for (const output of pendingOutputs) {
+              failed.push({ key: `${id}::${variantId}::${output}`, message });
+            }
+            completed += request.outputs.length;
+            onProgress({ completed, total, current: `${book.title}・${config.label}の作成に失敗`, failed: failed.length });
+            continue;
+          }
           for (const output of request.outputs) {
             const key = `${id}::${variantId}::${output}`;
             const outputVisibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
@@ -1705,14 +1722,8 @@ export default function AdminPage() {
             onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
             try {
               const sample = output !== "full-pdf";
-              const blob = output === "sample-image"
-                ? await createRenderedPageImageBlob(built.fullDoc)
-                : await createLockedPdfBlob(built.fullDoc, true, {
-                    lockEditing: request.lockEditing,
-                    ownerPassword: request.ownerPassword,
-                    maxPages: sample ? 1 : undefined,
-                    optimizeSize: true,
-                  });
+              const blob = outputBlobs[output];
+              if (!blob) throw new Error("作成した教材データが見つかりませんでした。");
               await uploadGeneratedAsset({
                 blob,
                 title: `${book.title} ${config.label}${sample ? " サンプル" : ""}`,
