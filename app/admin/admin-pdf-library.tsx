@@ -442,6 +442,21 @@ export default function AdminPdfLibrary({
               <button type="button" onClick={() => setSelectedIds(sortedBooks.map((book) => book.id))} className="rounded-lg border bg-white px-2.5 py-1.5 text-xs font-bold">すべて選択</button>
               <button type="button" onClick={() => setSelectedIds([])} className="rounded-lg border bg-white px-2.5 py-1.5 text-xs font-bold">解除</button>
             </div>
+            <div className="mt-2 rounded-xl border border-blue-100 bg-white p-2">
+              <p className="mb-1.5 text-[11px] font-black text-blue-700">並列作成用に4分割</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[0, 1, 2, 3].map((chunkIndex) => (
+                  <button
+                    key={chunkIndex}
+                    type="button"
+                    onClick={() => setSelectedIds(sortedBooks.filter((_, index) => index % 4 === chunkIndex).map((book) => book.id))}
+                    className="rounded-lg border bg-slate-50 px-2 py-1.5 text-[11px] font-black text-slate-700 hover:border-blue-300 hover:bg-blue-50"
+                  >
+                    {chunkIndex + 1}/4
+                  </button>
+                ))}
+              </div>
+            </div>
             <details className="mt-2 rounded-xl border bg-white p-3" open={selectedIds.length === 0}>
               <summary className="cursor-pointer text-sm font-black">選択中 {selectedIds.length}冊</summary>
               <div className="mt-2 max-h-56 space-y-1 overflow-auto">
