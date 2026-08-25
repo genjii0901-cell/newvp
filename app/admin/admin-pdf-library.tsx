@@ -418,6 +418,7 @@ export default function AdminPdfLibrary({
           <p className="mt-1 text-sm text-slate-500">管理用の保管と、購入者向け教材を分けて作成できます。</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <a href="/api/admin/batch-token" className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600"><Download size={15} /> 高速作成キー</a>
           <button type="button" onClick={downloadManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> JSON一覧</button>
           <button type="button" onClick={downloadCsvManifest} disabled={!assets.length} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600 disabled:text-slate-300"><Download size={15} /> CSV一覧</button>
           <button type="button" onClick={load} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black text-slate-600"><RefreshCw size={15} /> 再読み込み</button>
