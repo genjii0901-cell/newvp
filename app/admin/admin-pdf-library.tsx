@@ -120,6 +120,7 @@ export default function AdminPdfLibrary({
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [storageProvider, setStorageProvider] = useState<"supabase" | "r2">("supabase");
+  const [missingR2Settings, setMissingR2Settings] = useState<string[]>([]);
   const [assetFilter, setAssetFilter] = useState("");
   const sortedBooks = useMemo(() => [...books].sort((a, b) => a.title.localeCompare(b.title, "ja")), [books]);
   const totalJobs = selectedIds.length * variants.length * outputs.length;
@@ -157,6 +158,7 @@ export default function AdminPdfLibrary({
     else {
       setAssets(Array.isArray(result.assets) ? result.assets : []);
       setStorageProvider(result.preferredStorageProvider === "r2" ? "r2" : "supabase");
+      setMissingR2Settings(Array.isArray(result?.storageConfiguration?.r2?.missing) ? result.storageConfiguration.r2.missing : []);
     }
     setLoading(false);
   }
@@ -400,6 +402,9 @@ export default function AdminPdfLibrary({
       </p>
       <p className={`mt-2 rounded-xl border px-3 py-2 text-xs font-bold ${storageProvider === "r2" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
         保存先: {storageProvider === "r2" ? "Cloudflare R2（全冊の一括作成が可能）" : "Supabase（少量保存のみ・全冊作成はR2設定後に有効）"}
+        {storageProvider !== "r2" && missingR2Settings.length > 0 && (
+          <span className="mt-1 block font-mono font-semibold">未設定: {missingR2Settings.join(", ")}</span>
+        )}
       </p>
 
       <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">

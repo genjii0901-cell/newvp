@@ -113,6 +113,19 @@ function r2Config() {
     : null;
 }
 
+export function pdfAssetStorageConfigurationStatus() {
+  const variables = {
+    CLOUDFLARE_R2_ACCOUNT_ID: Boolean(process.env.CLOUDFLARE_R2_ACCOUNT_ID?.trim()),
+    CLOUDFLARE_R2_ACCESS_KEY_ID: Boolean(process.env.CLOUDFLARE_R2_ACCESS_KEY_ID?.trim()),
+    CLOUDFLARE_R2_SECRET_ACCESS_KEY: Boolean(process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY?.trim()),
+    CLOUDFLARE_R2_BUCKET: Boolean(process.env.CLOUDFLARE_R2_BUCKET?.trim()),
+  };
+  return {
+    configured: Object.values(variables).every(Boolean),
+    missing: Object.entries(variables).filter(([, configured]) => !configured).map(([name]) => name),
+  };
+}
+
 let r2Client: S3Client | null = null;
 
 function getR2() {

@@ -5,6 +5,7 @@ import {
   createPdfAssetSignedUrl,
   deletePdfAsset,
   ensurePdfAssetBucket,
+  pdfAssetStorageConfigurationStatus,
   preferredPdfAssetStorageProvider,
   readPdfAssetCatalog,
   removePdfAssetFile,
@@ -65,6 +66,9 @@ export async function GET(request: Request) {
       ok: true,
       assets: withUrls,
       preferredStorageProvider: preferredPdfAssetStorageProvider(),
+      storageConfiguration: {
+        r2: pdfAssetStorageConfigurationStatus(),
+      },
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, message: error instanceof Error ? error.message : "教材を読み込めませんでした。" }, { status: 500 });
