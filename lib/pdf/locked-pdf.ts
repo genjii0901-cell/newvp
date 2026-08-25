@@ -114,18 +114,19 @@ export async function createLockedPdfOutputBlobs(
         windowWidth: Math.ceil(page.scrollWidth || page.clientWidth || 726),
         windowHeight: Math.ceil(page.scrollHeight || page.clientHeight || 1058),
       });
-      const imgData = canvas.toDataURL("image/png");
+      const imageQuality = options.optimizeSize === true ? 0.93 : 0.96;
+      const imgData = canvas.toDataURL("image/jpeg", imageQuality);
 
       if (fullPdf) {
         if (index > 0) fullPdf.addPage("a4", "portrait");
-        fullPdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+        fullPdf.addImage(imgData, "JPEG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
       }
       if (index === 0 && samplePdf) {
-        samplePdf.addImage(imgData, "PNG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
+        samplePdf.addImage(imgData, "JPEG", PAGE_X_MM, PAGE_Y_MM, PAGE_W_MM, PAGE_H_MM, undefined, "FAST");
       }
       if (index === 0 && requested.has("sample-image")) {
         sampleImage = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("画像データを作成できませんでした。")), "image/png");
+          canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("画像データを作成できませんでした。")), "image/jpeg", imageQuality);
         });
       }
 

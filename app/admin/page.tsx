@@ -1552,8 +1552,9 @@ export default function AdminPage() {
   }) {
     const headers = await getAdminHeaders();
     const isImage = output === "sample-image";
-    const mimeType = isImage ? "image/png" : "application/pdf";
-    const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${isImage ? "png" : "pdf"}`;
+    const imageExtension = blob.type === "image/jpeg" ? "jpg" : "png";
+    const mimeType = isImage ? (blob.type === "image/jpeg" ? "image/jpeg" : "image/png") : "application/pdf";
+    const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${isImage ? imageExtension : "pdf"}`;
     const outputDescription = output === "full-pdf"
       ? "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"
       : output === "sample-pdf"
@@ -1709,6 +1710,7 @@ export default function AdminPage() {
             onProgress({ completed, total, current: `${book.title}・${config.label}の作成に失敗`, failed: failed.length });
             continue;
           }
+          const outputsToUpload: PdfBatchOutput[] = [];
           for (const output of request.outputs) {
             const key = `${id}::${variantId}::${output}`;
             const outputVisibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
@@ -1718,6 +1720,12 @@ export default function AdminPage() {
               onProgress({ completed, total, current: `${book.title}・${config.label}・作成済み`, failed: failed.length });
               continue;
             }
+            outputsToUpload.push(output);
+          }
+          await Promise.all(outputsToUpload.map(async (output) => {
+            const key = `${id}::${variantId}::${output}`;
+            const outputVisibility = output !== "full-pdf" && request.visibility === "sale" ? "public" : request.visibility;
+            const assetKey = `${id}::${variantId}::${output}::${outputVisibility}`;
             const label = output === "full-pdf" ? "完全版" : output === "sample-pdf" ? "サンプルPDF" : "サンプル画像";
             onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
             try {
@@ -1743,7 +1751,7 @@ export default function AdminPage() {
             onProgress({ completed, total, current: `${book.title}・${config.label}・${label}`, failed: failed.length });
             setPdfMsg(`一括教材を保存しています（${completed}/${total}件、失敗 ${failed.length}件）`);
             await new Promise((resolve) => setTimeout(resolve, 40));
-          }
+          }));
         }
       }
       setPdfMsg(failed.length ? `${saved}件を保存し、${failed.length}件は失敗しました。` : `${saved}件の教材を保存しました。`);
