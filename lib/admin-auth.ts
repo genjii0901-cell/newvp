@@ -196,16 +196,8 @@ function requestAdminToken(request: Request): string | null {
 }
 
 export function setAdminSessionCookie(response: NextResponse, token: string): void {
-  response.cookies.set(ADMIN_SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    path: "/api/admin",
-    maxAge: Math.floor(SESSION_TTL_MS / 1000),
-  });
-}
-
-export function clearAdminSessionCookie(response: NextResponse): void {
+  // Remove sessions issued by older builds, whose narrower path could leave a
+  // second cookie with the same name and make session restoration unreliable.
   response.cookies.set(ADMIN_SESSION_COOKIE, "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -213,6 +205,25 @@ export function clearAdminSessionCookie(response: NextResponse): void {
     path: "/api/admin",
     maxAge: 0,
   });
+  response.cookies.set(ADMIN_SESSION_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+}
+
+export function clearAdminSessionCookie(response: NextResponse): void {
+  for (const path of ["/", "/api/admin"]) {
+    response.cookies.set(ADMIN_SESSION_COOKIE, "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path,
+      maxAge: 0,
+    });
+  }
 }
 
 export async function resolveAdminUserFromBearerToken(request: Request) {
