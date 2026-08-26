@@ -272,6 +272,49 @@ export async function readPdfAssetCatalog(): Promise<PdfAsset[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+type PdfAssetGroupRow = Pick<PdfAssetRow,
+  "id" | "title" | "description" | "wordbook_id" | "wordbook_title" | "visibility" |
+  "variant" | "output_kind" | "price_jpy" | "bundle_price_jpy">;
+
+function fromGroupRow(row: PdfAssetGroupRow): PdfAsset {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    wordbookId: row.wordbook_id,
+    wordbookTitle: row.wordbook_title,
+    kind: "generated",
+    visibility: row.visibility,
+    variant: row.variant,
+    outputKind: row.output_kind,
+    priceJpy: row.price_jpy,
+    bundlePriceJpy: row.bundle_price_jpy,
+    isSample: row.visibility === "public",
+    mimeType: row.output_kind === "sample-image" ? "image/jpeg" : "application/pdf",
+    storagePath: "",
+    storageProvider: "r2",
+    fileName: "",
+    sizeBytes: 0,
+    createdAt: "",
+  };
+}
+
+export async function readPdfAssetGroupCatalog(): Promise<PdfAsset[]> {
+  const supabase = getSupabaseAdmin();
+  const columns = "id,title,description,wordbook_id,wordbook_title,visibility,variant,output_kind,price_jpy,bundle_price_jpy";
+  const [saleResult, imageResult] = await Promise.all([
+    supabase.from("pdf_assets").select(columns).eq("visibility", "sale").eq("output_kind", "full-pdf").limit(1000),
+    supabase.from("pdf_assets").select(columns).eq("visibility", "public").eq("output_kind", "sample-image").limit(1000),
+  ]);
+  const error = saleResult.error ?? imageResult.error;
+  if (error) {
+    if (!isMissingPdfAssetsTable(error)) throw error;
+    return readPdfAssetCatalog();
+  }
+  return [...(saleResult.data ?? []), ...(imageResult.data ?? [])]
+    .map((row) => fromGroupRow(row as PdfAssetGroupRow));
+}
+
 export async function readPdfAssetById(id: string): Promise<PdfAsset | undefined> {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase

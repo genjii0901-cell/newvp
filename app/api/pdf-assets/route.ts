@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readPdfAssetCatalog, readPdfAssetsByWordbookId, type PdfAsset } from "@/lib/pdf-assets";
+import { readPdfAssetGroupCatalog, readPdfAssetsByWordbookId, type PdfAsset } from "@/lib/pdf-assets";
 import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const groups = buildGroups(await readPdfAssetCatalog());
+    const groups = buildGroups(await readPdfAssetGroupCatalog());
     if (format === "csv") {
       const rows = [
         ["wordbook_id", "wordbook", "formats", "full_pdf", "samples", "bundle_price_jpy", "detail_api"],
