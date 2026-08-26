@@ -122,7 +122,7 @@ function createEncryptWorker() {
 async function api(adminToken, path, init = {}) {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: { ...(init.headers ?? {}), "x-admin-token": adminToken },
+    headers: { ...(init.headers ?? {}), "x-pdf-batch-token": adminToken },
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.message || `${path} failed (${response.status}).`);

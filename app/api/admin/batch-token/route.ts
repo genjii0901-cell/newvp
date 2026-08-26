@@ -1,4 +1,4 @@
-import { requireAdmin, issueAdminToken } from "@/lib/admin-auth";
+import { issuePdfBatchToken, requireAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const denied = await requireAdmin(request);
   if (denied) return denied;
 
-  const token = issueAdminToken("local-pdf-catalog-batch", true);
+  const token = await issuePdfBatchToken();
   const callback = new URL(request.url).searchParams.get("callback");
   if (callback === "local") {
     const escaped = token.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");

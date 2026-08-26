@@ -17,6 +17,7 @@ import {
 const TOTP_SETTING_KEY = "admin_totp_secret";
 const TOTP_PENDING_SETTING_KEY = "admin_totp_pending_secret";
 const TOTP_ENABLED_KEY = "admin_totp_enabled";
+const PDF_BATCH_TOKEN_KEY = "pdf_batch_token_hash";
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const MEMORY_LOCK_MS = 15 * 60 * 1000;
@@ -169,6 +170,28 @@ export function issueAdminToken(subject: string, mfa: boolean): string {
   return issueAdminSessionToken(getAdminServerKey(), { subject, mfa, ttlMs: SESSION_TTL_MS });
 }
 
+export async function issuePdfBatchToken(): Promise<string> {
+  const token = crypto.randomBytes(48).toString("base64url");
+  const hash = crypto.createHash("sha256").update(token, "utf8").digest("hex");
+  await writeSetting(PDF_BATCH_TOKEN_KEY, JSON.stringify({ hash, expiresAt: Date.now() + SESSION_TTL_MS }));
+  return token;
+}
+
+async function hasValidPdfBatchToken(request: Request): Promise<boolean> {
+  const supplied = request.headers.get("x-pdf-batch-token")?.trim() ?? "";
+  if (supplied.length < 40 || supplied.length > 200) return false;
+  const stored = await readSetting(PDF_BATCH_TOKEN_KEY);
+  if (!stored) return false;
+  try {
+    const parsed = JSON.parse(stored) as { hash?: unknown; expiresAt?: unknown };
+    if (typeof parsed.hash !== "string" || typeof parsed.expiresAt !== "number" || parsed.expiresAt <= Date.now()) return false;
+    const suppliedHash = crypto.createHash("sha256").update(supplied, "utf8").digest("hex");
+    return safeEqualText(suppliedHash, parsed.hash);
+  } catch {
+    return false;
+  }
+}
+
 function requestCookie(request: Request, name: string): string | null {
   const header = request.headers.get("cookie");
   if (!header) return null;
@@ -293,6 +316,7 @@ export async function requireAdmin(request: Request): Promise<NextResponse | nul
     // setup only. Once TOTP is active it must be exchanged for an MFA session.
     const bearerAdmin = await resolveAdminUserFromBearerToken(request);
     if (bearerAdmin.ok && !totpSecret) return null;
+    if (await hasValidPdfBatchToken(request)) return null;
 
     return NextResponse.json(
       {

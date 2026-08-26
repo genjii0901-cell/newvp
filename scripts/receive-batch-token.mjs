@@ -17,7 +17,7 @@ const server = createServer((request, response) => {
   request.on("end", async () => {
     try {
       const token = new URLSearchParams(body).get("token")?.trim() ?? "";
-      if (!token.startsWith("v2.") || token.length < 80) throw new Error("Invalid token.");
+      if (!/^[A-Za-z0-9_-]{40,200}$/.test(token)) throw new Error("Invalid token.");
       await writeFile(outputPath, token, { encoding: "utf8", mode: 0o600 });
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end("<!doctype html><meta charset=\"utf-8\"><title>準備完了</title><p>高速作成の準備が完了しました。この画面は閉じて構いません。</p>");
