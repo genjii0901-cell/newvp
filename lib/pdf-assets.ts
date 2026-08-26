@@ -220,11 +220,27 @@ export async function ensurePdfAssetBucket() {
 
 export async function readPdfAssetCatalog(): Promise<PdfAsset[]> {
   const supabase = getSupabaseAdmin();
-  const { data: rows, error: tableError } = await supabase
-    .from("pdf_assets")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (!tableError) return ((rows ?? []) as PdfAssetRow[]).map(fromRow);
+  const pageSize = 1000;
+  const rows: PdfAssetRow[] = [];
+  let tableError: { message: string } | null = null;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await supabase
+      .from("pdf_assets")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+    if (result.error) {
+      tableError = result.error;
+      break;
+    }
+    const page = (result.data ?? []) as PdfAssetRow[];
+    rows.push(...page);
+    if (page.length < pageSize) return rows.map(fromRow);
+  }
+
+  if (!tableError) return rows.map(fromRow);
   if (!isMissingPdfAssetsTable(tableError)) throw tableError;
 
   const { data, error } = await supabase
