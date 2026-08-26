@@ -10,18 +10,25 @@ function isProductionHost(appUrl: string) {
   }
 }
 
+function withDatabaseDeadline<T>(promise: Promise<T>) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DATABASE_TIMEOUT")), 6_000)),
+  ]);
+}
+
 export async function POST(request: Request) {
   try {
-    const auth = await requireSupabaseUser(request);
+    const auth = await withDatabaseDeadline(requireSupabaseUser(request));
     if (auth.response) return auth.response;
     const body = (await request.json().catch(() => ({}))) as { purchaseType?: unknown; assetId?: unknown; wordbookId?: unknown };
     const purchaseType = body.purchaseType === "wordbook" ? "wordbook" : body.purchaseType === "asset" ? "asset" : null;
     if (!purchaseType) return NextResponse.json({ ok: false, message: "購入方法を確認してください。" }, { status: 400 });
 
-    const requestedAsset = purchaseType === "asset" ? await readPdfAssetById(String(body.assetId ?? "")) : null;
+    const requestedAsset = purchaseType === "asset" ? await withDatabaseDeadline(readPdfAssetById(String(body.assetId ?? ""))) : null;
     const wordbookId = purchaseType === "wordbook" ? String(body.wordbookId ?? "") : requestedAsset?.wordbookId ?? "";
     const bookAssets = purchaseType === "wordbook"
-      ? (await readPdfAssetsByWordbookId(wordbookId)).filter((asset) => asset.visibility === "sale")
+      ? (await withDatabaseDeadline(readPdfAssetsByWordbookId(wordbookId))).filter((asset) => asset.visibility === "sale")
       : [];
     if ((purchaseType === "asset" && requestedAsset?.visibility !== "sale") || (purchaseType === "wordbook" && (!wordbookId || bookAssets.length === 0))) {
       return NextResponse.json({ ok: false, message: "購入できる教材が見つかりません。ページを再読み込みしてください。" }, { status: 404 });
@@ -42,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "本番決済の設定を確認してください。" }, { status: 503 });
     }
 
-    const profile = await tryEnsureProfile(auth.user);
+    const profile = await withDatabaseDeadline(tryEnsureProfile(auth.user));
     const params = new URLSearchParams({
       mode: "payment",
       success_url: `${appUrl}/materials?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
@@ -92,6 +99,12 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, url: result.url });
   } catch (error) {
+    if (error instanceof Error && error.message === "DATABASE_TIMEOUT") {
+      return NextResponse.json({
+        ok: false,
+        message: "購入用データベースは現在一時的に利用できません。復旧後にもう一度お試しください。",
+      }, { status: 503 });
+    }
     return NextResponse.json({ ok: false, message: readableError(error) }, { status: 500 });
   }
 }

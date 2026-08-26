@@ -9,6 +9,13 @@ type PublicAsset = Omit<PdfAsset, "storagePath" | "storageProvider"> & {
   downloadUrl: string | null;
 };
 
+function withDatabaseDeadline<T>(promise: Promise<T>) {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DATABASE_TIMEOUT")), 6_000)),
+  ]);
+}
+
 function toPublicAsset(asset: PdfAsset): PublicAsset {
   const { storagePath: _storagePath, storageProvider: _storageProvider, ...publicAsset } = asset;
   void _storagePath;
@@ -85,7 +92,7 @@ export async function GET(request: Request) {
     const format = url.searchParams.get("format")?.toLowerCase();
 
     if (wordbookId) {
-      const assets = (await readPdfAssetsByWordbookId(wordbookId))
+      const assets = (await withDatabaseDeadline(readPdfAssetsByWordbookId(wordbookId)))
         .filter((asset) => asset.visibility === "public" || asset.visibility === "sale");
       const group = buildGroups(assets)[0] ?? null;
       if (format === "csv") {
@@ -112,7 +119,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const groups = buildGroups(await readPdfAssetGroupCatalog());
+    const groups = buildGroups(await withDatabaseDeadline(readPdfAssetGroupCatalog()));
     if (format === "csv") {
       const rows = [
         ["wordbook_id", "wordbook", "formats", "full_pdf", "samples", "bundle_price_jpy", "detail_api"],
@@ -141,7 +148,9 @@ export async function GET(request: Request) {
       ok: false,
       groups: [],
       assets: [],
-      message: error instanceof Error ? error.message : "教材を読み込めませんでした。",
+      message: error instanceof Error && error.message === "DATABASE_TIMEOUT"
+        ? "教材データベースは現在一時的に利用できません。時間をおいて再度お試しください。"
+        : error instanceof Error ? error.message : "教材を読み込めませんでした。",
     }, { status: 500 });
   }
 }
