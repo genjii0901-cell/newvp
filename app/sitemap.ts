@@ -9,8 +9,11 @@ const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 async function loadSitemapWordbooks() {
   if (!isSupabaseServerConfigured()) return fallbackOfficialWordbooksForApi();
   try {
-    const result = await loadOfficialWordbooks({ includeWords: false });
-    if (result.ok && result.wordbooks.length > 0) return result.wordbooks;
+    const result = await Promise.race([
+      loadOfficialWordbooks({ includeWords: false }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
+    ]);
+    if (result?.ok && result.wordbooks.length > 0) return result.wordbooks;
   } catch {
     // Sitemap should never fail just because the database is unavailable.
   }

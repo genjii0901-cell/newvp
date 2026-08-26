@@ -224,7 +224,26 @@ export async function readPdfAssetCatalog(): Promise<PdfAsset[]> {
   const rows: PdfAssetRow[] = [];
   let tableError: { message: string } | null = null;
 
-  for (let offset = 0; ; offset += pageSize) {
+  const countResult = await supabase
+    .from("pdf_assets")
+    .select("id", { count: "exact", head: true });
+  if (!countResult.error && typeof countResult.count === "number") {
+    const pageCount = Math.ceil(countResult.count / pageSize);
+    const results = await Promise.all(Array.from({ length: pageCount }, (_, page) => supabase
+      .from("pdf_assets")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(page * pageSize, (page + 1) * pageSize - 1)));
+    const failed = results.find((result) => result.error)?.error;
+    if (!failed) {
+      return results.flatMap((result) => (result.data ?? []) as PdfAssetRow[]).map(fromRow);
+    }
+    if (!isMissingPdfAssetsTable(failed)) throw failed;
+    tableError = failed;
+  }
+
+  for (let offset = 0; !tableError; offset += pageSize) {
     const result = await supabase
       .from("pdf_assets")
       .select("*")
