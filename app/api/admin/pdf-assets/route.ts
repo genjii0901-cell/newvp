@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import {
-  createPdfAssetSignedUrl,
   deletePdfAsset,
   ensurePdfAssetBucket,
   pdfAssetStorageConfigurationStatus,
@@ -58,10 +57,10 @@ export async function GET(request: Request) {
   if (!isSupabaseServerConfigured()) return supabaseServerConfigResponse();
   try {
     const assets = await readPdfAssetCatalog();
-    const withUrls = await Promise.all(assets.map(async (asset) => ({
+    const withUrls = assets.map((asset) => ({
       ...asset,
-      downloadUrl: await createPdfAssetSignedUrl(asset.storagePath, 300, asset.storageProvider ?? "supabase").catch(() => null),
-    })));
+      downloadUrl: `/api/admin/pdf-assets/${asset.id}`,
+    }));
     return NextResponse.json({
       ok: true,
       assets: withUrls,
