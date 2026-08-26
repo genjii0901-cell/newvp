@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canAccessMaterial, isMaterialPurchaseSchemaError } from "@/lib/material-purchases";
-import { createPdfAssetSignedUrl, readPdfAssetCatalog } from "@/lib/pdf-assets";
+import { createPdfAssetSignedUrl, readPdfAssetById } from "@/lib/pdf-assets";
 import { readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -8,7 +8,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (auth.response) return auth.response;
   try {
     const { id } = await context.params;
-    const asset = (await readPdfAssetCatalog()).find((item) => item.id === id);
+    const asset = await readPdfAssetById(id);
     if (!asset) return NextResponse.json({ ok: false, message: "教材が見つかりません。" }, { status: 404 });
     if (asset.visibility === "public") return NextResponse.json({ ok: true, url: await createPdfAssetSignedUrl(asset.storagePath, 180, asset.storageProvider ?? "supabase") });
     if (asset.visibility !== "sale" || !(await canAccessMaterial(auth.user.id, asset.id, asset.wordbookId))) {

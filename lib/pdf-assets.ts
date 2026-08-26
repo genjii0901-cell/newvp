@@ -253,6 +253,31 @@ export async function readPdfAssetCatalog(): Promise<PdfAsset[]> {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+export async function readPdfAssetById(id: string): Promise<PdfAsset | undefined> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("pdf_assets")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (!error) return data ? fromRow(data as PdfAssetRow) : undefined;
+  if (!isMissingPdfAssetsTable(error)) throw error;
+  return (await readPdfAssetCatalog()).find((asset) => asset.id === id);
+}
+
+export async function readPdfAssetsByWordbookId(wordbookId: string): Promise<PdfAsset[]> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("pdf_assets")
+    .select("*")
+    .eq("wordbook_id", wordbookId)
+    .in("visibility", ["public", "sale"])
+    .order("created_at", { ascending: false });
+  if (!error) return ((data ?? []) as PdfAssetRow[]).map(fromRow);
+  if (!isMissingPdfAssetsTable(error)) throw error;
+  return (await readPdfAssetCatalog()).filter((asset) => asset.wordbookId === wordbookId);
+}
+
 export async function upsertPdfAsset(asset: PdfAsset): Promise<PdfAsset | undefined> {
   const supabase = getSupabaseAdmin();
   const existingResult = asset.assetKey

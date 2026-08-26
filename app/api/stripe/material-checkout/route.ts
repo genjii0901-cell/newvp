@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readPdfAssetCatalog } from "@/lib/pdf-assets";
+import { readPdfAssetById, readPdfAssetsByWordbookId } from "@/lib/pdf-assets";
 import { readableError, requireSupabaseUser, tryEnsureProfile } from "@/lib/supabase/admin";
 
 function isProductionHost(appUrl: string) {
@@ -18,13 +18,13 @@ export async function POST(request: Request) {
     const purchaseType = body.purchaseType === "wordbook" ? "wordbook" : body.purchaseType === "asset" ? "asset" : null;
     if (!purchaseType) return NextResponse.json({ ok: false, message: "購入方法を確認してください。" }, { status: 400 });
 
-    const catalog = await readPdfAssetCatalog();
-    const saleAssets = catalog.filter((asset) => asset.visibility === "sale");
-    const requestedAsset = purchaseType === "asset" ? saleAssets.find((asset) => asset.id === String(body.assetId ?? "")) : null;
+    const requestedAsset = purchaseType === "asset" ? await readPdfAssetById(String(body.assetId ?? "")) : null;
     const wordbookId = purchaseType === "wordbook" ? String(body.wordbookId ?? "") : requestedAsset?.wordbookId ?? "";
-    const bookAssets = purchaseType === "wordbook" ? saleAssets.filter((asset) => asset.wordbookId === wordbookId) : [];
-    if ((purchaseType === "asset" && !requestedAsset) || (purchaseType === "wordbook" && (!wordbookId || bookAssets.length === 0))) {
-      return NextResponse.json({ ok: false, message: "購入できる教材が見つかりません。" }, { status: 404 });
+    const bookAssets = purchaseType === "wordbook"
+      ? (await readPdfAssetsByWordbookId(wordbookId)).filter((asset) => asset.visibility === "sale")
+      : [];
+    if ((purchaseType === "asset" && requestedAsset?.visibility !== "sale") || (purchaseType === "wordbook" && (!wordbookId || bookAssets.length === 0))) {
+      return NextResponse.json({ ok: false, message: "購入できる教材が見つかりません。ページを再読み込みしてください。" }, { status: 404 });
     }
 
     const amount = purchaseType === "asset"
@@ -34,7 +34,9 @@ export async function POST(request: Request) {
       ? requestedAsset!.title
       : `${bookAssets[0]?.wordbookTitle ?? "単語帳"} PDF教材セット`;
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
+    const requestOrigin = new URL(request.url).origin;
+    const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL ?? requestOrigin;
+    const appUrl = isProductionHost(requestOrigin) ? requestOrigin : configuredAppUrl;
     if (!stripeSecretKey) return NextResponse.json({ ok: false, message: "決済設定が未完了です。" }, { status: 500 });
     if (isProductionHost(appUrl) && !stripeSecretKey.startsWith("sk_live_")) {
       return NextResponse.json({ ok: false, message: "本番決済の設定を確認してください。" }, { status: 503 });
@@ -61,18 +63,35 @@ export async function POST(request: Request) {
     if (profile?.stripe_customer_id) params.append("customer", profile.stripe_customer_id);
     else if (auth.user.email) params.append("customer_email", auth.user.email);
 
-    const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${stripeSecretKey}`, "Content-Type": "application/x-www-form-urlencoded" },
-      body: params,
-    });
-    const result = await response.json() as { url?: string; error?: { message?: string } };
+    const createSession = async () => {
+      const response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${stripeSecretKey}`, "Content-Type": "application/x-www-form-urlencoded" },
+        body: params,
+      });
+      const result = await response.json() as {
+        url?: string;
+        error?: { message?: string; code?: string; param?: string };
+      };
+      return { response, result };
+    };
+
+    let { response, result } = await createSession();
+    if (!response.ok && profile?.stripe_customer_id && result.error?.param === "customer") {
+      params.delete("customer");
+      if (auth.user.email) params.set("customer_email", auth.user.email);
+      ({ response, result } = await createSession());
+    }
     if (!response.ok || !result.url) {
-      return NextResponse.json({ ok: false, message: result.error?.message ?? "購入画面を開けませんでした。" }, { status: response.status || 500 });
+      return NextResponse.json({
+        ok: false,
+        message: result.error?.message
+          ? `購入画面を開けませんでした: ${result.error.message}`
+          : "購入画面を開けませんでした。時間をおいてもう一度お試しください。",
+      }, { status: response.status || 500 });
     }
     return NextResponse.json({ ok: true, url: result.url });
   } catch (error) {
     return NextResponse.json({ ok: false, message: readableError(error) }, { status: 500 });
   }
 }
-
