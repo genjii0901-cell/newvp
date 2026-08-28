@@ -174,7 +174,9 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   const wordCount = getSeoWordCount(book);
   const primarySeoTab = tab === "overview" ? "test" : tab;
   const tabSeo = displayTitle ? buildTabSeo(displayTitle, wordCount, primarySeoTab) : null;
-  const canonicalPath = tabCanonicalPath(baseCanonicalPath, tab);
+  // The print page is the primary search landing page. The overview URL points
+  // to the same canonical so both variants do not compete in search results.
+  const canonicalPath = tabCanonicalPath(baseCanonicalPath, primarySeoTab);
   const title = tabSeo?.title ?? (displayTitle ? `${displayTitle}${label.titleSuffix}` : label.defaultTitle);
   const description =
     tabSeo?.description ??
@@ -184,6 +186,7 @@ export async function generateMetadata({ params, searchParams }: PageProps): Pro
   return {
     title,
     description,
+    robots: book ? { index: true, follow: true } : { index: false, follow: true },
     alternates: {
       canonical: canonicalPath,
     },
@@ -295,7 +298,7 @@ export default async function WordbookDetailPage({ params, searchParams }: PageP
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
       <WordbookDetailClient />
-      {tab === "test" && displayTitle ? (
+      {(tab === "overview" || tab === "test") && displayTitle ? (
         <WordbookPrintGuide
           title={displayTitle}
           description={book?.description}

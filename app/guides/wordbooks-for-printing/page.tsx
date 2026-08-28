@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { loadCachedPublicCatalog } from "@/lib/cached-wordbooks";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 
@@ -29,9 +30,18 @@ const examples = [
   ["かぶり調査", "複数の単語帳に共通する語や、片方にだけ出る語を調べ、印刷や保存につなげられます。"],
 ];
 
-const sampleWordbooks = fallbackOfficialWordbooksForApi().slice(0, 6);
+async function loadSampleWordbooks() {
+  try {
+    const result = await loadCachedPublicCatalog();
+    if (result.ok && result.wordbooks.length > 0) return result.wordbooks.slice(0, 12);
+  } catch {
+    // Keep the guide indexable if the database is temporarily unavailable.
+  }
+  return fallbackOfficialWordbooksForApi().slice(0, 12);
+}
 
-export default function WordbooksForPrintingGuidePage() {
+export default async function WordbooksForPrintingGuidePage() {
+  const sampleWordbooks = await loadSampleWordbooks();
   return (
     <main className="bg-white">
       <section className="border-b bg-gradient-to-b from-blue-50 to-white">
@@ -73,11 +83,11 @@ export default function WordbooksForPrintingGuidePage() {
         <div className="mt-8 -mx-5 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3">
           <div className="flex gap-3 sm:contents">
             {sampleWordbooks.map((book) => (
-              <Link key={book.id} href={buildWordbookPath(book.id, book.title)} className="w-44 shrink-0 overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
+              <Link key={book.id} href={`${buildWordbookPath(book.id, book.title)}?tab=test`} className="w-44 shrink-0 overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
                 <div className="relative h-48 bg-slate-100 sm:h-36">
                   <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
                   <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">
-                    {book.words.length}語
+                    {book.wordCount || book.words.length}語
                   </span>
                 </div>
                 <div className="p-4">

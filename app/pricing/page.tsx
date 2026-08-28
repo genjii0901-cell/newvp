@@ -9,6 +9,9 @@ type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
 
 const TEACHER_PUBLIC_ENABLED = false;
+const PERSONAL_PUBLIC_CONFIGURED = Boolean(
+  process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
+);
 
 const plans = [
   {
@@ -61,10 +64,10 @@ export default function PricingPage() {
   const [currentPlan, setCurrentPlan] = useState<Plan>("free");
   const [message, setMessage] = useState("");
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
-    personal: false,
+    personal: PERSONAL_PUBLIC_CONFIGURED,
     teacher: false,
   });
-  const [stripeLiveMode, setStripeLiveMode] = useState(false);
+  const [stripeLiveMode, setStripeLiveMode] = useState(PERSONAL_PUBLIC_CONFIGURED);
   const [missingStripeVars, setMissingStripeVars] = useState<string[]>([]);
 
   useEffect(() => {

@@ -72,6 +72,9 @@ function planCacheKey(userId: string) {
 
 const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
 const POST_AUTH_ACTION_KEY = "vpp-post-auth-action";
+const PERSONAL_PUBLIC_CONFIGURED = Boolean(
+  process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
+);
 
 function rememberPrintPurchaseIntent(pages: number) {
   if (typeof window === "undefined") return;
@@ -492,7 +495,7 @@ export default function Home() {
   const [history, setHistory] = useState<string[]>([]);
   const [pdfMessage, setPdfMessage] = useState("");
   const [configuredPlans, setConfiguredPlans] = useState<Record<Exclude<Plan, "free">, boolean>>({
-    personal: false,
+    personal: PERSONAL_PUBLIC_CONFIGURED,
     teacher: false,
   });
   const [pdfTitle, setPdfTitle] = useState("");

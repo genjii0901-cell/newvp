@@ -21,7 +21,6 @@ async function loadSitemapWordbooks() {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const now = new Date();
   const paths = [
     "",
     "/wordbooks",
@@ -36,7 +35,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
   const basePages = paths.map((path) => ({
     url: `${siteUrl}${path}`,
-    lastModified: now,
     changeFrequency: "weekly" as const,
     priority: path === "" ? 1 : 0.7,
   }));
@@ -46,26 +44,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const path = buildWordbookPath(book.id, book.title);
     return [
       {
-        url: `${siteUrl}${path}`,
-        lastModified: now,
-        changeFrequency: "weekly" as const,
-        priority: 0.62,
-      },
-      {
         url: `${siteUrl}${path}?tab=test`,
-        lastModified: now,
         changeFrequency: "weekly" as const,
         priority: 0.95,
       },
       {
         url: `${siteUrl}${path}?tab=listen`,
-        lastModified: now,
         changeFrequency: "weekly" as const,
         priority: 0.68,
       },
       {
         url: `${siteUrl}${path}?tab=quiz`,
-        lastModified: now,
         changeFrequency: "weekly" as const,
         priority: 0.68,
       },
