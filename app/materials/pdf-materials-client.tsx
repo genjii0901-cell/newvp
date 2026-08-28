@@ -45,6 +45,7 @@ type MaterialGroup = {
   variantCount: number;
   bundlePriceJpy: number;
   fromPriceJpy: number;
+  coverImageUrl: string | null;
   sampleImageUrl: string | null;
 };
 
@@ -286,7 +287,22 @@ export default function PdfMaterialsClient() {
               {filteredGroups.map((group) => (
                 <button key={group.id} type="button" onClick={() => void openGroup(group)} aria-expanded={selectedId === group.id} className={`flex min-h-28 items-center gap-3 rounded-lg border bg-white p-3 text-left transition hover:border-blue-300 hover:shadow-sm ${selectedId === group.id ? "border-blue-500 ring-2 ring-blue-100" : ""}`}>
                   <div className="h-20 w-16 shrink-0 overflow-hidden rounded-md border bg-slate-50">
-                    {group.sampleImageUrl ? <img src={group.sampleImageUrl} alt="" loading="lazy" className="h-full w-full object-cover object-top" /> : <div className="flex h-full items-center justify-center text-slate-300"><FileImage size={24} /></div>}
+                    {group.coverImageUrl || group.sampleImageUrl ? (
+                      <img
+                        src={group.coverImageUrl || group.sampleImageUrl || ""}
+                        alt={`${group.title}の表紙`}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                        onError={(event) => {
+                          if (group.sampleImageUrl && event.currentTarget.dataset.fallbackUsed !== "1") {
+                            event.currentTarget.dataset.fallbackUsed = "1";
+                            event.currentTarget.src = group.sampleImageUrl;
+                          } else {
+                            event.currentTarget.style.display = "none";
+                          }
+                        }}
+                      />
+                    ) : <div className="flex h-full items-center justify-center text-slate-300"><FileImage size={24} /></div>}
                   </div>
                   <div className="min-w-0 flex-1">
                     <h2 className="line-clamp-2 text-sm font-black leading-5 text-slate-950">{group.title}</h2>

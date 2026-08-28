@@ -3174,7 +3174,12 @@ export default function AdminPage() {
         {tab === "materials" && (
           <div className="mt-6">
             <AdminPdfLibrary
-              books={books.map((book) => ({ id: book.id, title: book.title, wordCount: getBookWordCount(book) }))}
+              books={books.map((book) => ({
+                id: book.id,
+                title: book.title,
+                wordCount: getBookWordCount(book),
+                coverImage: book.coverImage,
+              }))}
               currentBookId={pdfBookId}
               getHeaders={getAdminHeaders}
               onStoreCurrent={storeCurrentPdfAsset}

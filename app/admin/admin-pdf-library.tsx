@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Download, FileImage, FileText, RefreshCw, Search, Trash2, Upload } from "lucide-react";
 
-type Book = { id: string; title: string; wordCount?: number };
+type Book = { id: string; title: string; wordCount?: number; coverImage?: string | null };
 export type PdfBatchVariantId =
   | "list"
   | "translation-test"
@@ -157,10 +157,13 @@ export default function AdminPdfLibrary({
       .map((value) => String(value ?? "")).join(" ").toLocaleLowerCase("ja").includes(query));
   }, [assetFilter, assets]);
   const assetGroups = useMemo(() => {
-    const groups = new Map<string, { title: string; wordbookId: string | null; assets: Asset[] }>();
+    const groups = new Map<string, { title: string; wordbookId: string | null; coverImage: string | null; assets: Asset[] }>();
     for (const asset of visibleAssets) {
       const key = asset.wordbookId || `standalone:${asset.wordbookTitle || "独自教材"}`;
-      const current = groups.get(key) ?? { title: asset.wordbookTitle || "独自教材", wordbookId: asset.wordbookId, assets: [] };
+      const coverImage = asset.wordbookId
+        ? books.find((book) => book.id === asset.wordbookId)?.coverImage ?? null
+        : null;
+      const current = groups.get(key) ?? { title: asset.wordbookTitle || "独自教材", wordbookId: asset.wordbookId, coverImage, assets: [] };
       current.assets.push(asset);
       groups.set(key, current);
     }
@@ -173,7 +176,7 @@ export default function AdminPdfLibrary({
         assets: [...group.assets].sort((a, b) => `${a.variant}:${a.outputKind}`.localeCompare(`${b.variant}:${b.outputKind}`, "ja")),
       }))
       .sort((a, b) => a.title.localeCompare(b.title, "ja"));
-  }, [visibleAssets]);
+  }, [books, visibleAssets]);
 
   async function load() {
     setLoading(true);
@@ -533,7 +536,11 @@ export default function AdminPdfLibrary({
         {assetGroups.map((group) => (
           <details key={`${group.wordbookId}:${group.title}`} className="group rounded-2xl border bg-white" open={assetGroups.length === 1}>
             <summary className="flex cursor-pointer list-none items-center gap-3 p-3 sm:p-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-700">{group.title.slice(0, 1)}</span>
+              {group.coverImage ? (
+                <img src={group.coverImage} alt={`${group.title}の表紙`} loading="lazy" className="h-12 w-10 shrink-0 rounded-lg border bg-slate-50 object-cover" />
+              ) : (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-700">{group.title.slice(0, 1)}</span>
+              )}
               <div className="min-w-0 flex-1"><p className="truncate text-sm font-black text-slate-900 sm:text-base">{group.title}</p><p className="mt-0.5 text-[11px] text-slate-500">完全版 {group.fullCount}件・サンプル {group.sampleCount}件・合計 {(group.totalBytes / 1024 / 1024).toFixed(1)}MB</p></div>
               <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setSelectedAssetIds((current) => [...new Set([...current, ...group.assets.map((asset) => asset.id)])]); }} className="rounded-lg border px-2.5 py-1.5 text-[11px] font-black text-slate-600">この単語帳を選択</button>
               <span className="text-slate-400 transition group-open:rotate-180">⌄</span>

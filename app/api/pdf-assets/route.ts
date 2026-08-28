@@ -43,6 +43,7 @@ function buildGroups(assets: PdfAsset[]) {
     variantCount: number;
     bundlePriceJpy: number;
     fromPriceJpy: number;
+    coverImageUrl: string | null;
     sampleImageUrl: string | null;
   }>();
   const variants = new Map<string, Set<string>>();
@@ -60,6 +61,9 @@ function buildGroups(assets: PdfAsset[]) {
       variantCount: 0,
       bundlePriceJpy: asset.bundlePriceJpy ?? 980,
       fromPriceJpy: asset.priceJpy ?? 500,
+      coverImageUrl: asset.wordbookId
+        ? `/api/wordbooks/cover?id=${encodeURIComponent(asset.wordbookId)}`
+        : null,
       sampleImageUrl: null,
     };
     if (!group.description && asset.description) group.description = asset.description;

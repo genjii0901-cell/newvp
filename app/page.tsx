@@ -3254,6 +3254,7 @@ export default function Home() {
             text="先生・塾向け。クラス配布や一括作成。"
             onClick={plan === "teacher" ? undefined : () => startCheckout("teacher")}
             disabled={plan !== "teacher" && !configuredPlans.teacher}
+            disabledLabel="Teacherは準備中"
             current={plan === "teacher"}
           />
         </div>
@@ -3724,6 +3725,7 @@ function PlanCard({
   text,
   onClick,
   disabled = false,
+  disabledLabel = "申し込み準備中",
   current = false,
 }: {
   title: string;
@@ -3731,6 +3733,7 @@ function PlanCard({
   text: string;
   onClick?: () => void;
   disabled?: boolean;
+  disabledLabel?: string;
   current?: boolean;
 }) {
   return (
@@ -3748,7 +3751,7 @@ function PlanCard({
           disabled={disabled}
           className="mt-4 w-full rounded-xl bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
         >
-          {disabled ? "Stripe設定後に利用可能" : "このプランで始める"}
+          {disabled ? disabledLabel : "このプランで始める"}
         </button>
       )}
     </div>
