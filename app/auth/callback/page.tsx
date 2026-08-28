@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 
 function normalizeNextPath(value: string | null) {
   if (!value || !value.startsWith("/")) return "/";
@@ -33,7 +34,7 @@ function AuthCallbackContent() {
 
       if (statusParam === "error" || errorDescription) {
         setStatus("error");
-        setMessage(errorDescription || "ログイン確認に失敗しました。もう一度お試しください。");
+        setMessage(normalizeAuthErrorMessage(errorDescription || "ログイン確認に失敗しました。"));
         return;
       }
 
@@ -43,24 +44,26 @@ function AuthCallbackContent() {
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (cancelled) return;
+      try {
+        const { error } = await withAuthTimeout(supabase.auth.exchangeCodeForSession(code));
+        if (cancelled) return;
 
-      if (error) {
+        if (error) {
+          setStatus("error");
+          setMessage(normalizeAuthErrorMessage(error.message));
+          return;
+        }
+
+        setStatus("success");
+        setMessage("ログインしました。Vocab Print Proへ戻ります。");
+        window.setTimeout(() => {
+          window.location.href = `${next}${next.includes("?") ? "&" : "?"}auth=confirmed`;
+        }, 500);
+      } catch (error) {
+        if (cancelled) return;
         setStatus("error");
-        setMessage(
-          error.message.includes("PKCE")
-            ? "ログインを始めたブラウザと同じブラウザで開けませんでした。もう一度ログインをお試しください。"
-            : error.message
-        );
-        return;
+        setMessage(normalizeAuthErrorMessage(error instanceof Error ? error.message : String(error)));
       }
-
-      setStatus("success");
-      setMessage("ログインしました。Vocab Print Proへ戻ります。");
-      window.setTimeout(() => {
-        window.location.href = `${next}${next.includes("?") ? "&" : "?"}auth=confirmed`;
-      }, 500);
     }
 
     void finishAuth();

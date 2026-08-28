@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
+import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 
 function buildStatusUrl(request: NextRequest, message: string, next: string) {
   const url = new URL("/auth/callback", request.url);
@@ -8,10 +9,6 @@ function buildStatusUrl(request: NextRequest, message: string, next: string) {
   url.searchParams.set("message", message);
   url.searchParams.set("next", next);
   return url;
-}
-
-function shouldTreatAsConfirmed(message: string) {
-  return message.toLowerCase().includes("pkce code verifier not found");
 }
 
 export async function GET(request: NextRequest) {
@@ -37,21 +34,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-
-  if (error) {
-    if (shouldTreatAsConfirmed(error.message || "")) {
-      return response;
-    }
-
+  try {
+    const { error } = await withAuthTimeout(supabase.auth.exchangeCodeForSession(code));
+    if (!error) return response;
     return NextResponse.redirect(
       buildStatusUrl(
         request,
-        error.message || "メール認証の完了に失敗しました。もう一度、最新のメール内リンクを開いてください。",
+        normalizeAuthErrorMessage(error.message),
+        next
+      )
+    );
+  } catch (error) {
+    return NextResponse.redirect(
+      buildStatusUrl(
+        request,
+        normalizeAuthErrorMessage(error instanceof Error ? error.message : String(error)),
         next
       )
     );
   }
-
-  return response;
 }

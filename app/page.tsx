@@ -11,6 +11,7 @@ import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-builder";
+import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
 
@@ -44,20 +45,6 @@ type StudyPanelMode = "list" | "listening";
 type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
 type MeaningMode = "all" | "main";
 type ListeningStudyMode = "listen" | "test";
-
-function normalizeAuthErrorMessage(message: string) {
-  const lower = message.toLowerCase();
-  if (lower.includes("security purposes") && lower.includes("60 seconds")) {
-    return "短時間に続けて送信されたため、次の確認メールは60秒ほど待ってから再度お試しください。";
-  }
-  if (lower.includes("email rate limit exceeded")) {
-    return "確認メールの送信回数が上限に達しました。少し待ってからもう一度お試しください。";
-  }
-  if (lower.includes("invalid login credentials")) {
-    return "メールアドレスまたはパスワードが違います。";
-  }
-  return message;
-}
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -453,6 +440,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
 
@@ -602,33 +590,47 @@ export default function Home() {
     const client = supabase;
 
     async function ensureProfile(user: User) {
-      const email = user.email ?? "";
-      const { data } = await client.from("profiles").select("id,plan,role").eq("id", user.id).maybeSingle();
-      if (!data) {
-        await client.from("profiles").upsert({
-          id: user.id,
-          email,
-          plan: "free",
-          role: "user",
-        });
-        setPlan("free");
-        setRole("user");
-        writeCachedPlan(user.id, "free");
-        return;
+      try {
+        const email = user.email ?? "";
+        const { data } = await withAuthTimeout(
+          client.from("profiles").select("id,plan,role").eq("id", user.id).maybeSingle(),
+          8_000
+        );
+        if (!data) {
+          await withAuthTimeout(
+            client.from("profiles").upsert({
+              id: user.id,
+              email,
+              plan: "free",
+              role: "user",
+            }),
+            8_000
+          );
+          setPlan("free");
+          setRole("user");
+          writeCachedPlan(user.id, "free");
+          return;
+        }
+        const nextPlan = isPlan(data.plan) ? data.plan : "free";
+        setPlan(nextPlan);
+        setRole(data.role === "admin" ? "admin" : "user");
+        writeCachedPlan(user.id, nextPlan);
+      } catch {
+        // 認証済みセッションは維持し、DB復旧後の再読み込みでプロフィールを同期する。
       }
-      const nextPlan = isPlan(data.plan) ? data.plan : "free";
-      setPlan(nextPlan);
-      setRole(data.role === "admin" ? "admin" : "user");
-      writeCachedPlan(user.id, nextPlan);
     }
 
     async function loadUser() {
-      const { data } = await client.auth.getUser();
-      setUser(data.user ?? null);
-      if (data.user) {
-        const cachedPlan = readCachedPlan(data.user.id);
-        if (cachedPlan) setPlan(cachedPlan);
-        void ensureProfile(data.user);
+      try {
+        const { data } = await withAuthTimeout(client.auth.getUser(), 8_000);
+        setUser(data.user ?? null);
+        if (data.user) {
+          const cachedPlan = readCachedPlan(data.user.id);
+          if (cachedPlan) setPlan(cachedPlan);
+          void ensureProfile(data.user);
+        }
+      } catch {
+        // 初期表示を止めず、実際のログイン操作時に分かりやすいエラーを表示する。
       }
     }
 
@@ -1287,6 +1289,7 @@ export default function Home() {
   }
 
   async function handleAuth() {
+    if (authSubmitting) return;
     setMessage("");
     setMessageTone("info");
 
@@ -1308,14 +1311,74 @@ export default function Home() {
       return;
     }
 
-    if (authMode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: getAuthConfirmUrl("/"),
-        },
-      });
+    setAuthSubmitting(true);
+    try {
+      if (authMode === "signup") {
+        const { data, error } = await withAuthTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: getAuthConfirmUrl("/"),
+            },
+          })
+        );
+
+        if (error) {
+          setMessageTone("error");
+          setMessage(normalizeAuthErrorMessage(error.message));
+          return;
+        }
+
+        if (data.user) {
+          setPlan("free");
+          setRole("user");
+          writeCachedPlan(data.user.id, "free");
+          void withAuthTimeout(
+            supabase.from("profiles").upsert({
+              id: data.user.id,
+              email,
+              plan: "free",
+            }),
+            5_000
+          ).catch(() => undefined);
+        }
+
+      // Personalを選んで登録した人は、メール認証後のログイン時にトライアル手続きへ案内する。
+        try {
+          if (signupPlan === "personal") window.localStorage.setItem("vpp-signup-intent", "personal");
+          else window.localStorage.removeItem("vpp-signup-intent");
+        } catch {
+          // localStorageが使えない環境では通常の無料登録として扱う
+        }
+
+      // 確認メールが不要な設定では、この時点で既にログイン済みになる。
+        if (data.session) {
+          setPendingTrial(signupPlan === "personal");
+          if (signupPlan === "personal" && printAuthIntent !== "personal") setTrialModalOpen(true);
+          setMessageTone("success");
+          setMessage(
+            signupPlan === "personal"
+              ? "登録が完了しました。続けて、Personalの7日間無料トライアルを開始してください。"
+              : "登録が完了しました。無料プランですぐに使えます。"
+          );
+          if (printAuthIntent === "personal") {
+            setPrintAuthIntent(null);
+            await startCheckout("personal");
+          }
+          return;
+        }
+
+        setMessageTone("success");
+        setMessage(
+          signupPlan === "personal"
+            ? "確認メールを送信しました。メール内のリンクを開いて認証すると、Personalの7日間無料トライアルの手続きに進めます。"
+            : "確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。"
+        );
+        return;
+      }
+
+      const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
 
       if (error) {
         setMessageTone("error");
@@ -1323,62 +1386,18 @@ export default function Home() {
         return;
       }
 
-      if (data.user) {
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          email,
-          plan: "free",
-        });
-        setRole("user");
-      }
-
-      // Personalを選んで登録した人は、メール認証後のログイン時にトライアル手続きへ案内する。
-      try {
-        if (signupPlan === "personal") window.localStorage.setItem("vpp-signup-intent", "personal");
-        else window.localStorage.removeItem("vpp-signup-intent");
-      } catch {
-        // localStorageが使えない環境では通常の無料登録として扱う
-      }
-
-      // 確認メールが不要な設定では、この時点で既にログイン済みになる。
-      if (data.session) {
-        setPendingTrial(signupPlan === "personal");
-        if (signupPlan === "personal" && printAuthIntent !== "personal") setTrialModalOpen(true);
-        setMessageTone("success");
-        setMessage(
-          signupPlan === "personal"
-            ? "登録が完了しました。続けて、Personalの7日間無料トライアルを開始してください。"
-            : "登録が完了しました。無料プランですぐに使えます。"
-        );
-        if (printAuthIntent === "personal") {
-          setPrintAuthIntent(null);
-          await startCheckout("personal");
-        }
-        return;
-      }
-
       setMessageTone("success");
-      setMessage(
-        signupPlan === "personal"
-          ? "確認メールを送信しました。メール内のリンクを開いて認証すると、Personalの7日間無料トライアルの手続きに進めます。"
-          : "確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。"
-      );
-      return;
-    }
-
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
+      setMessage("ログインしました。");
+    } catch (error) {
       setMessageTone("error");
-      setMessage(normalizeAuthErrorMessage(error.message));
-      return;
+      setMessage(normalizeAuthErrorMessage(error instanceof Error ? error.message : String(error)));
+    } finally {
+      setAuthSubmitting(false);
     }
-
-    setMessageTone("success");
-    setMessage("ログインしました。");
   }
 
   async function handleOAuthSignIn(provider: "google" | "line") {
+    if (authSubmitting) return;
     setMessage("");
     setMessageTone("info");
 
@@ -1398,21 +1417,30 @@ export default function Home() {
       // localStorageが使えない環境では通常のログインとして扱う
     }
 
-    const supabaseProvider = provider === "line" ? "custom:line" : provider;
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: supabaseProvider,
-      options: {
-        redirectTo: getAuthConfirmUrl("/"),
-      },
-    });
+    setAuthSubmitting(true);
+    try {
+      const supabaseProvider = provider === "line" ? "custom:line" : provider;
+      const { error } = await withAuthTimeout(
+        supabase.auth.signInWithOAuth({
+          provider: supabaseProvider,
+          options: {
+            redirectTo: getAuthConfirmUrl("/"),
+          },
+        })
+      );
 
-    if (error) {
+      if (!error) return;
       setMessageTone("error");
       setMessage(
         provider === "google"
-          ? `Googleログインを開始できませんでした。SupabaseのGoogle Provider設定を確認してください。${normalizeAuthErrorMessage(error.message)}`
-          : `LINEログインを開始できませんでした。SupabaseのLINE Provider設定を確認してください。${normalizeAuthErrorMessage(error.message)}`
+          ? `Googleログインを開始できませんでした。${normalizeAuthErrorMessage(error.message)}`
+          : `LINEログインを開始できませんでした。${normalizeAuthErrorMessage(error.message)}`
       );
+    } catch (error) {
+      setMessageTone("error");
+      setMessage(normalizeAuthErrorMessage(error instanceof Error ? error.message : String(error)));
+    } finally {
+      setAuthSubmitting(false);
     }
   }
 
@@ -2472,7 +2500,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleOAuthSignIn("google")}
-                disabled={!supabase}
+                disabled={!supabase || authSubmitting}
                 className="flex h-12 items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
               >
                 <span className="text-lg font-black">
@@ -2484,7 +2512,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => handleOAuthSignIn("line")}
-                  disabled={!supabase}
+                  disabled={!supabase || authSubmitting}
                   className="flex h-12 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
                 >
                   <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
@@ -2505,7 +2533,7 @@ export default function Home() {
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="メールアドレス"
                 className="rounded-xl border px-3 py-2"
-                disabled={!supabase}
+                disabled={!supabase || authSubmitting}
               />
               <div className="flex gap-2">
                 <input
@@ -2514,7 +2542,7 @@ export default function Home() {
                   placeholder={authMode === "signup" ? "パスワード（6文字以上）" : "パスワード"}
                   type={showAuthPassword ? "text" : "password"}
                   className="flex-1 rounded-xl border px-3 py-2"
-                  disabled={!supabase}
+                  disabled={!supabase || authSubmitting}
                 />
                 <button
                   type="button"
@@ -2531,9 +2559,9 @@ export default function Home() {
             <button
               onClick={handleAuth}
               className="mt-4 rounded-2xl bg-blue-600 px-5 py-3 font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
-              disabled={!supabase}
+              disabled={!supabase || authSubmitting}
             >
-              {authMode === "login" ? "ログインする" : "新規登録する"}
+              {authSubmitting ? "処理中..." : authMode === "login" ? "ログインする" : "新規登録する"}
             </button>
 
             {message && (
@@ -3529,7 +3557,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => handleOAuthSignIn("google")}
-                disabled={!supabase}
+                disabled={!supabase || authSubmitting}
                 className="flex h-11 items-center justify-center gap-3 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400"
               >
                 <span className="text-lg font-black">
@@ -3541,7 +3569,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => handleOAuthSignIn("line")}
-                  disabled={!supabase}
+                  disabled={!supabase || authSubmitting}
                   className="flex h-11 items-center justify-center gap-3 rounded-md bg-[#06c755] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#05b64d] disabled:bg-slate-300"
                 >
                   <span className="rounded bg-white px-1.5 py-0.5 text-xs font-black text-[#06c755]">LINE</span>
@@ -3584,9 +3612,12 @@ export default function Home() {
               <button
                 type="button"
                 onClick={handleAuth}
-                className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+                disabled={!supabase || authSubmitting}
+                className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700 disabled:bg-slate-300 disabled:shadow-none"
               >
-                {authMode === "login"
+                {authSubmitting
+                  ? "処理中..."
+                  : authMode === "login"
                   ? "ログインして続ける"
                   : printAuthIntent === "personal"
                     ? "登録してPersonalへ進む"
