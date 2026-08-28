@@ -11,6 +11,7 @@ import {
 } from "@/lib/official-wordbooks";
 import { requireAdmin } from "@/lib/admin-auth";
 import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
+import { revalidateOfficialWordbookCaches } from "@/lib/cached-wordbooks";
 
 type IncomingWord = {
   number?: string | number;
@@ -278,7 +279,7 @@ async function updateWordbookMeta(
   }
 
   const skippedColumns: string[] = [];
-  let currentPayload = { ...updatePayload };
+  const currentPayload = { ...updatePayload };
   let lastError: DbError = null;
 
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -373,6 +374,7 @@ export async function POST(request: Request) {
       title,
       String(wordbook.id)
     );
+    revalidateOfficialWordbookCaches();
 
     return NextResponse.json({
       ok: true,
@@ -484,6 +486,7 @@ export async function PATCH(request: Request) {
         materializedTitle,
         String(wordbook.id)
       );
+      revalidateOfficialWordbookCaches();
 
       return NextResponse.json({
         ok: true,
@@ -524,6 +527,7 @@ export async function PATCH(request: Request) {
       const removedDuplicateIds = titleForCleanup
         ? await cleanupDuplicateWordbooksByTitle(supabase, titleForCleanup, id)
         : [];
+      revalidateOfficialWordbookCaches();
       return NextResponse.json({
         ok: true,
         wordCount: clean.length,
@@ -544,6 +548,7 @@ export async function PATCH(request: Request) {
     const removedDuplicateIds = titleForCleanup
       ? await cleanupDuplicateWordbooksByTitle(supabase, titleForCleanup, id)
       : [];
+    revalidateOfficialWordbookCaches();
 
     return NextResponse.json({
       ok: true,
@@ -610,6 +615,7 @@ export async function DELETE(request: Request) {
         );
       }
 
+      revalidateOfficialWordbookCaches();
       return NextResponse.json({ ok: true, hiddenTemplate: true });
     }
     const wordsDeleteResult = await supabase.from("words").delete().eq("wordbook_id", id);
@@ -629,6 +635,7 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ ok: false, message: result.error.message }, { status: 500 });
     }
 
+    revalidateOfficialWordbookCaches();
     return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(

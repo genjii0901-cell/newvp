@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
-import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
+import {
+  loadCachedPublicCatalog,
+  loadCachedPublicWordbookSummary,
+  loadCachedPublicWordbookWords,
+} from "@/lib/cached-wordbooks";
 import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
 
 export const revalidate = 300;
@@ -38,11 +42,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await loadOfficialWordbooks({
-      includeWords,
-      filterIds,
-      deferDataCoverImages,
-    });
+    const result = id
+      ? includeWords
+        ? await loadCachedPublicWordbookWords(id)
+        : await loadCachedPublicWordbookSummary(id)
+      : await loadCachedPublicCatalog();
     if (!result.ok || result.wordbooks.length === 0) {
       return fallbackResponse(result.error ?? undefined, filterIds, includeWords, deferDataCoverImages);
     }

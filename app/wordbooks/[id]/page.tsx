@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
-import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
-import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
+import { loadCachedPublicWordbookSummary } from "@/lib/cached-wordbooks";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import WordbookDetailClient from "./wordbook-detail-client";
 
@@ -36,24 +36,22 @@ type PageProps = {
 
 type SeoTab = "overview" | "test" | "listen" | "quiz";
 
-async function findSeoWordbook(slug: string) {
+const findSeoWordbook = cache(async (slug: string) => {
   const id = extractWordbookIdFromSlug(slug);
   if (!id) return null;
 
-  if (isSupabaseServerConfigured()) {
-    try {
-      const result = await loadOfficialWordbooks({ includeWords: false, filterIds: [id] });
-      if (result.ok) {
-        const found = result.wordbooks.find((book) => String(book.id) === id);
-        if (found) return found;
-      }
-    } catch {
-      // Metadata should still render if the database is temporarily unavailable.
+  try {
+    const result = await loadCachedPublicWordbookSummary(id);
+    if (result.ok) {
+      const found = result.wordbooks.find((book) => String(book.id) === id);
+      if (found) return found;
     }
+  } catch {
+    // Metadata should still render if the database is temporarily unavailable.
   }
 
   return fallbackOfficialWordbooksForApi().find((book) => String(book.id) === id) ?? null;
-}
+});
 
 function titleFromSlug(slug: string) {
   const decoded = decodeURIComponent(slug || "");

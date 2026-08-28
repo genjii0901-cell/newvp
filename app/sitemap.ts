@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
-import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
+import { loadCachedPublicCatalog } from "@/lib/cached-wordbooks";
 import { isSupabaseServerConfigured } from "@/lib/supabase/admin";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 
@@ -10,7 +10,7 @@ async function loadSitemapWordbooks() {
   if (!isSupabaseServerConfigured()) return fallbackOfficialWordbooksForApi();
   try {
     const result = await Promise.race([
-      loadOfficialWordbooks({ includeWords: false }),
+      loadCachedPublicCatalog(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), 5_000)),
     ]);
     if (result?.ok && result.wordbooks.length > 0) return result.wordbooks;
