@@ -17,7 +17,12 @@ function dataImageResponse(value: string) {
 
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id");
-  if (!id) return new NextResponse("Not found", { status: 404 });
+  if (!id) {
+    return new NextResponse("Not found", {
+      status: 404,
+      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+    });
+  }
 
   const result = await loadOfficialWordbooks({
     includeWords: false,
@@ -25,7 +30,12 @@ export async function GET(request: Request) {
     deferDataCoverImages: false,
   }).catch(() => null);
   const coverImage = result?.wordbooks.find((book) => String(book.id) === id)?.coverImage;
-  if (!coverImage) return new NextResponse("Not found", { status: 404 });
+  if (!coverImage) {
+    return new NextResponse("Not found", {
+      status: 404,
+      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+    });
+  }
 
   const dataResponse = dataImageResponse(coverImage);
   if (dataResponse) return dataResponse;

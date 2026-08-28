@@ -47,10 +47,10 @@ export type LiveWordbook = {
 };
 
 function publicCoverImage(id: string, coverImage: string | null | undefined, deferDataCoverImages: boolean) {
-  if (!coverImage) return null;
-  if (deferDataCoverImages && /^data:image\//i.test(coverImage)) {
+  if (deferDataCoverImages) {
     return `/api/wordbooks/cover?id=${encodeURIComponent(id)}`;
   }
+  if (!coverImage) return null;
   return coverImage;
 }
 
@@ -128,14 +128,23 @@ export async function loadOfficialWordbooks(options?: {
   const dbFilterIds = filterIds.filter(canFilterByDbId);
   const supabase = getSupabaseAdmin();
 
-  const selects = [
-    "id,title,description,visibility,cover_image,words(count)",
-    "id,title,description,visibility,words(count)",
-    "id,title,description,words(count)",
-    "id,title,description,visibility,cover_image",
-    "id,title,description,visibility",
-    "id,title,description",
-  ];
+  // 一覧ではBase64の表紙本体を全冊分DBから取得しない。表紙APIが1冊ずつ取得し、
+  // CDNで長期キャッシュすることでSupabaseのEgressを大幅に抑える。
+  const selects = deferDataCoverImages
+    ? [
+        "id,title,description,visibility,words(count)",
+        "id,title,description,words(count)",
+        "id,title,description,visibility",
+        "id,title,description",
+      ]
+    : [
+        "id,title,description,visibility,cover_image,words(count)",
+        "id,title,description,visibility,words(count)",
+        "id,title,description,words(count)",
+        "id,title,description,visibility,cover_image",
+        "id,title,description,visibility",
+        "id,title,description",
+      ];
 
   let rows: WordbookRow[] | null = null;
   let dbError: string | null = null;
