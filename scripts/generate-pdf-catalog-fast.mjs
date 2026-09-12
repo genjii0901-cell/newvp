@@ -1,9 +1,9 @@
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const require = createRequire(import.meta.url);
@@ -37,6 +37,12 @@ function option(name, fallback = "") {
   const index = process.argv.indexOf(`--${name}`);
   return index >= 0 ? process.argv[index + 1] : fallback;
 }
+
+function hasFlag(name) {
+  return process.argv.includes(`--${name}`);
+}
+
+const cleanLayout = hasFlag("clean-layout");
 
 function seededShuffle(items, seedText) {
   let seed = 2166136261;
@@ -79,14 +85,14 @@ function makeDocument(book, variant) {
     plan: "admin",
     printStyle: variant.printStyle,
     includeWatermark: false,
-    showRecordFields: true,
+    showRecordFields: !cleanLayout,
     showClassField: false,
     showNumberField: false,
-    showNameField: true,
+    showNameField: !cleanLayout,
     studentClass: "",
     studentNumber: "",
     studentName: "",
-    includeDate: true,
+    includeDate: !cleanLayout,
     generatedAt: new Date(),
     userEmail: "",
     footerText: "Created by Vocab Print Pro",
@@ -152,6 +158,9 @@ const passwordFile = option("password-file");
 const adminTokenFile = option("admin-token-file");
 const workerCount = Math.max(1, Math.min(6, Number(option("workers", "4")) || 4));
 const limit = Math.max(0, Number(option("limit", "0")) || 0);
+const selectedBookIds = new Set(option("books").split(",").map((value) => value.trim()).filter(Boolean));
+const force = hasFlag("force");
+const qaOutput = option("qa-output") ? resolve(option("qa-output")) : "";
 if (!adminTokenFile || !passwordFile) throw new Error("--admin-token-file and --password-file are required.");
 const passwordLines = (await readFile(passwordFile, "utf8")).split(/\r?\n/);
 const ownerPassword = passwordLines[3] ?? "";
@@ -179,8 +188,15 @@ await Promise.all(Array.from({ length: Math.min(6, listedBooks.length) }, async 
 }));
 books.sort((a, b) => a.title.localeCompare(b.title, "ja"));
 
-let tasks = books.flatMap((book) => VARIANTS.map((variant) => ({ book, variant }))).filter(({ book, variant }) => {
-  return ["full-pdf::sale", "sample-pdf::public", "sample-image::public"].some((suffix) => !existing.has(`${book.id}::${variant.id}::${suffix}`));
+const targetBooks = selectedBookIds.size ? books.filter((book) => selectedBookIds.has(String(book.id))) : books;
+if (selectedBookIds.size && targetBooks.length !== selectedBookIds.size) {
+  const found = new Set(targetBooks.map((book) => String(book.id)));
+  const missing = [...selectedBookIds].filter((id) => !found.has(id));
+  throw new Error(`Selected wordbooks were not found: ${missing.join(", ")}`);
+}
+
+let tasks = targetBooks.flatMap((book) => VARIANTS.map((variant) => ({ book, variant }))).filter(({ book, variant }) => {
+  return force || ["full-pdf::sale", "sample-pdf::public", "sample-image::public"].some((suffix) => !existing.has(`${book.id}::${variant.id}::${suffix}`));
 });
 if (limit) tasks = tasks.slice(0, limit);
 console.log(`Fast catalog: ${books.length} books, ${tasks.length} pending variants, ${workerCount} workers.`);
@@ -207,7 +223,7 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
         ["full-pdf", "sale", "application/pdf", "pdf"],
         ["sample-pdf", "public", "application/pdf", "pdf"],
         ["sample-image", "public", "image/jpeg", "jpg"],
-      ].filter(([output, visibility]) => !existing.has(`${baseKey}::${output}::${visibility}`));
+      ].filter(([output, visibility]) => force || !existing.has(`${baseKey}::${output}::${visibility}`));
       if (!pending.length) continue;
       const token = `${process.pid}-${workerIndex}-${taskIndex}`;
       const sourcePath = resolve(tmpdir(), `vpp-${token}-source.pdf`);
@@ -231,6 +247,15 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
           "sample-pdf": await readFile(samplePath),
           "sample-image": sampleImage,
         };
+        if (qaOutput) {
+          const bookDirectory = join(qaOutput, String(book.id));
+          await mkdir(bookDirectory, { recursive: true });
+          await Promise.all([
+            writeFile(join(bookDirectory, `${variant.id}__full.pdf`), files["full-pdf"]),
+            writeFile(join(bookDirectory, `${variant.id}__sample.pdf`), files["sample-pdf"]),
+            writeFile(join(bookDirectory, `${variant.id}__sample.jpg`), files["sample-image"]),
+          ]);
+        }
         await Promise.all(pending.map(async ([output, visibility, mimeType, extension]) => {
           const isSample = output !== "full-pdf";
           const title = `${book.title} ${variant.label}${isSample ? " サンプル" : ""}`;
