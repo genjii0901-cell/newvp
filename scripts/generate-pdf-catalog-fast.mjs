@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -161,6 +161,13 @@ const limit = Math.max(0, Number(option("limit", "0")) || 0);
 const selectedBookIds = new Set(option("books").split(",").map((value) => value.trim()).filter(Boolean));
 const force = hasFlag("force");
 const qaOutput = option("qa-output") ? resolve(option("qa-output")) : "";
+const refreshDirectory = option("refresh-directory") ? resolve(option("refresh-directory")) : "";
+const completed = new Set();
+if (refreshDirectory) {
+  await mkdir(join(refreshDirectory, "before"), { recursive: true });
+  const lines = await readFile(join(refreshDirectory, "completed.jsonl"), "utf8").catch(() => "");
+  for (const line of lines.split("\n").filter(Boolean)) completed.add(JSON.parse(line).assetKey);
+}
 if (!adminTokenFile || !passwordFile) throw new Error("--admin-token-file and --password-file are required.");
 const passwordLines = (await readFile(passwordFile, "utf8")).split(/\r?\n/);
 const ownerPassword = passwordLines[3] ?? "";
@@ -168,6 +175,8 @@ const adminToken = (await readFile(adminTokenFile, "utf8")).trim();
 if (!adminToken || ownerPassword.length < 24) throw new Error("Required credentials are not available.");
 
 const catalog = await api(adminToken, "/api/admin/pdf-assets");
+const priorAssets = new Map((catalog.assets ?? []).map((asset) => [asset.assetKey, asset]));
+if (refreshDirectory) await writeFile(join(refreshDirectory, "before", "catalog.json"), JSON.stringify(catalog, null, 2), { flag: "wx" }).catch((error) => { if (error.code !== "EEXIST") throw error; });
 const existing = new Set((catalog.assets ?? []).map((asset) => asset.assetKey).filter(Boolean));
 const bookList = await api(adminToken, "/api/admin/all-wordbooks?includeWords=0&includeWordStats=1");
 const listedBooks = Array.isArray(bookList.wordbooks) ? bookList.wordbooks : [];
@@ -177,6 +186,7 @@ await Promise.all(Array.from({ length: Math.min(6, listedBooks.length) }, async 
   while (nextBook < listedBooks.length) {
     const index = nextBook++;
     const id = listedBooks[index].id;
+    if (selectedBookIds.size && !selectedBookIds.has(String(id))) continue;
     try {
       const detail = await api(adminToken, `/api/admin/all-wordbooks?includeWords=1&includeWordStats=1&id=${encodeURIComponent(id)}`);
       const book = detail.wordbooks?.find((item) => item.id === id);
@@ -223,7 +233,9 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
         ["full-pdf", "sale", "application/pdf", "pdf"],
         ["sample-pdf", "public", "application/pdf", "pdf"],
         ["sample-image", "public", "image/jpeg", "jpg"],
-      ].filter(([output, visibility]) => force || !existing.has(`${baseKey}::${output}::${visibility}`));
+        ...(catalog.assets ?? []).filter((asset) => asset.wordbookId === String(book.id) && asset.variant === variant.id && asset.visibility === "admin")
+          .map((asset) => [asset.outputKind, "admin", asset.mimeType, asset.mimeType === "application/pdf" ? "pdf" : "jpg"]),
+      ].filter(([output, visibility]) => !completed.has(`${baseKey}::${output}::${visibility}`) && (force || !existing.has(`${baseKey}::${output}::${visibility}`)));
       if (!pending.length) continue;
       const token = `${process.pid}-${workerIndex}-${taskIndex}`;
       const sourcePath = resolve(tmpdir(), `vpp-${token}-source.pdf`);
@@ -257,11 +269,24 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
           ]);
         }
         await Promise.all(pending.map(async ([output, visibility, mimeType, extension]) => {
+          const assetKey = `${baseKey}::${output}::${visibility}`;
+          const prior = priorAssets.get(assetKey);
+          if (refreshDirectory && prior) {
+            const backupPath = join(refreshDirectory, "before", `${prior.id}.${extension}`);
+            const backupExists = await readFile(backupPath).then((buffer) => buffer.length === prior.sizeBytes).catch(() => false);
+            if (!backupExists) {
+              const response = await fetch(`${BASE_URL}/api/admin/pdf-assets/${prior.id}`, { headers: { "x-pdf-batch-token": adminToken } });
+              if (!response.ok) throw new Error(`Backup failed (${response.status}).`);
+              const buffer = Buffer.from(await response.arrayBuffer());
+              if (buffer.length !== prior.sizeBytes) throw new Error("Backup size mismatch.");
+              await writeFile(backupPath, buffer);
+            }
+          }
           const isSample = output !== "full-pdf";
           const title = `${book.title} ${variant.label}${isSample ? " サンプル" : ""}`;
           await upload(adminToken, files[output], {
-            title,
-            description: `${book.title}の${variant.label}。${isSample ? "購入前に仕上がりを確認できる先頭1ページのサンプルです。" : "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"}`,
+            title: prior?.title ?? title,
+            description: prior?.description ?? `${book.title}の${variant.label}。${isSample ? "購入前に仕上がりを確認できる先頭1ページのサンプルです。" : "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"}`,
             wordbookId: book.id,
             wordbookTitle: book.title,
             kind: "generated",
@@ -269,11 +294,12 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
             variant: variant.id,
             outputKind: output,
             assetKey: `${baseKey}::${output}::${visibility}`,
-            priceJpy: 500,
-            bundlePriceJpy: 980,
+            priceJpy: prior?.priceJpy ?? 500,
+            bundlePriceJpy: prior?.bundlePriceJpy ?? 980,
             mimeType,
-            fileName: `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${extension}`,
+            fileName: prior?.fileName ?? `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${extension}`,
           });
+          if (refreshDirectory) await appendFile(join(refreshDirectory, "completed.jsonl"), JSON.stringify({ assetKey, sizeBytes: files[output].length, completedAt: new Date().toISOString() }) + "\n");
           existing.add(`${baseKey}::${output}::${visibility}`);
           saved += 1;
         }));
