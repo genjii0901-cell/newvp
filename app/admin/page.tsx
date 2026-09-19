@@ -90,6 +90,13 @@ function seededShuffle<T>(items: T[], seedText: string) {
   return shuffled;
 }
 
+function batchRandomOrderKey(config: BatchVariantConfig) {
+  if (!config.random) return "";
+  if (config.direction === "spelling") return "random-spelling";
+  if (config.type === "list") return "random-list";
+  return "random-translation";
+}
+
 type AdminMetrics = {
   warnings?: string[];
   visitorMetrics?: {
@@ -1366,7 +1373,7 @@ export default function AdminPage() {
     };
     const baseWords = wordsOverride ?? pdfOutputWords;
     const outputWords = configOverride?.random && outputBook
-      ? seededShuffle(baseWords, `${outputBook.id}:${config.label}`)
+      ? seededShuffle(baseWords, `${outputBook.id}:${batchRandomOrderKey(config)}`)
       : baseWords;
     if (!outputBook || outputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
     const now = new Date();
@@ -1555,6 +1562,9 @@ export default function AdminPage() {
     const imageExtension = blob.type === "image/jpeg" ? "jpg" : "png";
     const mimeType = isImage ? (blob.type === "image/jpeg" ? "image/jpeg" : "image/png") : "application/pdf";
     const safeFileName = `${title.replace(/[\\/:*?"<>|]+/g, "_")}.${isImage ? imageExtension : "pdf"}`;
+    const randomOrderNote = variant.startsWith("random-")
+      ? "問題と解答は同じランダム順で、番号を見ながら照合できます。"
+      : "";
     const outputDescription = output === "full-pdf"
       ? "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"
       : output === "sample-pdf"
@@ -1562,7 +1572,7 @@ export default function AdminPage() {
         : "購入前に仕上がりを確認できる先頭1ページのサンプル画像です。";
     const metadata = {
       title,
-      description: `${book.title}の${title.replace(book.title, "").trim()}。${outputDescription}`,
+      description: `${book.title}の${title.replace(book.title, "").trim()}。${outputDescription}${randomOrderNote}`,
       wordbookId: book.id,
       wordbookTitle: book.title,
       kind: "generated",

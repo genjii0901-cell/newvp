@@ -134,6 +134,12 @@ function getAuthConfirmUrl(next = "/") {
   return `${getAuthRedirectBaseUrl()}/auth/confirm?next=${encodeURIComponent(next)}`;
 }
 
+function getRequestedAuthReturnPath() {
+  if (typeof window === "undefined") return "/";
+  const requested = new URLSearchParams(window.location.search).get("next") ?? "/";
+  return requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+}
+
 function isLineLoginEnabled() {
   return process.env.NEXT_PUBLIC_ENABLE_LINE_LOGIN !== "false";
 }
@@ -1316,13 +1322,14 @@ export default function Home() {
 
     setAuthSubmitting(true);
     try {
+      const authReturnPath = getRequestedAuthReturnPath();
       if (authMode === "signup") {
         const { data, error } = await withAuthTimeout(
           supabase.auth.signUp({
             email,
             password,
             options: {
-              emailRedirectTo: getAuthConfirmUrl("/"),
+              emailRedirectTo: getAuthConfirmUrl(authReturnPath),
             },
           })
         );
@@ -1369,6 +1376,7 @@ export default function Home() {
             setPrintAuthIntent(null);
             await startCheckout("personal");
           }
+          if (authReturnPath !== "/") window.location.assign(authReturnPath);
           return;
         }
 
@@ -1391,6 +1399,7 @@ export default function Home() {
 
       setMessageTone("success");
       setMessage("ログインしました。");
+      if (authReturnPath !== "/") window.location.assign(authReturnPath);
     } catch (error) {
       setMessageTone("error");
       setMessage(normalizeAuthErrorMessage(error instanceof Error ? error.message : String(error)));
@@ -1422,12 +1431,13 @@ export default function Home() {
 
     setAuthSubmitting(true);
     try {
+      const authReturnPath = getRequestedAuthReturnPath();
       const supabaseProvider = provider === "line" ? "custom:line" : provider;
       const { error } = await withAuthTimeout(
         supabase.auth.signInWithOAuth({
           provider: supabaseProvider,
           options: {
-            redirectTo: getAuthConfirmUrl("/"),
+            redirectTo: getAuthConfirmUrl(authReturnPath),
           },
         })
       );

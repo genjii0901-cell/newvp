@@ -13,7 +13,7 @@ function isProductionHost(appUrl: string) {
 function withDatabaseDeadline<T>(promise: Promise<T>) {
   return Promise.race([
     promise,
-    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DATABASE_TIMEOUT")), 6_000)),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("DATABASE_TIMEOUT")), 10_000)),
   ]);
 }
 
@@ -50,10 +50,11 @@ export async function POST(request: Request) {
     }
 
     const profile = await withDatabaseDeadline(tryEnsureProfile(auth.user));
+    const returnQuery = wordbookId ? `&book=${encodeURIComponent(wordbookId)}` : "";
     const params = new URLSearchParams({
       mode: "payment",
-      success_url: `${appUrl}/materials?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/materials?checkout=cancel`,
+      success_url: `${appUrl}/materials?checkout=success&session_id={CHECKOUT_SESSION_ID}${returnQuery}`,
+      cancel_url: `${appUrl}/materials?checkout=cancel${returnQuery}`,
       client_reference_id: auth.user.id,
     });
     params.append("payment_method_types[]", "card");

@@ -76,9 +76,32 @@ export default function PdfMaterialsClient() {
   const [message, setMessage] = useState("");
   const [busyKey, setBusyKey] = useState("");
 
-  async function authHeaders() {
-    const session = supabase ? (await supabase.auth.getSession()).data.session : null;
-    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : null;
+  async function authHeaders(waitForRestore = false) {
+    if (!supabase) return null;
+    const delays = waitForRestore ? [0, 250, 750, 1_250] : [0];
+    for (const delay of delays) {
+      if (delay) await new Promise((resolve) => window.setTimeout(resolve, delay));
+      const { data } = await supabase.auth.getSession();
+      if (data.session?.access_token) return { Authorization: `Bearer ${data.session.access_token}` };
+    }
+    return null;
+  }
+
+  function currentMaterialPath() {
+    return `${window.location.pathname}${window.location.search}`;
+  }
+
+  function loginForMaterials() {
+    const next = currentMaterialPath();
+    window.location.assign(`/?next=${encodeURIComponent(next)}#auth`);
+  }
+
+  function clearCheckoutParams(messageText: string) {
+    setMessage(messageText);
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.delete("checkout");
+    nextUrl.searchParams.delete("session_id");
+    window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
   }
 
   async function loadPurchases() {
@@ -148,15 +171,14 @@ export default function PdfMaterialsClient() {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
     if (params.get("checkout") === "cancel") {
-      queueMicrotask(() => setMessage("購入はキャンセルされました。料金は発生していません。"));
-      window.history.replaceState({}, "", "/materials");
+      queueMicrotask(() => clearCheckoutParams("購入はキャンセルされました。料金は発生していません。"));
       return;
     }
     if (params.get("checkout") !== "success" || !sessionId) return;
     void (async () => {
-      const headers = await authHeaders();
+      const headers = await authHeaders(true);
       if (!headers) {
-        setMessage("購入内容を確認するため、もう一度ログインしてください。");
+        setMessage("購入内容を確認するためログインしてください。ログイン後、この教材ページで購入結果を再確認できます。");
         return;
       }
       setBusyKey("verify");
@@ -166,12 +188,12 @@ export default function PdfMaterialsClient() {
         body: JSON.stringify({ sessionId }),
       }).catch(() => null);
       const result = await response?.json().catch(() => ({}));
-      setMessage(response?.ok && result.paid
+      const resultMessage = response?.ok && result.paid
         ? "購入が完了しました。教材をダウンロードできます。"
-        : result?.message ?? "購入結果を確認できませんでした。お問い合わせから決済番号をお知らせください。");
+        : result?.message ?? "購入結果を確認できませんでした。お問い合わせから決済番号をお知らせください。";
       if (response?.ok && result.paid) await loadPurchases();
       setBusyKey("");
-      window.history.replaceState({}, "", "/materials");
+      clearCheckoutParams(resultMessage);
     })();
   }, []);
 
@@ -194,9 +216,9 @@ export default function PdfMaterialsClient() {
   }
 
   async function startPurchase(payload: { purchaseType: "asset" | "wordbook"; assetId?: string; wordbookId?: string }) {
-    const headers = await authHeaders();
+    const headers = await authHeaders(true);
     if (!headers) {
-      window.location.assign("/#auth");
+      loginForMaterials();
       return;
     }
     const key = payload.purchaseType === "asset" ? payload.assetId! : `book:${payload.wordbookId}`;
@@ -208,7 +230,7 @@ export default function PdfMaterialsClient() {
       body: JSON.stringify(payload),
     }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
-    if (response?.ok && result.url) window.location.assign(result.url);
+    if (response?.ok && result.url) window.location.href = result.url;
     else {
       setMessage(result?.message ?? "購入画面を開けませんでした。時間をおいてもう一度お試しください。");
       setBusyKey("");
@@ -220,9 +242,9 @@ export default function PdfMaterialsClient() {
       window.open(asset.downloadUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    const headers = await authHeaders();
+    const headers = await authHeaders(true);
     if (!headers) {
-      window.location.assign("/#auth");
+      loginForMaterials();
       return;
     }
     const pendingWindow = window.open("", "_blank");
@@ -321,6 +343,7 @@ export default function PdfMaterialsClient() {
             <p className="text-xs font-black text-blue-600">選択中の単語帳</p>
             <h2 className="mt-1 text-lg font-black text-slate-950">{selectedGroup.title}</h2>
             <p className="mt-1 text-xs text-slate-500">必要な形式だけ購入するか、全形式セットを選べます。</p>
+            <p className="mt-1 text-xs font-bold text-emerald-700">ランダム版は問題と解答が同じ順番です。番号でそのまま答え合わせできます。</p>
           </div>
           <button type="button" onClick={closeGroup} className="rounded-lg border bg-white p-2 text-slate-500" aria-label="詳細を閉じる"><X size={18} /></button>
         </div>

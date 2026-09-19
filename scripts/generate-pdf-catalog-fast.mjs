@@ -62,6 +62,13 @@ function seededShuffle(items, seedText) {
   return shuffled;
 }
 
+function randomOrderKey(variant) {
+  if (!variant.random) return "";
+  if (variant.direction === "spelling") return "random-spelling";
+  if (variant.type === "list") return "random-list";
+  return "random-translation";
+}
+
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
@@ -73,7 +80,7 @@ function makeDocument(book, variant) {
     english: String(word.english ?? ""),
     japanese: String(word.japanese ?? ""),
   }));
-  const words = variant.random ? seededShuffle(baseWords, `${book.id}:${variant.label}`) : baseWords;
+  const words = variant.random ? seededShuffle(baseWords, `${book.id}:${randomOrderKey(variant)}`) : baseWords;
   const title = `${book.title} ${variant.type === "list" ? "一覧" : variant.type === "test" ? "問題" : "解答"}`;
   const body = buildPrintHtml({
     title,
@@ -159,6 +166,7 @@ const adminTokenFile = option("admin-token-file");
 const workerCount = Math.max(1, Math.min(6, Number(option("workers", "4")) || 4));
 const limit = Math.max(0, Number(option("limit", "0")) || 0);
 const selectedBookIds = new Set(option("books").split(",").map((value) => value.trim()).filter(Boolean));
+const selectedVariantIds = new Set(option("variants").split(",").map((value) => value.trim()).filter(Boolean));
 const force = hasFlag("force");
 const qaOutput = option("qa-output") ? resolve(option("qa-output")) : "";
 const refreshDirectory = option("refresh-directory") ? resolve(option("refresh-directory")) : "";
@@ -205,7 +213,9 @@ if (selectedBookIds.size && targetBooks.length !== selectedBookIds.size) {
   throw new Error(`Selected wordbooks were not found: ${missing.join(", ")}`);
 }
 
-let tasks = targetBooks.flatMap((book) => VARIANTS.map((variant) => ({ book, variant }))).filter(({ book, variant }) => {
+let tasks = targetBooks.flatMap((book) => VARIANTS.map((variant) => ({ book, variant })))
+  .filter(({ variant }) => !selectedVariantIds.size || selectedVariantIds.has(variant.id))
+  .filter(({ book, variant }) => {
   return force || ["full-pdf::sale", "sample-pdf::public", "sample-image::public"].some((suffix) => !existing.has(`${book.id}::${variant.id}::${suffix}`));
 });
 if (limit) tasks = tasks.slice(0, limit);
@@ -284,9 +294,12 @@ await Promise.all(Array.from({ length: workerCount }, async (_, workerIndex) => 
           }
           const isSample = output !== "full-pdf";
           const title = `${book.title} ${variant.label}${isSample ? " サンプル" : ""}`;
+          const randomOrderNote = variant.random ? "問題と解答は同じランダム順で、番号を見ながら照合できます。" : "";
+          const defaultDescription = `${book.title}の${variant.label}。${isSample ? "購入前に仕上がりを確認できる先頭1ページのサンプルです。" : "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"}`;
+          const priorDescription = String(prior?.description ?? defaultDescription).replace(/問題と解答は同じランダム順で、番号を見ながら照合できます。/g, "");
           await upload(adminToken, files[output], {
             title: prior?.title ?? title,
-            description: prior?.description ?? `${book.title}の${variant.label}。${isSample ? "購入前に仕上がりを確認できる先頭1ページのサンプルです。" : "A4印刷用の完全版PDFです。購入後は何度でもダウンロードできます。"}`,
+            description: `${priorDescription}${randomOrderNote}`,
             wordbookId: book.id,
             wordbookTitle: book.title,
             kind: "generated",
