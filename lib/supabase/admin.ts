@@ -122,6 +122,26 @@ export async function requireSupabaseUser(
   return { user: data.user, response: null };
 }
 
+// ログインは任意。有効なトークンがあればユーザーを返し、なければ null を返す（エラーにしない）。
+// ゲスト購入など「ログインしなくても進めたいが、ログインしていれば紐づけたい」処理で使う。
+export async function optionalSupabaseUser(request: Request): Promise<{ user: User | null }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice("Bearer ".length) : "";
+  if (!supabaseUrl || !anonKey || !token) return { user: null };
+  try {
+    const supabase = createClient(supabaseUrl, anonKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data.user) return { user: null };
+    return { user: data.user };
+  } catch {
+    return { user: null };
+  }
+}
+
 export async function ensureProfile(user: User) {
   const supabase = getSupabaseAdmin();
 

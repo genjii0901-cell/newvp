@@ -51,6 +51,8 @@ type MaterialGroup = {
 
 type GroupDetail = { group: MaterialGroup; assets: Asset[] };
 type Purchase = { purchase_type: "asset" | "wordbook"; asset_id: string | null; wordbook_id: string | null };
+type PurchasePayload = { purchaseType: "asset" | "wordbook"; assetId?: string; wordbookId?: string };
+type DownloadItem = { id: string; title: string; fileName: string; url: string };
 
 function groupProducts(assets: Asset[]) {
   return [...assets.reduce((map, asset) => {
@@ -75,6 +77,11 @@ export default function PdfMaterialsClient() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  // ゲスト購入の完了画面で表示するダウンロードリンク（アカウント不要）。
+  const [downloads, setDownloads] = useState<DownloadItem[]>([]);
+  // コンビニ・銀行振込など後払いで、まだ支払い確定待ちの状態。
+  const [pendingPayment, setPendingPayment] = useState(false);
+  const [checkoutSessionId, setCheckoutSessionId] = useState("");
 
   async function authHeaders(waitForRestore = false) {
     if (!supabase) return null;
@@ -93,7 +100,8 @@ export default function PdfMaterialsClient() {
 
   function loginForMaterials() {
     const next = currentMaterialPath();
-    window.location.assign(`/?next=${encodeURIComponent(next)}#auth`);
+    // メイン画面がクエリを見てログインフォームを開く（#authハッシュは無視されるため使わない）。
+    window.location.assign(`/?next=${encodeURIComponent(next)}&auth=login`);
   }
 
   function clearCheckoutParams(messageText: string) {
@@ -167,6 +175,43 @@ export default function PdfMaterialsClient() {
     if (requestedGroup) queueMicrotask(() => void openGroup(requestedGroup));
   }, [groups]);
 
+  // 決済セッションからダウンロードリンクを取得する（ログイン不要・ゲスト対応）。
+  async function confirmPurchase(sessionId: string) {
+    setCheckoutSessionId(sessionId);
+    setBusyKey("verify");
+    setMessage("");
+    // ログイン済みなら購入をアカウントにも記録するためトークンを送る（任意）。
+    const headers = await authHeaders();
+    const response = await fetch("/api/stripe/material-download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+      body: JSON.stringify({ sessionId }),
+    }).catch(() => null);
+    const result = await response?.json().catch(() => ({}));
+    setBusyKey("");
+    if (response?.ok && result.paid && Array.isArray(result.items)) {
+      setDownloads(result.items as DownloadItem[]);
+      setPendingPayment(false);
+      setMessage("購入が完了しました。下のボタンから教材をダウンロードできます。");
+      void loadPurchases();
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.delete("checkout");
+      nextUrl.searchParams.delete("session_id");
+      window.history.replaceState({}, "", `${nextUrl.pathname}${nextUrl.search}`);
+      return;
+    }
+    if (response?.ok && result.paid === false) {
+      // コンビニ・銀行振込などの後払い。URLに session_id を残して再確認できるようにする。
+      setDownloads([]);
+      setPendingPayment(Boolean(result.pending));
+      setMessage(result.message ?? "お支払いの確定を待っています。支払い完了後にこのページを再度開いてください。");
+      return;
+    }
+    setDownloads([]);
+    setPendingPayment(false);
+    setMessage(result?.message ?? "購入結果を確認できませんでした。お問い合わせから決済番号をお知らせください。");
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
@@ -175,26 +220,8 @@ export default function PdfMaterialsClient() {
       return;
     }
     if (params.get("checkout") !== "success" || !sessionId) return;
-    void (async () => {
-      const headers = await authHeaders(true);
-      if (!headers) {
-        setMessage("購入内容を確認するためログインしてください。ログイン後、この教材ページで購入結果を再確認できます。");
-        return;
-      }
-      setBusyKey("verify");
-      const response = await fetch("/api/stripe/verify-material-purchase", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ sessionId }),
-      }).catch(() => null);
-      const result = await response?.json().catch(() => ({}));
-      const resultMessage = response?.ok && result.paid
-        ? "購入が完了しました。教材をダウンロードできます。"
-        : result?.message ?? "購入結果を確認できませんでした。お問い合わせから決済番号をお知らせください。";
-      if (response?.ok && result.paid) await loadPurchases();
-      setBusyKey("");
-      clearCheckoutParams(resultMessage);
-    })();
+    queueMicrotask(() => void confirmPurchase(sessionId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filteredGroups = useMemo(() => {
@@ -215,18 +242,15 @@ export default function PdfMaterialsClient() {
     );
   }
 
-  async function startPurchase(payload: { purchaseType: "asset" | "wordbook"; assetId?: string; wordbookId?: string }) {
-    const headers = await authHeaders(true);
-    if (!headers) {
-      loginForMaterials();
-      return;
-    }
+  async function startPurchase(payload: PurchasePayload) {
     const key = payload.purchaseType === "asset" ? payload.assetId! : `book:${payload.wordbookId}`;
     setBusyKey(key);
     setMessage("");
+    // ログインは任意。ログイン済みならトークンを送って購入をアカウントに紐づける。ゲストはそのまま決済へ。
+    const headers = await authHeaders();
     const response = await fetch("/api/stripe/material-checkout", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...(headers ?? {}) },
       body: JSON.stringify(payload),
     }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
@@ -280,7 +304,7 @@ export default function PdfMaterialsClient() {
       <div className="rounded-xl bg-blue-700 p-5 text-white sm:p-8">
         <p className="text-sm font-black text-blue-100">PDF教材ストア</p>
         <h1 className="mt-2 text-2xl font-black sm:text-3xl">必要な単語帳だけ、すぐ印刷</h1>
-        <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-50">単品教材は500円から、1冊分の全形式セットは980円から。サブスクに加入しなくても購入できます。</p>
+        <p className="mt-3 max-w-2xl text-sm leading-7 text-blue-50">単品教材は500円から、1冊分の全形式セットは980円から。会員登録なし・ログイン不要で購入でき、カード・Apple Pay・Google Pay・Linkなどに対応します。</p>
         <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
           <span className="rounded-full bg-white/15 px-3 py-1.5">購入後は再ダウンロード可</span>
           <span className="rounded-full bg-white/15 px-3 py-1.5">編集制限付きPDF</span>
@@ -290,6 +314,35 @@ export default function PdfMaterialsClient() {
 
       {message ? <p className="mt-4 rounded-lg bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">{message}</p> : null}
       {busyKey === "verify" ? <p className="mt-4 text-sm font-bold text-blue-700">購入内容を確認しています...</p> : null}
+
+      {downloads.length > 0 ? (
+        <section className="mt-4 rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 sm:p-5">
+          <p className="flex items-center gap-2 text-sm font-black text-emerald-800"><PackageCheck size={18} /> 購入が完了しました。教材をダウンロードできます</p>
+          <p className="mt-1 text-xs font-bold text-emerald-700">リンクの有効期限は約10分です。切れた場合は、このページ（session_id付きURL）を再度開いてください。</p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {downloads.map((item) => (
+              <a key={item.id} href={item.url} target="_blank" rel="noreferrer" download={item.fileName}
+                className="inline-flex items-center justify-between gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800">
+                <span className="min-w-0 truncate">{item.title}</span>
+                <Download size={16} className="shrink-0" />
+              </a>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {pendingPayment ? (
+        <section className="mt-4 rounded-xl border-2 border-amber-300 bg-amber-50 p-4 sm:p-5">
+          <p className="text-sm font-black text-amber-900">お支払いの確定を待っています</p>
+          <p className="mt-1 text-xs font-bold text-amber-800">コンビニ払い・銀行振込は、お支払い完了後にダウンロードできます。このページのURL（session_id付き）をブックマークし、支払い後に再度開いて「支払いを再確認」を押してください。</p>
+          {checkoutSessionId ? (
+            <button type="button" onClick={() => void confirmPurchase(checkoutSessionId)} disabled={busyKey === "verify"}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white disabled:bg-slate-300">
+              支払いを再確認
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="mt-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -382,7 +435,7 @@ export default function PdfMaterialsClient() {
           </div>}
       </section> : null}
 
-      <p className="mt-5 flex items-center gap-2 text-xs text-slate-500"><Check size={14} className="text-emerald-500" /> 購入権限はログイン中のアカウントに保存されます。</p>
+      <p className="mt-5 flex items-center gap-2 text-xs text-slate-500"><Check size={14} className="text-emerald-500" /> 会員登録なしで購入できます。ログインして購入すると、購入履歴がアカウントに保存され、後からいつでも再ダウンロードできます。</p>
     </main>
   );
 }
