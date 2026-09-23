@@ -454,6 +454,7 @@ export default function Home() {
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
 
   const [plan, setPlan] = useState<Plan>("free");
+  const [trialOffer, setTrialOffer] = useState<"first" | "winback" | null>("first");
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [books, setBooks] = useState<WordBook[]>([]);
@@ -664,7 +665,13 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const authStatus = params.get("auth");
 
-    if (authStatus === "confirmed") {
+    if (authStatus === "login") {
+      // 教材購入などから「ログインが必要」で戻された導線。ログインフォームを前面に出す。
+      setAuthMode("login");
+      setMessageTone("info");
+      setMessage("購入を続けるには、ログインまたは新規登録してください。完了後、元のページに戻って手続きが進みます。");
+      window.setTimeout(() => document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+    } else if (authStatus === "confirmed") {
       setMessageTone("success");
       setMessage("メール認証が完了しました。ログインして利用を始められます。");
     } else if (authStatus === "deleted") {
@@ -916,6 +923,11 @@ export default function Home() {
           const nextPlan = normalizePlan(profileResult.profile.plan);
           setPlan(nextPlan);
           setRole(profileResult.profile.role === "admin" ? "admin" : "user");
+          setTrialOffer(
+            profileResult.profile.trialOffer === "first" || profileResult.profile.trialOffer === "winback"
+              ? profileResult.profile.trialOffer
+              : null
+          );
           return;
         }
       }
@@ -2279,13 +2291,17 @@ export default function Home() {
           </p>
         </div>
 
-        {user && plan === "free" && !trialModalOpen && !upsellBarDismissed && (
+        {user && plan === "free" && trialOffer && !trialModalOpen && !upsellBarDismissed && (
           <div className="mt-4 rounded-3xl border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-xs font-black text-rose-500">期間限定・7日間無料</p>
+                <p className="text-xs font-black text-rose-500">
+                  {trialOffer === "winback" ? "お帰りなさいキャンペーン" : "初回1回限定・7日間無料"}
+                </p>
                 <h3 className="mt-1 text-base font-black text-slate-950 sm:text-lg">
-                  Personalなら印刷し放題。7日間0円でお試しできます
+                  {trialOffer === "winback"
+                    ? "もう一度Personalを7日間0円でお試しいただけます"
+                    : "Personalなら印刷し放題。7日間0円でお試しできます"}
                 </h3>
                 <p className="mt-1 text-xs font-bold leading-6 text-slate-600 sm:text-sm">
                   無料プランは1ページの印刷が2回まで。たくさん刷るならPersonalがお得（その後は月額780円・いつでも解約OK）。
@@ -3649,10 +3665,12 @@ export default function Home() {
         </div>
       )}
 
-      {user && plan === "free" && trialModalOpen && (
+      {user && plan === "free" && trialOffer && trialModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
-            <p className="text-center text-xs font-black text-rose-500">期間限定・7日間無料</p>
+            <p className="text-center text-xs font-black text-rose-500">
+              {trialOffer === "winback" ? "お帰りなさいキャンペーン" : "初回1回限定・7日間無料"}
+            </p>
             <h3 className="mt-2 text-center text-2xl font-black leading-tight text-slate-950">
               Personalプランの登録を
               <br />

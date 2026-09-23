@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isMaterialPurchaseSchemaError, recordMaterialPurchase } from "@/lib/material-purchases";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getWinbackEligibleAt } from "@/lib/trial-offers";
 
 export const dynamic = "force-dynamic";
 
@@ -211,13 +212,16 @@ export async function POST(request: Request) {
     const object = event.data.object;
     const metadata = (object.metadata ?? {}) as Record<string, unknown>;
 
-    if (event.type === "checkout.session.completed") {
+    if (
+      event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded"
+    ) {
       const userId = getString(metadata.user_id) ?? getString(metadata.userId);
       const plan = getString(metadata.plan);
       const customerId = getNestedString(object, "customer");
       const subscriptionId = getNestedString(object, "subscription");
 
-      if (userId && plan) {
+      if (event.type === "checkout.session.completed" && userId && plan) {
         await updatePlan({
           userId,
           plan,
@@ -231,7 +235,15 @@ export async function POST(request: Request) {
         if (getString(metadata.trial) === "1") {
           try {
             const supabase = getSupabaseAdmin();
-            await supabase.from("profiles").update({ trial_used: true }).eq("id", userId);
+            const trialOffer = getString(metadata.trial_offer);
+            await supabase
+              .from("profiles")
+              .update(
+                trialOffer === "winback"
+                  ? { winback_trial_used: true, winback_trial_eligible_at: null }
+                  : { trial_used: true }
+              )
+              .eq("id", userId);
           } catch (error) {
             console.error("Failed to mark trial_used", error);
           }
@@ -303,6 +315,10 @@ export async function POST(request: Request) {
           status: "deleted",
           currentPeriodEnd: null,
         });
+        await getSupabaseAdmin()
+          .from("profiles")
+          .update({ winback_trial_eligible_at: getWinbackEligibleAt() })
+          .eq("id", userId);
       }
     }
 

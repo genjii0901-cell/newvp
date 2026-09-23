@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+import { getTrialOffer } from "@/lib/trial-offers";
 
 type Plan = "free" | "personal" | "teacher";
 
@@ -132,6 +133,7 @@ export async function GET(request: Request) {
         plan,
         role: profile.role ?? "user",
         stripe_customer_id: stripeCustomerId,
+        trialOffer: getTrialOffer(profile),
       },
     });
   } catch (error) {

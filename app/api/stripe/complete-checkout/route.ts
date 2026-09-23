@@ -24,7 +24,7 @@ function getNestedId(value: unknown) {
   return object ? getString(object.id) : null;
 }
 
-function getNestedNumber(value: unknown) {
+function getNestedNumber(value: unknown): number | null {
   if (typeof value === "number") return value;
   if (typeof value === "string") {
     const parsed = Number(value);
@@ -135,6 +135,22 @@ export async function POST(request: Request) {
     );
 
     if (profileError) throw profileError;
+
+    if (getString(metadata.trial) === "1") {
+      const trialOffer = getString(metadata.trial_offer);
+      const { error: trialError } = await supabase
+        .from("profiles")
+        .update(
+          trialOffer === "winback"
+            ? { winback_trial_used: true, winback_trial_eligible_at: null }
+            : { trial_used: true }
+        )
+        .eq("id", userId);
+
+      if (trialError) {
+        console.error("Failed to save trial usage", readableError(trialError));
+      }
+    }
 
     if (subscriptionId) {
       const { error: subscriptionError } = await supabase.from("subscriptions").upsert(

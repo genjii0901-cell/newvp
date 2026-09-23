@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
+type TrialOffer = "first" | "winback" | null;
 
 const TEACHER_PUBLIC_ENABLED = false;
 const PERSONAL_PUBLIC_CONFIGURED = Boolean(
@@ -62,6 +63,7 @@ export default function PricingPage() {
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan>("free");
+  const [trialOffer, setTrialOffer] = useState<TrialOffer>("first");
   const [message, setMessage] = useState("");
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
     personal: PERSONAL_PUBLIC_CONFIGURED,
@@ -81,6 +83,7 @@ export default function PricingPage() {
 
       if (!nextUser) {
         setCurrentPlan("free");
+        setTrialOffer("first");
         return;
       }
 
@@ -99,6 +102,11 @@ export default function PricingPage() {
       const result = await response.json().catch(() => ({}));
       if (response.ok && result.profile?.plan) {
         setCurrentPlan(normalizePlan(result.profile.plan));
+        setTrialOffer(
+          result.profile.trialOffer === "first" || result.profile.trialOffer === "winback"
+            ? result.profile.trialOffer
+            : null
+        );
       }
     }
 
@@ -274,7 +282,11 @@ export default function PricingPage() {
                       ? "Teacherは準備中"
                       : !canCheckout
                         ? "Stripe設定確認中"
-                        : "Personalに申し込む"}
+                        : trialOffer === "winback"
+                          ? "お帰りなさい・7日無料で再開"
+                          : trialOffer === "first"
+                            ? "初回7日無料で始める"
+                            : "Personalに申し込む"}
                   </button>
                 )}
               </div>
@@ -315,7 +327,11 @@ export default function PricingPage() {
             請求情報を確認
           </button>
           <p className="text-xs text-slate-500">
-            Personalは初回7日無料トライアル付きです。期間中の解約なら料金は発生しません。
+            {trialOffer === "winback"
+              ? "久しぶりに利用する方限定で、7日間無料のお帰りキャンペーンが適用されます。"
+              : trialOffer === "first"
+                ? "Personalは初回1回限定の7日無料トライアル付きです。期間中の解約なら料金は発生しません。"
+                : "無料トライアルは利用済みです。Personalは月額780円で再開できます。"}
           </p>
         </div>
       </section>

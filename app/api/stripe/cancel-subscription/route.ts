@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+import { getWinbackEligibleAt } from "@/lib/trial-offers";
 
 type Plan = "personal" | "teacher";
 type CancellationReason = "price" | "usage" | "features" | "temporary" | "other" | "skip";
@@ -102,6 +103,7 @@ async function updateLocalSubscription({
   status,
   plan,
   currentPeriodEnd,
+  winbackEligibleAt,
 }: {
   userId: string;
   customerId: string | null;
@@ -109,10 +111,17 @@ async function updateLocalSubscription({
   status: string;
   plan: "free" | Plan;
   currentPeriodEnd: string | null;
+  winbackEligibleAt?: string | null;
 }) {
   const supabase = getSupabaseAdmin();
 
-  await supabase.from("profiles").update({ plan }).eq("id", userId);
+  await supabase
+    .from("profiles")
+    .update({
+      plan,
+      ...(winbackEligibleAt ? { winback_trial_eligible_at: winbackEligibleAt } : {}),
+    })
+    .eq("id", userId);
 
   if (subscriptionId) {
     await supabase.from("subscriptions").upsert(
@@ -241,6 +250,7 @@ export async function POST(request: Request) {
         status: "canceled",
         plan: "free",
         currentPeriodEnd: null,
+        winbackEligibleAt: getWinbackEligibleAt(),
       });
 
       return NextResponse.json({
