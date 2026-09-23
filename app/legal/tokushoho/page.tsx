@@ -13,7 +13,11 @@ const rows: { label: string; value: string }[] = [
   { label: "メールアドレス", value: "vocabprint@gmail.com" },
   { label: "販売価格", value: "Personal: 月額780円（税込） / Teacher: 月額2,980円（税込）" },
   { label: "商品代金以外の必要料金", value: "インターネット接続料金・通信料金等は利用者のご負担となります。" },
-  { label: "支払方法", value: "クレジットカード決済（Stripe）" },
+  {
+    label: "支払方法",
+    value:
+      "Stripe Checkoutで利用可能なクレジットカード、Apple Pay、Google Pay、Linkなど（購入画面に表示される方法）",
+  },
   { label: "支払時期", value: "お申し込み時に課金されます。無料トライアル付きの場合はトライアル終了後に初回課金、以降は毎月自動更新で課金されます。" },
   { label: "商品の引渡し時期", value: "決済完了後、ただちに利用可能となります。" },
   {
