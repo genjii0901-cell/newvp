@@ -46,7 +46,9 @@ function cleanWordList(words: IncomingWord[]) {
         unit: unitParts.join(" / ") || null,
       };
     })
-    .filter((word) => word.english && word.japanese);
+    // Preserve partially filled rows so numbered source data is not silently
+    // shortened when either the question or answer cell is intentionally blank.
+    .filter((word) => word.number || word.english || word.japanese || word.unit);
 }
 
 function isMissingColumnError(error: DbError, column: string) {

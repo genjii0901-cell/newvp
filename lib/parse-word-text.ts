@@ -209,5 +209,8 @@ export function parseWordText(text: string): ParsedWordRow[] {
         unit: "",
       };
     })
-    .filter((row) => row.english && row.japanese);
+    // Keep partially filled source rows. Some published word lists intentionally
+    // leave one side blank, and silently dropping them makes the displayed count
+    // disagree with the source numbering.
+    .filter((row) => row.number || row.english || row.japanese || row.unit);
 }
