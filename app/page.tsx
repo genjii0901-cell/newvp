@@ -75,6 +75,8 @@ const POST_AUTH_ACTION_KEY = "vpp-post-auth-action";
 const PERSONAL_PUBLIC_CONFIGURED = Boolean(
   process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
 );
+const PREVIEW_COPY_GUARD_STYLE = `<style>html,body,#print-root,#print-root *{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}</style>`;
+const PREVIEW_COPY_GUARD_SCRIPT = `<script>(function(){["contextmenu","copy","cut","selectstart","dragstart"].forEach(function(name){document.addEventListener(name,function(event){event.preventDefault();return false;});});document.addEventListener("keydown",function(event){if((event.ctrlKey||event.metaKey)&&["c","x","a","u"].indexOf((event.key||"").toLowerCase())>-1){event.preventDefault();}});})();<\/script>`;
 
 function rememberPrintPurchaseIntent(pages: number) {
   if (typeof window === "undefined") return;
@@ -1055,6 +1057,8 @@ export default function Home() {
     const n = Math.max(1, Math.min(Number(count) || list.length, list.length));
     return list.slice(0, n);
   }, [selectedBook, startNo, endNo, count, random]);
+  const outputPageCount = Math.max(1, getPageCount(outputWords.length));
+  const currentMaxPages = planLimits[plan].maxPages;
 
   // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
   // 課金/登録のゲートは「最後の印刷」だけにかける方針。
@@ -2088,7 +2092,7 @@ export default function Home() {
           box-shadow:0 14px 34px rgba(15,23,42,.22)!important;
         }
       </style>`;
-    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">${PREVIEW_COPY_GUARD_STYLE}<style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
       body{padding:16px 12px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;}
       #home-preview-frame{
@@ -2105,7 +2109,7 @@ export default function Home() {
         transform-origin:top left;
         will-change:transform;
       }
-    </style></head><body><div id="home-preview-frame"><div id="home-preview-scale">${previewBody}${homePreviewOverrides}</div></div><script>
+    </style></head><body>${PREVIEW_COPY_GUARD_SCRIPT}<div id="home-preview-frame"><div id="home-preview-scale">${previewBody}${homePreviewOverrides}</div></div><script>
       function fitPreview(){
         var scaleRoot=document.getElementById('home-preview-scale');
         var frame=document.getElementById('home-preview-frame');
@@ -2784,11 +2788,18 @@ export default function Home() {
               {plan === "teacher" || role === "admin" ? "選択中の単語帳をCSV出力" : "CSV出力（Teacher）"}
             </button>
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-4">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
+              <div className="rounded-xl border bg-slate-50 px-3 py-2">
+                <p className="text-xs font-bold text-slate-500">ページ数</p>
+                <p className="mt-1 text-lg font-black text-slate-900">{outputPageCount}ページ</p>
+              </div>
             </div>
+            <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
+              50語ごとに1ページとして自動計算します。{typeof currentMaxPages === "number" ? `${planLabel(plan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
+            </p>
             {numbersLocked ? (
               <button
                 type="button"
@@ -3055,13 +3066,15 @@ export default function Home() {
             id="pdf-preview-panel"
             className="rounded-3xl border bg-white p-5 shadow-sm"
             onCopy={(event) => event.preventDefault()}
+            onCut={(event) => event.preventDefault()}
+            onContextMenu={(event) => event.preventDefault()}
           >
             <details open className="group">
             <summary className="flex cursor-pointer list-none items-center justify-between">
               <div>
                 <h3 className="text-lg font-black">印刷プレビュー</h3>
                 <p className="text-sm text-slate-500">
-                  {selectedBook?.title ?? "単語帳"} / {outputWords.length}語
+                  {selectedBook?.title ?? "単語帳"} / {outputWords.length}語 / {outputPageCount}ページ
                   {selectedBook && loadingBookWordsId === selectedBook.id ? " ・ 読み込み中..." : ""}
                 </p>
                 <p className="mt-1 text-xs font-bold text-slate-400">
@@ -3082,9 +3095,20 @@ export default function Home() {
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
                   scrolling="yes"
-                  className="w-full rounded-xl border-0 bg-slate-100"
-                  style={{ aspectRatio: "1 / 1.38" }}
+                  className="h-[70vh] min-h-[520px] w-full rounded-xl border-0 bg-slate-100"
                 />
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-black text-blue-900">レイアウト調整</p>
+                  <p className="mt-1 text-xs font-bold text-blue-700">タイトル・日付・単語表・記入欄・ページ番号の位置を調整できます。</p>
+                </div>
+                <button type="button" onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700">
+                  全ページ確認・位置調整
+                </button>
               </div>
             </div>
 
@@ -3487,6 +3511,7 @@ export default function Home() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b px-5 py-4">
                   <h2 className="text-lg font-black">印刷レイアウト</h2>
+                  <p className="mt-1 text-xs font-black text-blue-700">{outputWords.length}語 / 自動計算 {outputPageCount}ページ</p>
                   <p className="mt-0.5 text-xs text-slate-400">
                     <span style={{ color: "#3b82f6" }}>■</span> タイトル &nbsp;
                     <span style={{ color: "#ca8a04" }}>■</span> 日付 &nbsp;
@@ -3549,6 +3574,22 @@ export default function Home() {
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  <div className="mt-6 w-full rounded-2xl border border-slate-300 bg-white p-3 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-black text-slate-900">全ページ確認</p>
+                        <p className="text-xs font-bold text-slate-500">この枠内をスクロールして、2ページ目以降も確認できます。</p>
+                      </div>
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{outputPageCount}ページ</span>
+                    </div>
+                    <iframe
+                      title="全ページ印刷プレビュー"
+                      srcDoc={buildPreviewDoc()}
+                      scrolling="yes"
+                      className="h-[65vh] min-h-[520px] w-full rounded-xl border bg-slate-100"
+                    />
                   </div>
                 </div>
               </div>

@@ -60,6 +60,20 @@ async function planFromActiveStripeSubscription(customerId: string | null) {
     if (status !== "active" && status !== "trialing") continue;
     if (subscriptionObject && isCanceledDuringTrial(subscriptionObject)) continue;
 
+    const metadataPlan = getString(getObject(subscriptionObject?.metadata)?.plan);
+    if (metadataPlan === "personal" || metadataPlan === "teacher") {
+      const activePlan: Exclude<Plan, "free"> = metadataPlan;
+      return {
+        plan: activePlan,
+        stripeSubscriptionId: getString(subscriptionObject?.id),
+        status,
+        currentPeriodEnd:
+          typeof subscriptionObject?.current_period_end === "number"
+            ? new Date(subscriptionObject.current_period_end * 1000).toISOString()
+            : null,
+      };
+    }
+
     const items = getObject(subscriptionObject?.items);
     const itemData = items?.data;
     if (!Array.isArray(itemData)) continue;

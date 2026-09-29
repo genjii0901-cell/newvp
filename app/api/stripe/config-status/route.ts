@@ -34,8 +34,7 @@ export async function GET() {
   const teacherConfigured = Boolean(
     TEACHER_PUBLIC_ENABLED &&
       liveMode &&
-      teacherPrice &&
-      String(teacherPrice).startsWith("price_"),
+      (!teacherPrice || String(teacherPrice).startsWith("price_")),
   );
 
   return NextResponse.json({
@@ -45,6 +44,7 @@ export async function GET() {
     stripeSecretConfigured: Boolean(stripeSecretKey),
     personalConfigured,
     teacherConfigured,
+    teacherAutoProvisioned: teacherConfigured && !teacherPrice,
     teacherPublicEnabled: TEACHER_PUBLIC_ENABLED,
     missing,
     invalid,

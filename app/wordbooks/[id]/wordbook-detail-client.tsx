@@ -25,6 +25,8 @@ const PREVIEW_SCALE = 0.48;
 const PREVIEW_WIDTH = 794;
 const PREVIEW_HEIGHT = 1123;
 const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
+const PREVIEW_COPY_GUARD_STYLE = `<style>html,body,#print-root,#print-root *{-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}</style>`;
+const PREVIEW_COPY_GUARD_SCRIPT = `<script>(function(){["contextmenu","copy","cut","selectstart","dragstart"].forEach(function(name){document.addEventListener(name,function(event){event.preventDefault();return false;});});document.addEventListener("keydown",function(event){if((event.ctrlKey||event.metaKey)&&["c","x","a","u"].indexOf((event.key||"").toLowerCase())>-1){event.preventDefault();}});})();<\/script>`;
 
 type Word = {
   no: number;
@@ -315,6 +317,7 @@ export default function WordbookDetailPage({
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
+  const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
   const isPaid = temporaryLicensed || userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定とプレビューは自由。実際の印刷時にプラン上限を確認する。
@@ -355,6 +358,7 @@ export default function WordbookDetailPage({
   const [studentName, setStudentName] = useState("");
   const [includeWatermark, setIncludeWatermark] = useState(true);
   const [oneTimeOptionsEnabled, setOneTimeOptionsEnabled] = useState(false);
+  const printOptionsUnlocked = isPaid || oneTimeOptionsEnabled;
   const [customTitle, setCustomTitle] = useState("");
   const [showLayoutTools, setShowLayoutTools] = useState(false);
   const [titleOffsetX, setTitleOffsetX] = useState(0);
@@ -546,9 +550,9 @@ export default function WordbookDetailPage({
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: isPaid ? (userPlan === "teacher" ? "teacher" : "personal") : "free",
+      plan: printOptionsUnlocked ? (userPlan === "teacher" ? "teacher" : "personal") : "free",
       printStyle,
-      includeWatermark: isPaid ? includeWatermark : true,
+      includeWatermark: printOptionsUnlocked ? includeWatermark : true,
       includeDate,
       generatedAt: new Date(),
       userEmail: "",
@@ -556,9 +560,9 @@ export default function WordbookDetailPage({
       showClassField,
       showNumberField,
       showNameField,
-      studentClass: isPaid ? studentClass : "",
-      studentNumber: isPaid ? studentNumber : "",
-      studentName: isPaid ? studentName : "",
+      studentClass: printOptionsUnlocked ? studentClass : "",
+      studentNumber: printOptionsUnlocked ? studentNumber : "",
+      studentName: printOptionsUnlocked ? studentName : "",
       titleOffsetX,
       titleOffsetY,
       dateOffsetX,
@@ -600,12 +604,12 @@ export default function WordbookDetailPage({
     titleOffsetX,
     titleOffsetY,
     visibleWords.length,
-    isPaid,
+    printOptionsUnlocked,
     userPlan,
   ]);
   const previewDoc = useMemo(() => {
     // メイン画面と同じ共有プレビューCSSを使い、独立iframe内で描画する（画面崩れ防止）
-    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><style>${sharedPreviewCss}</style></head><body>${printHtml}</body></html>`;
+    return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">${PREVIEW_COPY_GUARD_STYLE}<style>${sharedPreviewCss}html,body{overflow-x:hidden;overflow-y:auto}</style></head><body>${PREVIEW_COPY_GUARD_SCRIPT}${printHtml}</body></html>`;
   }, [printHtml]);
   const printedWordCount = effectiveCount;
   const previewPageCount = Math.max(1, printHtml.match(/<section class=["']print-page/g)?.length ?? 1);
@@ -1278,7 +1282,7 @@ export default function WordbookDetailPage({
             <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
               <p>{rangeStart || "-"}番から{rangeEnd || "-"}番まで / {visibleWords.length}語</p>
               <p className="mt-1 text-xs text-blue-700">
-                この設定では{requestedCount}語を印刷します。
+                この設定では{requestedCount}語・{previewPageCount}ページを印刷します。
               </p>
             </div>
 
@@ -1343,7 +1347,7 @@ export default function WordbookDetailPage({
                 <p className="text-xs font-black text-slate-500">
                   使う範囲と問題数{numbersLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}
                 </p>
-                <div className="mt-2 grid grid-cols-3 gap-2">
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                   <label className="block">
                     <span className="text-[11px] font-black text-slate-400">開始</span>
                     <input
@@ -1378,9 +1382,13 @@ export default function WordbookDetailPage({
                       className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                     />
                   </label>
+                  <div className="rounded-xl border bg-slate-50 px-3 py-2">
+                    <span className="text-[11px] font-black text-slate-400">ページ数</span>
+                    <p className="mt-1 text-sm font-black text-slate-900">{previewPageCount}ページ</p>
+                  </div>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上は1回20ページまで印刷できます。" : `無料会員は1回${FREE_WORD_LIMIT}語・月5回まで印刷できます。${FREE_WORD_LIMIT}語を超えるにはPersonalの7日間無料トライアルへ。`}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : `無料会員は1回${FREE_WORD_LIMIT}語・月5回までです。超える場合はページ購入またはPersonalをご案内します。`}
                 </p>
               </div>
 
@@ -1546,7 +1554,7 @@ export default function WordbookDetailPage({
 
             <div className="mt-5 grid gap-2">
               <button
-                onClick={() => void openPrintPage(oneTimeOptionsEnabled)}
+                onClick={() => setPrintConfirmOpen(true)}
                 disabled={visibleWords.length === 0 || (freePrintBlocked && !oneTimeOptionsEnabled)}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
@@ -1572,14 +1580,14 @@ export default function WordbookDetailPage({
                 {printedWordCount}語 / {previewPageCount}ページ
               </p>
             </div>
-            <div className="mt-4 max-h-[70vh] overflow-auto rounded-2xl border bg-slate-100 p-4">
-              <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, height: PREVIEW_HEIGHT * PREVIEW_SCALE * previewPageCount }}>
+            <div className="mt-4 max-h-[70vh] overflow-auto rounded-2xl border bg-slate-100 p-4" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
+              <div className="relative mx-auto bg-white shadow-sm" style={{ width: PREVIEW_WIDTH * PREVIEW_SCALE, height: (PREVIEW_HEIGHT * previewPageCount + Math.max(0, previewPageCount - 1) * 24) * PREVIEW_SCALE }}>
                 <iframe
                   title="単語テスト印刷プレビュー"
                   srcDoc={previewDoc}
                   aria-label="単語テスト印刷プレビュー"
                   className="origin-top-left border-0"
-                  style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT * previewPageCount, transform: `scale(${PREVIEW_SCALE})` }}
+                  style={{ width: PREVIEW_WIDTH, height: PREVIEW_HEIGHT * previewPageCount + Math.max(0, previewPageCount - 1) * 24, transform: `scale(${PREVIEW_SCALE})` }}
                 />
                 {showLayoutTools && (
                 <div className="absolute inset-0" onMouseLeave={() => { if (dragging) setDragging(null); }}>
@@ -1803,7 +1811,7 @@ export default function WordbookDetailPage({
 
             <div className="mt-5 grid gap-2">
               <button
-                onClick={() => void openPrintPage(oneTimeOptionsEnabled)}
+                onClick={() => setPrintConfirmOpen(true)}
                 disabled={visibleWords.length === 0}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
@@ -2074,6 +2082,28 @@ export default function WordbookDetailPage({
           </div>
         </section>
       )}
+
+      {printConfirmOpen ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4" onClick={() => setPrintConfirmOpen(false)}>
+          <div className="flex max-h-[96dvh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-black text-blue-700">印刷前の最終確認</p>
+                <h2 className="mt-1 text-lg font-black text-slate-950">全{previewPageCount}ページを確認して印刷</h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">この枠内をスクロールすると、2ページ目以降も確認できます。</p>
+              </div>
+              <button type="button" onClick={() => setPrintConfirmOpen(false)} className="rounded-xl border px-3 py-2 text-sm font-black text-slate-600">閉じる</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-3 sm:p-5" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
+              <iframe title="印刷前全ページプレビュー" srcDoc={previewDoc} scrolling="yes" className="h-full min-h-[60vh] w-full rounded-2xl border bg-white shadow-sm" />
+            </div>
+            <div className="grid gap-2 border-t bg-white p-4 sm:grid-cols-2 sm:px-6">
+              <button type="button" onClick={() => setPrintConfirmOpen(false)} className="rounded-2xl border px-4 py-3 text-sm font-black text-slate-600 hover:bg-slate-50">設定に戻る</button>
+              <button type="button" onClick={() => { setPrintConfirmOpen(false); void openPrintPage(oneTimeOptionsEnabled); }} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">この内容で印刷</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <PrintGateModal
         open={printGateOpen}

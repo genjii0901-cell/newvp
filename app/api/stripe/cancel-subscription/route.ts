@@ -57,6 +57,9 @@ function planFromPriceId(priceId: string | null): Plan | null {
 }
 
 function planFromSubscription(subscription: Record<string, unknown>): Plan | null {
+  const metadataPlan = getString(getObject(subscription.metadata)?.plan);
+  if (metadataPlan === "personal" || metadataPlan === "teacher") return metadataPlan;
+
   const items = getObject(subscription.items);
   const data = items?.data;
   if (!Array.isArray(data)) return null;

@@ -9,6 +9,7 @@ import { getTrialOffer, TRIAL_DAYS } from "@/lib/trial-offers";
 
 type CheckoutPlan = "personal" | "teacher";
 const TEACHER_PUBLIC_ENABLED = true;
+const TEACHER_LOOKUP_KEY = "vocab_print_pro_teacher_monthly_2980";
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "personal" || value === "teacher";
@@ -35,6 +36,61 @@ function getPriceId(plan: CheckoutPlan) {
   return process.env.STRIPE_PRICE_TEACHER ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_TEACHER;
 }
 
+async function resolveTeacherPriceId(stripeSecretKey: string) {
+  const configured = getPriceId("teacher");
+  if (configured?.startsWith("price_")) return configured;
+
+  const pricesResponse = await fetch(
+    `https://api.stripe.com/v1/prices?active=true&limit=1&lookup_keys[]=${encodeURIComponent(TEACHER_LOOKUP_KEY)}`,
+    { headers: { Authorization: `Bearer ${stripeSecretKey}` }, cache: "no-store" },
+  );
+  const prices = await pricesResponse.json();
+  const existingPrice = Array.isArray(prices?.data) ? prices.data[0]?.id : null;
+  if (typeof existingPrice === "string" && existingPrice.startsWith("price_")) return existingPrice;
+
+  const productBody = new URLSearchParams({
+    name: "Vocab Print Pro Teacher",
+    description: "学校・塾・教材作成者向けプラン",
+    "metadata[plan]": "teacher",
+  });
+  const productResponse = await fetch("https://api.stripe.com/v1/products", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": "vpp-teacher-product-v1",
+    },
+    body: productBody,
+  });
+  const product = await productResponse.json();
+  if (!productResponse.ok || typeof product?.id !== "string") {
+    throw new Error(product?.error?.message ?? "Teacher商品の作成に失敗しました。");
+  }
+
+  const priceBody = new URLSearchParams({
+    currency: "jpy",
+    unit_amount: "2980",
+    product: product.id,
+    lookup_key: TEACHER_LOOKUP_KEY,
+    "recurring[interval]": "month",
+    "metadata[plan]": "teacher",
+  });
+  const priceResponse = await fetch("https://api.stripe.com/v1/prices", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${stripeSecretKey}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": "vpp-teacher-price-2980-v1",
+    },
+    body: priceBody,
+  });
+  const price = await priceResponse.json();
+  if (!priceResponse.ok || typeof price?.id !== "string") {
+    throw new Error(price?.error?.message ?? "Teacher価格の作成に失敗しました。");
+  }
+  return price.id as string;
+}
+
 function isNoSuchCustomerError(value: unknown) {
   return typeof value === "string" && value.includes("No such customer");
 }
@@ -51,7 +107,7 @@ export async function POST(request: Request) {
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
-    const priceId = getPriceId(plan);
+    let priceId = getPriceId(plan);
 
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
       return NextResponse.json(
@@ -60,12 +116,11 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!stripeSecretKey || !priceId) {
+    if (!stripeSecretKey) {
       return NextResponse.json(
         {
           ok: false,
-          error:
-            "Stripe設定が未完了です。Vercelまたは.env.localに STRIPE_SECRET_KEY / STRIPE_PRICE_PERSONAL / STRIPE_PRICE_TEACHER を設定してください。",
+          error: "Stripe設定が未完了です。Vercelに STRIPE_SECRET_KEY を設定してください。",
         },
         { status: 500 }
       );
@@ -79,6 +134,17 @@ export async function POST(request: Request) {
             "本番ドメインでは live Stripe key が必要です。テストキーでは課金を開始できません。",
         },
         { status: 503 }
+      );
+    }
+
+    if (plan === "teacher" && !priceId) {
+      priceId = await resolveTeacherPriceId(stripeSecretKey);
+    }
+
+    if (!priceId) {
+      return NextResponse.json(
+        { ok: false, error: "Stripeの価格設定が見つかりません。" },
+        { status: 500 },
       );
     }
 
