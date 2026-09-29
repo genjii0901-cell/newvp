@@ -354,6 +354,7 @@ export default function WordbookDetailPage({
   const [studentNumber, setStudentNumber] = useState("");
   const [studentName, setStudentName] = useState("");
   const [includeWatermark, setIncludeWatermark] = useState(true);
+  const [oneTimeOptionsEnabled, setOneTimeOptionsEnabled] = useState(false);
   const [customTitle, setCustomTitle] = useState("");
   const [showLayoutTools, setShowLayoutTools] = useState(false);
   const [titleOffsetX, setTitleOffsetX] = useState(0);
@@ -694,7 +695,13 @@ export default function WordbookDetailPage({
     }
   }
 
-  async function openPrintPage() {
+  function selectOneTimePrintOptions() {
+    setOneTimeOptionsEnabled(true);
+    setIncludeWatermark(false);
+    setShowRecordFields(true);
+  }
+
+  async function openPrintPage(forcePaidOptions = false) {
     if (!book || visibleWords.length === 0 || !printHtml) return;
     const safeTitle = printTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
     const copyGuardStyle = `<style>#print-root,#print-root *{ -webkit-user-select:none!important; -moz-user-select:none!important; -ms-user-select:none!important; user-select:none!important; -webkit-touch-callout:none!important; }</style>`;
@@ -724,6 +731,13 @@ export default function WordbookDetailPage({
       }
     } catch {
       usageAllowed = isPaid || (pages <= 1 && effectiveCount <= FREE_WORD_LIMIT);
+    }
+
+    // Free users can explicitly choose the one-time purchase flow even when the
+    // current job is inside the monthly free allowance.
+    if (forcePaidOptions && !isPaid) {
+      usageAllowed = false;
+      usageMessage = "透かしなし・氏名入力を使うには、今回だけ購入するかPersonalプランをご利用ください。";
     }
 
     if (!usageAllowed && isPaid) {
@@ -1411,8 +1425,16 @@ export default function WordbookDetailPage({
                   </label>
                   <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     Created by / 透かし
-                    <input type="checkbox" checked={includeWatermark} onChange={(event) => setIncludeWatermark(event.target.checked)} className="h-5 w-5" />
+                    <input
+                      type="checkbox"
+                      checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
+                      disabled={!isPaid && !oneTimeOptionsEnabled}
+                      onChange={(event) => setIncludeWatermark(event.target.checked)}
+                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
                   </label>
+                  {!isPaid && !oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-amber-700">🔒 無料プランでは透かしを外せません。</p> : null}
+                  {oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-blue-700">今回だけ利用する設定です。印刷時に1ページ50円の決済へ進みます。</p> : null}
                 </div>
 
                 {showRecordFields ? (
@@ -1423,17 +1445,17 @@ export default function WordbookDetailPage({
                         クラス欄
                         <input type="checkbox" checked={showClassField} onChange={(event) => setShowClassField(event.target.checked)} className="h-5 w-5" />
                       </label>
-                      {showClassField ? <input value={studentClass} onChange={(event) => setStudentClass(event.target.value)} placeholder="例: 3-A" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                      {showClassField ? <input value={studentClass} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentClass(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 3-A" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
                       <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
                         番号欄
                         <input type="checkbox" checked={showNumberField} onChange={(event) => setShowNumberField(event.target.checked)} className="h-5 w-5" />
                       </label>
-                      {showNumberField ? <input value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} placeholder="例: 12" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                      {showNumberField ? <input value={studentNumber} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentNumber(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 12" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
                       <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
                         氏名欄
                         <input type="checkbox" checked={showNameField} onChange={(event) => setShowNameField(event.target.checked)} className="h-5 w-5" />
                       </label>
-                      {showNameField ? <input value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="空欄のままでも使えます" className="rounded-xl border bg-white px-3 py-2 text-sm" /> : null}
+                      {showNameField ? <input value={studentName} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentName(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "空欄のままでも使えます" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
                     </div>
                   </div>
                 ) : null}
@@ -1490,6 +1512,13 @@ export default function WordbookDetailPage({
                 >
                   7日間無料で試す
                 </Link>
+                <button
+                  type="button"
+                  onClick={selectOneTimePrintOptions}
+                  className="ml-2 mt-3 rounded-xl border border-blue-300 bg-white px-4 py-2 text-xs font-black text-blue-700 hover:bg-blue-100"
+                >
+                  {oneTimeOptionsEnabled ? "今回だけ利用する設定を選択中" : "今回だけ50円で解除"}
+                </button>
               </div>
             ) : null}
 
@@ -1505,16 +1534,23 @@ export default function WordbookDetailPage({
                 >
                   プランを見る
                 </Link>
+                <button
+                  type="button"
+                  onClick={selectOneTimePrintOptions}
+                  className="ml-2 mt-3 rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+                >
+                  {oneTimeOptionsEnabled ? "今回だけ利用する設定を選択中" : "必要なページだけ購入する"}
+                </button>
               </div>
             ) : null}
 
             <div className="mt-5 grid gap-2">
               <button
-                onClick={openPrintPage}
-                disabled={visibleWords.length === 0 || freePrintBlocked}
+                onClick={() => void openPrintPage(oneTimeOptionsEnabled)}
+                disabled={visibleWords.length === 0 || (freePrintBlocked && !oneTimeOptionsEnabled)}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
-                {freePrintBlocked ? "50語以内にすると印刷できます" : "単語テストを印刷"}
+                {freePrintBlocked && !oneTimeOptionsEnabled ? "50語以内にすると無料印刷できます" : "単語テストを印刷"}
               </button>
               <button
                 onClick={openAdvancedPrinter}
@@ -1656,8 +1692,16 @@ export default function WordbookDetailPage({
                   </label>
                   <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
                     Created by / 透かし
-                    <input type="checkbox" checked={includeWatermark} onChange={(event) => setIncludeWatermark(event.target.checked)} className="h-5 w-5" />
+                    <input
+                      type="checkbox"
+                      checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
+                      disabled={!isPaid && !oneTimeOptionsEnabled}
+                      onChange={(event) => setIncludeWatermark(event.target.checked)}
+                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
                   </label>
+                  {!isPaid && !oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-amber-700">🔒 無料プランでは透かしを外せません。</p> : null}
+                  {oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-blue-700">今回だけ利用する設定です。印刷時に1ページ50円の決済へ進みます。</p> : null}
                 </div>
 
               {showRecordFields ? (
@@ -1669,21 +1713,21 @@ export default function WordbookDetailPage({
                       <input type="checkbox" checked={showClassField} onChange={(event) => setShowClassField(event.target.checked)} className="h-5 w-5" />
                     </label>
                     {showClassField ? (
-                      <input value={studentClass} onChange={(event) => setStudentClass(event.target.value)} placeholder="例: 3-A" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                      <input value={studentClass} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentClass(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 3-A" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" />
                     ) : null}
                     <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-bold">
                       番号欄
                       <input type="checkbox" checked={showNumberField} onChange={(event) => setShowNumberField(event.target.checked)} className="h-5 w-5" />
                     </label>
                     {showNumberField ? (
-                      <input value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} placeholder="例: 12" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                      <input value={studentNumber} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentNumber(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 12" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" />
                     ) : null}
                     <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-bold">
                       氏名欄
                       <input type="checkbox" checked={showNameField} onChange={(event) => setShowNameField(event.target.checked)} className="h-5 w-5" />
                     </label>
                     {showNameField ? (
-                      <input value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="空欄のままでも使えます" className="rounded-xl border bg-white px-3 py-2 text-sm" />
+                      <input value={studentName} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentName(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "空欄のままでも使えます" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" />
                     ) : null}
                   </div>
                 </div>
@@ -1746,9 +1790,20 @@ export default function WordbookDetailPage({
               </div>
             ) : null}
 
+            {!isPaid ? (
+              <button
+                type="button"
+                onClick={selectOneTimePrintOptions}
+                disabled={visibleWords.length === 0}
+                className="mt-3 w-full rounded-xl border border-blue-300 bg-white px-4 py-2 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:border-slate-200 disabled:text-slate-300"
+              >
+                {oneTimeOptionsEnabled ? "今回だけ利用する設定を選択中" : "透かしなし・氏名入力を今回だけ利用（1ページ50円）"}
+              </button>
+            ) : null}
+
             <div className="mt-5 grid gap-2">
               <button
-                onClick={openPrintPage}
+                onClick={() => void openPrintPage(oneTimeOptionsEnabled)}
                 disabled={visibleWords.length === 0}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
