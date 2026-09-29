@@ -239,7 +239,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
     if (used >= rule.maxGenerations) {
       return {
         ok: false,
-        message: `本日の印刷（作成）回数の上限に達しました。`,
+        message: `${rule.period === "month" ? "今月" : "本日"}の印刷（作成）回数の上限に達しました。`,
       };
     }
     if (typeof rule.maxTotalGenerations === "number") {
@@ -446,6 +446,7 @@ export default function Home() {
   const [role, setRole] = useState<Role>("user");
   // 印刷には登録が必要なので、初期表示は「新規登録」を主導線にする。
   const [authMode, setAuthMode] = useState<"login" | "signup">("signup");
+  const [authPanelOpen, setAuthPanelOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
@@ -471,7 +472,7 @@ export default function Home() {
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
   // 新規登録時に選ぶプラン。Personalは7日間無料で始められるので既定でおすすめ表示にする。
-  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("personal");
+  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("free");
   // Personalを選んで登録した人に、ログイン後トライアル開始を促すためのフラグ
   const [pendingTrial, setPendingTrial] = useState(false);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
@@ -480,7 +481,7 @@ export default function Home() {
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const [printAuthIntent, setPrintAuthIntent] = useState<"personal" | "purchase" | null>(null);
+  const [printAuthIntent, setPrintAuthIntent] = useState<"free" | "personal" | "purchase" | null>(null);
   const [printAuthReason, setPrintAuthReason] = useState("");
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
@@ -668,6 +669,7 @@ export default function Home() {
     if (authStatus === "login") {
       // 教材購入などから「ログインが必要」で戻された導線。ログインフォームを前面に出す。
       setAuthMode("login");
+      setAuthPanelOpen(true);
       setMessageTone("info");
       setMessage("購入を続けるには、ログインまたは新規登録してください。完了後、元のページに戻って手続きが進みます。");
       window.setTimeout(() => document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
@@ -955,8 +957,9 @@ export default function Home() {
   useEffect(() => {
     if (!supabase || !user) return;
     let cancelled = false;
+    const client = supabase;
     async function loadLicenses() {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await client.auth.getSession();
       const token = data.session?.access_token;
       if (!token) return;
       const response = await fetch("/api/licenses/me", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }).catch(() => null);
@@ -1387,6 +1390,10 @@ export default function Home() {
           if (printAuthIntent === "personal") {
             setPrintAuthIntent(null);
             await startCheckout("personal");
+          } else if (printAuthIntent === "free") {
+            setPrintAuthIntent(null);
+            setAuthPanelOpen(false);
+            setMessage("無料会員登録が完了しました。「印刷内容を確認」から印刷できます。");
           }
           if (authReturnPath !== "/") window.location.assign(authReturnPath);
           return;
@@ -1551,7 +1558,7 @@ export default function Home() {
     return { question: word.english, answer: word.japanese };
   }
 
-  async function printWords(words: Word[], sourceTitle: string, sourceLabel: string) {
+  async function printWords(words: Word[], sourceTitle: string, sourceLabel: string, forcePremiumGate = false) {
     const activePlan = user ? plan : "free";
     const selectedBookLicensed = Boolean(selectedBook && licenseWordbookIds.includes(String(selectedBook.id)));
     const isPaidUser = activePlan === "personal" || activePlan === "teacher" || hasPersonalLicense || selectedBookLicensed;
@@ -1561,8 +1568,17 @@ export default function Home() {
     const wordCount = words.length;
     const pageCount = getPageCount(wordCount);
 
-    // Noteライセンスも同じAPIで再確認する。ブラウザ側の表示だけでは権限を決めない。
-    if (isPaidUser && token && user) {
+    // 作成とプレビューは誰でも使える。実際の印刷時だけ無料会員登録をお願いする。
+    if (!user) {
+      setSignupPlan("free");
+      setAuthMode("signup");
+      setPrintAuthIntent("free");
+      setPrintAuthReason("無料会員は、透かし付きの1ページを月5回まで印刷できます。カード登録は不要です。");
+      return;
+    }
+
+    // 無料枠・有料枠・Noteライセンスを同じAPIで再確認する。
+    if (token && !forcePremiumGate) {
       const usageResponse = await fetch("/api/usage/check", {
         method: "POST",
         headers: {
@@ -1583,27 +1599,31 @@ export default function Home() {
       } else if (usageResponse.status !== 401) {
         const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
         if (!fallback.ok) {
-          await guideToPersonal(usageResult.message ?? fallback.message);
-          return;
+          setPdfMessage(usageResult.message ?? fallback.message);
+          return printWords(words, sourceTitle, sourceLabel, true);
         }
       }
     }
 
-    if (isPaidUser && !usageCheckedByServer) {
+    if (!usageCheckedByServer && !forcePremiumGate) {
       const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
       if (!fallback.ok) {
-        await guideToPersonal(fallback.message);
-        return;
+        setPdfMessage(fallback.message);
+        return printWords(words, sourceTitle, sourceLabel, true);
       }
     }
 
-    // 支払い後は透かしなし・全ページを出す（無料判定でスライスされないよう personal 相当で組む）。
-    const buildPlan: Plan = isPaidUser ? (activePlan === "teacher" ? "teacher" : "personal") : "personal";
+    const buildPlan: Plan = forcePremiumGate
+      ? "personal"
+      : isPaidUser
+        ? (activePlan === "teacher" ? "teacher" : "personal")
+        : "free";
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
-    const printWordsList = words;
-    const fullTitle = pdfTitle.trim() || autoTitle;
+    const printWordsList = buildPlan === "free" ? words.slice(0, 50) : words;
+    const canCustomizeTitle = activePlan === "teacher" || role === "admin";
+    const fullTitle = canCustomizeTitle && pdfTitle.trim() ? pdfTitle.trim() : autoTitle;
     const html = buildPrintHtml({
       title: fullTitle,
       words: printWordsList,
@@ -1614,14 +1634,14 @@ export default function Home() {
       redSheet,
       plan: buildPlan,
       printStyle,
-      includeWatermark,
+      includeWatermark: buildPlan === "free" ? true : includeWatermark,
       showRecordFields,
       showClassField,
       showNumberField,
       showNameField,
-      studentClass,
-      studentNumber,
-      studentName,
+      studentClass: buildPlan === "free" ? "" : studentClass,
+      studentNumber: buildPlan === "free" ? "" : studentNumber,
+      studentName: buildPlan === "free" ? "" : studentName,
       includeDate,
       generatedAt: now,
       userEmail: user?.email ?? "",
@@ -1644,8 +1664,7 @@ export default function Home() {
     const fullDoc = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><title>${safeTitle}</title>${copyGuardStyle}</head><body style="margin:0">${copyGuardScript}<div id="print-root">${html}</div></body></html>`;
     const printPageHtml = `${copyGuardStyle}${copyGuardScript}<div id="print-root">${html}</div>`;
 
-    // 支払いゲート: Personal/Teacher 以外は、単品購入 or Personal を選ぶまで印刷しない。
-    if (!isPaidUser) {
+    if (forcePremiumGate) {
       window.sessionStorage.setItem(
         "vpp-print-job",
         JSON.stringify({
@@ -2017,25 +2036,27 @@ export default function Home() {
     if (!outputWords.length) return `<!DOCTYPE html><html><body style="margin:0;background:#f9fafb;font-family:sans-serif;padding:20px;color:#64748b">プレビューデータなし</body></html>`;
     const now = new Date();
     const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
-    const printWordsList = plan === "free" ? outputWords.slice(0, 50) : outputWords;
+    const previewPlan: Plan = user ? plan : "free";
+    const canCustomizeTitle = previewPlan === "teacher" || role === "admin";
+    const printWordsList = previewPlan === "free" ? outputWords.slice(0, 50) : outputWords;
     const bodyHtml = buildPrintHtml({
-      title: pdfTitle.trim() || autoTitle,
+      title: canCustomizeTitle && pdfTitle.trim() ? pdfTitle.trim() : autoTitle,
       words: printWordsList,
       type,
       showPageNo,
       makeQuestion,
       direction,
       redSheet,
-      plan,
+      plan: previewPlan,
       printStyle,
-      includeWatermark,
+      includeWatermark: previewPlan === "free" ? true : includeWatermark,
       showRecordFields,
       showClassField,
       showNumberField,
       showNameField,
-      studentClass,
-      studentNumber,
-      studentName,
+      studentClass: previewPlan === "free" ? "" : studentClass,
+      studentNumber: previewPlan === "free" ? "" : studentNumber,
+      studentName: previewPlan === "free" ? "" : studentName,
       includeDate,
       generatedAt: now,
       userEmail: user?.email ?? "",
@@ -2274,6 +2295,31 @@ export default function Home() {
     alert(result.message ?? result.error ?? "請求管理ページを開けませんでした。");
   }
 
+  async function exportSelectedBookCsv() {
+    if (!selectedBook || !supabase || !user) return;
+    if (plan !== "teacher" && role !== "admin") {
+      window.location.href = "/pricing";
+      return;
+    }
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (!token) return;
+    const response = await fetch(`/api/wordbooks/export?id=${encodeURIComponent(String(selectedBook.id))}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      alert(result.message ?? "CSVを出力できませんでした。");
+      return;
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${selectedBook.title}-単語一覧.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <style>{printCss}</style>
@@ -2287,7 +2333,7 @@ export default function Home() {
             小テストPDFを自動生成。
           </h2>
           <p className="mt-3 sm:mt-4 max-w-2xl text-sm leading-7 text-blue-50">
-            単語データを貼り付けて、一覧・問題・解答の3種類のA4 PDFを即作成。英検・受験・資格試験対応。
+            印刷だけでなく、聞き流し・4択・カード式の単語チェックまで。英検・受験・資格試験の学習をひとつにまとめます。
           </p>
         </div>
 
@@ -2301,10 +2347,10 @@ export default function Home() {
                 <h3 className="mt-1 text-base font-black text-slate-950 sm:text-lg">
                   {trialOffer === "winback"
                     ? "もう一度Personalを7日間0円でお試しいただけます"
-                    : "Personalなら印刷し放題。7日間0円でお試しできます"}
+                    : "Personalなら1回20ページまで。7日間0円でお試しできます"}
                 </h3>
                 <p className="mt-1 text-xs font-bold leading-6 text-slate-600 sm:text-sm">
-                  無料プランは1ページの印刷が2回まで。たくさん刷るならPersonalがお得（その後は月額780円・いつでも解約OK）。
+                  無料プランは1回1ページ・月5回まで。透かしなしや氏名入力も使うならPersonalがお得（その後は月額780円・いつでも解約OK）。
                 </p>
               </div>
               <div className="flex flex-none gap-2">
@@ -2443,7 +2489,23 @@ export default function Home() {
         </section>
 
         {!user && (
-          <section id="auth" className="mt-6 scroll-mt-24 rounded-3xl border bg-white p-5 shadow-sm">
+          <details
+            id="auth"
+            open={authPanelOpen}
+            onToggle={(event) => setAuthPanelOpen(event.currentTarget.open)}
+            className="mt-6 scroll-mt-24 rounded-3xl border bg-white shadow-sm"
+          >
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
+              <div>
+                <p className="text-xs font-black text-blue-700">カード登録なしで始められます</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">無料会員は1ページ・月5回まで印刷</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500">設定とプレビューは登録前でも利用できます。</p>
+              </div>
+              <span className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">
+                {authPanelOpen ? "登録画面を閉じる" : "無料会員登録・ログイン"}
+              </span>
+            </summary>
+            <div className="border-t p-5">
             <p className="text-xs font-black text-blue-700">印刷には会員登録が必要です</p>
             <h3 className="mt-1 text-2xl font-black text-slate-950">登録して印刷する</h3>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
@@ -2495,7 +2557,7 @@ export default function Home() {
                       その後は月額780円 / いつでも解約OK
                     </span>
                     <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
-                      印刷し放題・語数制限なし・透かしなし・範囲や問題数も自由・単語帳の保存
+                      1回20ページまで・透かしなし・氏名入力・範囲や問題数も自由・単語帳の保存
                     </span>
                   </button>
                   <button
@@ -2513,7 +2575,7 @@ export default function Home() {
                       カード登録は不要です
                     </span>
                     <span className="mt-2 block text-[11px] font-bold leading-5 text-slate-600">
-                      1ページの印刷を2回まで無料。3回目以降や2ページ以上は1ページ50円（Personalなら印刷し放題でお得）。
+                      1回1ページ・月5回まで無料。透かしなしや記入名の設定は、1ページ50円またはPersonalで利用できます。
                     </span>
                   </button>
                 </div>
@@ -2606,7 +2668,8 @@ export default function Home() {
                 {message}
               </p>
             )}
-          </section>
+            </div>
+          </details>
         )}
 
         {user && (
@@ -2621,8 +2684,8 @@ export default function Home() {
               <Link href="/my-wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                 マイ単語帳
               </Link>
-              <Link href="/listening" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                聞き流し
+              <Link href="/overlap" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
+                かぶり調査
               </Link>
               <Link href="/pricing" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                 料金プラン
@@ -2657,9 +2720,11 @@ export default function Home() {
             <input
               value={pdfTitle}
               onChange={(e) => setPdfTitle(e.target.value)}
-              placeholder="空欄の場合は自動生成"
-              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+              placeholder={plan === "teacher" || role === "admin" ? "空欄の場合は自動生成" : "Teacherプランで変更できます"}
+              disabled={plan !== "teacher" && role !== "admin"}
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
             />
+            {plan !== "teacher" && role !== "admin" ? <p className="mt-1 text-[11px] font-bold text-amber-600">🔒 印刷タイトルの変更はTeacherプランの機能です。</p> : null}
 
             <label className="mt-4 block text-sm font-bold">単語帳</label>
             <input
@@ -2711,6 +2776,13 @@ export default function Home() {
             {bookSearch && (
               <p className="mt-1 text-xs font-bold text-slate-400">{searchableBooks.length}件見つかりました</p>
             )}
+            <button
+              type="button"
+              onClick={() => void exportSelectedBookCsv()}
+              className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs font-black ${plan === "teacher" || role === "admin" ? "bg-white text-blue-700 hover:bg-blue-50" : "border-amber-200 bg-amber-50 text-amber-700"}`}
+            >
+              {plan === "teacher" || role === "admin" ? "選択中の単語帳をCSV出力" : "CSV出力（Teacher）"}
+            </button>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
@@ -2834,9 +2906,16 @@ export default function Home() {
                   透かしを入れる
                 </label>
                 {plan === "free" && (
-                  <p className="text-xs text-slate-500">
-                    Free版では透かしは固定です。
-                  </p>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
+                    透かし解除とクラス・番号・氏名の事前入力はロック中です。今回だけ1ページ50円、またはPersonalで解除できます。
+                    <button
+                      type="button"
+                      onClick={() => void printWords(outputWords, selectedBook?.title ?? "単語帳", selectedBook?.title ?? "貼り付けデータ", true)}
+                      className="mt-2 block rounded-lg bg-white px-3 py-2 text-blue-700 shadow-sm"
+                    >
+                      ロックを解除して印刷
+                    </button>
+                  </div>
                 )}
 
                 <div>
@@ -2887,7 +2966,7 @@ export default function Home() {
                     value={studentClass}
                     onChange={(event) => setStudentClass(event.target.value)}
                     placeholder="例: 2年A組"
-                    disabled={!showRecordFields || !showClassField}
+                    disabled={plan === "free" || !showRecordFields || !showClassField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -2897,7 +2976,7 @@ export default function Home() {
                     value={studentNumber}
                     onChange={(event) => setStudentNumber(event.target.value)}
                     placeholder="例: 12"
-                    disabled={!showRecordFields || !showNumberField}
+                    disabled={plan === "free" || !showRecordFields || !showNumberField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -2907,7 +2986,7 @@ export default function Home() {
                     value={studentName}
                     onChange={(event) => setStudentName(event.target.value)}
                     placeholder="例: 山田 太郎"
-                    disabled={!showRecordFields || !showNameField}
+                    disabled={plan === "free" || !showRecordFields || !showNameField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -2935,7 +3014,7 @@ export default function Home() {
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入り・1回50語まで印刷できます。Personalなら透かしなし・語数制限なしの印刷に加え、単語帳と履歴の保存、聞き流し、苦手語の復習までまとめて使えます。
+                  無料版は「見本」の透かし入りで、1回1ページ・月5回まで印刷できます。Personalなら透かしなし・氏名入力・1回20ページまでの印刷に加え、単語帳と履歴の保存、聞き流し、苦手語の復習までまとめて使えます。
                 </p>
                 <a
                   href="/pricing"
@@ -2949,10 +3028,10 @@ export default function Home() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={printPdf}
+                onClick={() => setShowPreview(true)}
                 className="flex-1 rounded-2xl bg-blue-600 px-4 py-4 sm:py-3 text-base sm:text-sm font-black text-white hover:bg-blue-700 active:bg-blue-800"
               >
-                単語テストを印刷
+                印刷内容を確認
               </button>
               <button
                 type="button"
@@ -3265,11 +3344,11 @@ export default function Home() {
         )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <PlanCard title="Free" price="¥0" text="1日2回・1回50語まで。Personal単語帳も体験できる無料プラン。" />
+          <PlanCard title="Free" price="¥0" text="1回1ページ・月5回まで。透かし付きで印刷できる無料プラン。" />
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="7日無料トライアル。履歴保存・単語帳保存対応。語数制限なしで、月300回まで利用可能。"
+            text="7日無料トライアル。透かしなし・氏名入力・1回20ページまで。履歴と単語帳も保存できます。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}
@@ -3277,10 +3356,10 @@ export default function Home() {
           <PlanCard
             title="Teacher"
             price="¥2,980/月"
-            text="先生・塾向け。クラス配布や一括作成。"
+            text="先生・塾向け。タイトル変更、CSV出力、クラス別教材管理、月5,000回の作成に対応。"
             onClick={plan === "teacher" ? undefined : () => startCheckout("teacher")}
             disabled={plan !== "teacher" && !configuredPlans.teacher}
-            disabledLabel="Teacherは準備中"
+            disabledLabel="Stripe設定を確認中"
             current={plan === "teacher"}
           />
         </div>
@@ -3550,18 +3629,28 @@ export default function Home() {
             onClick={(event) => event.stopPropagation()}
           >
             <p className="text-center text-xs font-black text-blue-700">
-              {printAuthIntent === "personal" ? "Personalで続ける" : "今回だけ印刷する"}
+              {printAuthIntent === "free"
+                ? "無料会員で印刷する"
+                : printAuthIntent === "personal"
+                  ? "Personalで続ける"
+                  : "今回だけ印刷する"}
             </p>
             <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-              {printAuthIntent === "personal" ? "登録後、そのまま決済へ進みます" : "登録後、そのまま50円決済へ進みます"}
+              {printAuthIntent === "free"
+                ? "無料会員登録後、すぐに印刷できます"
+                : printAuthIntent === "personal"
+                  ? "登録後、そのまま決済へ進みます"
+                  : "登録後、そのまま50円決済へ進みます"}
             </h3>
             <div className={`mt-4 rounded-2xl border-2 p-4 text-center ${
-              printAuthIntent === "personal" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
+              printAuthIntent === "free" || printAuthIntent === "personal" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
             }`}>
               <p className="text-sm font-black text-slate-900">
-                {printAuthIntent === "personal"
-                  ? "Personal 7日間0円 / その後 月額780円"
-                  : `今回だけ ${printGatePages}ページ × 50円`}
+                {printAuthIntent === "free"
+                  ? "1回1ページ・月5回まで / カード不要"
+                  : printAuthIntent === "personal"
+                    ? "Personal 7日間0円 / その後 月額780円"
+                    : `今回だけ ${printGatePages}ページ × 50円`}
               </p>
               <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{printAuthReason}</p>
             </div>
@@ -3649,9 +3738,11 @@ export default function Home() {
                   ? "処理中..."
                   : authMode === "login"
                   ? "ログインして続ける"
-                  : printAuthIntent === "personal"
-                    ? "登録してPersonalへ進む"
-                    : "登録して今回だけ印刷へ進む"}
+                  : printAuthIntent === "free"
+                    ? "無料会員登録して印刷へ"
+                    : printAuthIntent === "personal"
+                      ? "登録してPersonalへ進む"
+                      : "登録して今回だけ印刷へ進む"}
               </button>
               <button
                 type="button"
@@ -3681,8 +3772,8 @@ export default function Home() {
               <p className="mt-1 text-sm font-black text-slate-600">その後は月額780円・いつでも解約OK</p>
             </div>
             <ul className="mt-4 space-y-1.5 text-sm font-bold text-slate-700">
-              <li>✓ 印刷し放題（枚数・回数の制限なし）</li>
-              <li>✓ 語数制限なし・「見本」の透かしなし</li>
+              <li>✓ 1回20ページまで・月300回</li>
+              <li>✓ 「見本」の透かしなし・氏名入力</li>
               <li>✓ 出題範囲・問題数・形式も自由</li>
               <li>✓ 単語帳の保存</li>
             </ul>

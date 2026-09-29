@@ -48,8 +48,8 @@ export async function POST(request: Request) {
       // Existing installs remain usable until the optional Note license tables are created.
       if (!isLicenseSchemaError(error)) throw error;
     }
-    const plan = licenseKind ? "personal" : normalizePlan(profile?.plan);
-    if (licenseKind) {
+    const plan = licenseKind === "personal" ? "personal" : normalizePlan(profile?.plan);
+    if (licenseKind === "wordbook") {
       return NextResponse.json({
         ok: true,
         plan,

@@ -9,7 +9,7 @@ type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
 type TrialOffer = "first" | "winback" | null;
 
-const TEACHER_PUBLIC_ENABLED = false;
+const TEACHER_PUBLIC_ENABLED = true;
 const PERSONAL_PUBLIC_CONFIGURED = Boolean(
   process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
 );
@@ -21,11 +21,10 @@ const plans = [
     price: "¥0",
     description: "まず試したい人向けの無料プランです。",
     features: [
-      "1日2回までPDF作成",
+      "月5回まで印刷",
       "1回1ページまで",
-      "通算10回まで利用可能",
       "Personal単語帳もお試し利用可能",
-      "透かし付きで出力",
+      "透かし付き・記入名なしで出力",
     ],
   },
   {
@@ -36,7 +35,8 @@ const plans = [
     features: [
       "初回7日無料トライアル",
       "月300回まで作成",
-      "1回5ページまで出力",
+      "1回20ページまで出力",
+      "透かしなし・記入名を設定可能",
       "マイ単語帳の保存",
       "PDF生成履歴の保存",
       "みんなの単語帳をまとめて利用可能",
@@ -46,11 +46,13 @@ const plans = [
     id: "teacher" as const,
     title: "Teacher",
     price: "¥2,980/月",
-    description: "先生・塾向けの拡張プランです。現在は準備中です。",
+    description: "先生・塾・教材作成者向け。授業で繰り返し使う教材作成を効率化します。",
     features: [
-      "クラス別教材管理",
-      "複数教材の一括作成",
-      "管理機能の強化版を予定",
+      "単語テストのタイトルを自由に変更",
+      "単語リストをCSVで出力",
+      "月5,000回まで教材を作成",
+      "クラス名・番号・氏名欄を設定",
+      "複数教材・クラス別教材の管理",
     ],
   },
 ] as const;
@@ -133,7 +135,7 @@ export default function PricingPage() {
 
   async function startCheckout(plan: PaidPlan) {
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
-      setMessage("Teacherプランは現在準備中です。公開まではPersonalをご利用ください。");
+      setMessage("Teacherプランの公開設定を確認中です。");
       return;
     }
 
@@ -221,7 +223,7 @@ export default function PricingPage() {
             <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
             <h1 className="mt-1 text-3xl font-black">料金プラン</h1>
             <p className="mt-2 text-sm text-slate-500">
-              Freeで試して、必要になったらPersonalへ。Teacherは現在準備中です。
+              Freeで試して、個人学習はPersonal、授業や塾教材にはTeacherを選べます。
             </p>
           </div>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
@@ -244,15 +246,15 @@ export default function PricingPage() {
           {plans.map((plan) => {
             const isCurrent = currentPlan === plan.id;
             const isTeacher = plan.id === "teacher";
-            const canCheckout = plan.id === "personal" ? configuredPlans.personal : false;
+            const canCheckout = plan.id === "personal" ? configuredPlans.personal : configuredPlans.teacher;
 
             return (
               <div key={plan.id} className="rounded-3xl border bg-white p-5 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-xl font-black">{plan.title}</h2>
-                  {isTeacher && (
+                  {isTeacher && !configuredPlans.teacher && (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
-                      準備中
+                      Stripe設定確認中
                     </span>
                   )}
                 </div>
@@ -276,12 +278,12 @@ export default function PricingPage() {
                   <button
                     onClick={() => startCheckout(plan.id)}
                     className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
-                    disabled={isTeacher || !canCheckout}
+                    disabled={!canCheckout}
                   >
-                    {isTeacher
-                      ? "Teacherは準備中"
-                      : !canCheckout
-                        ? "Stripe設定確認中"
+                    {!canCheckout
+                      ? "Stripe設定確認中"
+                      : isTeacher
+                        ? "Teacherに申し込む"
                         : trialOffer === "winback"
                           ? "お帰りなさい・7日無料で再開"
                           : trialOffer === "first"
@@ -289,6 +291,11 @@ export default function PricingPage() {
                             : "Personalに申し込む"}
                   </button>
                 )}
+                {isTeacher ? (
+                  <Link href="/teacher" className="mt-3 block text-center text-xs font-black text-blue-700 hover:underline">
+                    Teacherの機能を詳しく見る
+                  </Link>
+                ) : null}
               </div>
             );
           })}
@@ -310,9 +317,9 @@ export default function PricingPage() {
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">学校向けに拡張予定</p>
+              <p className="text-sm font-black text-slate-900">授業用の教材を効率化</p>
               <p className="mt-2 text-sm text-slate-600">
-                Teacherは現在準備中です。管理や一括作成の強化を予定しています。
+                Teacherではタイトル変更、CSV出力、クラス別教材管理など授業向けの機能を利用できます。
               </p>
             </div>
           </div>

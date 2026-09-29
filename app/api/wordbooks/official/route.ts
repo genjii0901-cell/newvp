@@ -15,7 +15,7 @@ function fallbackResponse(message?: string, filterIds?: string[], includeWords =
     .map((book) => ({
       ...book,
       coverImage:
-        deferDataCoverImages && /^data:image\//i.test(book.coverImage)
+        deferDataCoverImages && book.coverImage && /^data:image\//i.test(book.coverImage)
           ? `/api/wordbooks/cover?id=${encodeURIComponent(String(book.id))}`
           : book.coverImage,
       wordCount: book.words.length,

@@ -8,7 +8,7 @@ import {
 import { getTrialOffer, TRIAL_DAYS } from "@/lib/trial-offers";
 
 type CheckoutPlan = "personal" | "teacher";
-const TEACHER_PUBLIC_ENABLED = false;
+const TEACHER_PUBLIC_ENABLED = true;
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "personal" || value === "teacher";

@@ -87,7 +87,7 @@ export default async function WordbooksForPrintingGuidePage() {
                 <div className="relative h-48 bg-slate-100 sm:h-36">
                   <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
                   <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">
-                    {book.wordCount || book.words.length}語
+                    {("wordCount" in book ? book.wordCount : undefined) || book.words.length}語
                   </span>
                 </div>
                 <div className="p-4">

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const TEACHER_PUBLIC_ENABLED = false;
+const TEACHER_PUBLIC_ENABLED = true;
 
 function isLiveStripeKey(value: string | undefined) {
   return Boolean(value && value.startsWith("sk_live_"));

@@ -48,7 +48,7 @@ export default function PrintGateModal({
           印刷方法を選んでください
         </h3>
         <p className="mt-2 text-center text-xs font-bold leading-5 text-slate-500">
-          無料枠を超える印刷は、Personalプランか1回ごとの印刷購入で続けられます。
+          無料枠を超える印刷や透かし解除・氏名入力は、Personalか1回ごとの印刷購入で利用できます。
         </p>
 
         <button
@@ -69,12 +69,12 @@ export default function PrintGateModal({
             <span className="text-[11px] font-bold text-slate-500">その後 月額780円</span>
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
-            たくさん印刷するならこちらがおすすめです。語数制限なし・透かしなしで使えます。
+            たくさん印刷するならこちらがおすすめです。1回20ページまで、透かしなしで使えます。
           </p>
           <ul className="mt-3 grid gap-1.5 text-[11px] font-bold leading-5 text-slate-700 sm:grid-cols-2">
-            <li>✓ 透かしなしで全範囲を印刷</li>
+            <li>✓ 透かしなし・氏名入力</li>
+            <li>✓ 1回20ページまで印刷</li>
             <li>✓ 単語帳と印刷履歴を保存</li>
-            <li>✓ 聞き流し・単語チェックも利用</li>
             <li>✓ 苦手語をマークして復習</li>
           </ul>
         </button>

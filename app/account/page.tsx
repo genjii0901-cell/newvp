@@ -109,9 +109,10 @@ export default function AccountPage() {
     }
 
     let cancelled = false;
+    const client = supabase;
 
     async function loadProfile() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await client.auth.getUser();
       const nextUser = data.user ?? null;
       if (!cancelled) setUser(nextUser);
 
@@ -120,7 +121,7 @@ export default function AccountPage() {
         return;
       }
 
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await client.auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) {
         if (!cancelled) setLoading(false);

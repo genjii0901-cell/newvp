@@ -11,8 +11,8 @@ export type PlanLimit = {
 export const WORDS_PER_PAGE = 50;
 
 export const planLimits: Record<Plan, PlanLimit> = {
-  free: { period: "day", maxGenerations: 2, maxWords: 50, maxTotalGenerations: 10 },
-  personal: { period: "month", maxGenerations: 300 },
+  free: { period: "month", maxGenerations: 5, maxPages: 1, maxWords: 50 },
+  personal: { period: "month", maxGenerations: 300, maxPages: 20 },
   teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
 };
 
@@ -26,7 +26,7 @@ export function getPlanLimitLabel(plan: Plan, rule: PlanLimit) {
     return `${rule.maxWords}語`;
   }
   if (plan === "personal") {
-    return "語数制限なし";
+    return "1回20ページまで";
   }
   return "制限なし";
 }

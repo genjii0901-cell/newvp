@@ -309,14 +309,15 @@ export default function WordbookDetailPage({
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [registerPrompt, setRegisterPrompt] = useState<string | null>(null);
-  // 「最後の印刷」の支払いゲート（単品購入 or Personal）
+  // 無料枠を超えた印刷の支払いゲート（単品購入 or Personal）
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
   const isPaid = temporaryLicensed || userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
-  // 設定は誰でも自由に。印刷は「単品購入 or Personal」の支払いゲートで止めるので、語数の上限は設けない。
+  // 設定とプレビューは自由。実際の印刷時にプラン上限を確認する。
   const maxWords = Number.MAX_SAFE_INTEGER;
   // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
   // 課金/登録のゲートは「最後の印刷」だけにかける方針。
@@ -370,14 +371,14 @@ export default function WordbookDetailPage({
   const [listenIndex, setListenIndex] = useState(0);
   const [showMeaning, setShowMeaning] = useState(false);
   const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
-  const [listeningMode, setListeningMode] = useState<ListeningMode>("listen");
+  const [listeningMode, setListeningMode] = useState<ListeningMode>("en-ja");
   const [listeningSpeed, setListeningSpeed] = useState(1);
   const [listeningGapMs, setListeningGapMs] = useState(650);
   const [isPlaying, setIsPlaying] = useState(false);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const [savingToMyBook, setSavingToMyBook] = useState(false);
   const speechRunRef = useRef({ stopped: false, id: 0 });
-  const markStorageKey = book ? `vpp-word-marks:${book.id}` : "";
+  const markStorageKey = book && authUserId ? `vpp-word-marks:${authUserId}:${book.id}` : "";
 
   useEffect(() => {
     if (temporaryLicensed) setIncludeWatermark(false);
@@ -455,6 +456,7 @@ export default function WordbookDetailPage({
     supabase.auth.getSession().then(async ({ data }) => {
       const token = data.session?.access_token;
       if (active) setIsLoggedIn(Boolean(token));
+      if (active) setAuthUserId(data.session?.user.id ?? null);
       if (!token) return;
       const response = await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
       if (!response) return;
@@ -511,10 +513,10 @@ export default function WordbookDetailPage({
     return [...visibleWords].sort(() => Math.random() - 0.5);
   }, [randomOrder, visibleWords]);
 
-  // 問題数は「範囲の語数（無料は50語まで）」を既定にする
+  // 無料はすぐ試せる50語、有料は選択範囲の全語を既定にする。
   useEffect(() => {
-    setCount(Math.min(Math.max(visibleWords.length, 1), maxWords));
-  }, [visibleWords.length, maxWords]);
+    setCount(Math.min(Math.max(visibleWords.length, 1), isPaid ? maxWords : FREE_WORD_LIMIT));
+  }, [visibleWords.length, maxWords, isPaid]);
 
   // 未登録は「一覧」形式のみ（無料登録すると問題・解答も選べる）
   useEffect(() => {
@@ -530,7 +532,8 @@ export default function WordbookDetailPage({
   const listenWordKey = listenWord ? `${listenWord.no}-${listenWord.english}` : "";
   const markedCount = markedKeys.size;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
-  const printTitle = customTitle.trim() || (selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`);
+  const automaticPrintTitle = selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`;
+  const printTitle = userPlan === "teacher" && customTitle.trim() ? customTitle.trim() : automaticPrintTitle;
   const printHtml = useMemo(() => {
     if (!book || visibleWords.length === 0) return "";
     const headingTitle = `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`;
@@ -542,9 +545,9 @@ export default function WordbookDetailPage({
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: isPaid ? (userPlan === "teacher" ? "teacher" : "personal") : "personal",
+      plan: isPaid ? (userPlan === "teacher" ? "teacher" : "personal") : "free",
       printStyle,
-      includeWatermark,
+      includeWatermark: isPaid ? includeWatermark : true,
       includeDate,
       generatedAt: new Date(),
       userEmail: "",
@@ -552,9 +555,9 @@ export default function WordbookDetailPage({
       showClassField,
       showNumberField,
       showNameField,
-      studentClass,
-      studentNumber,
-      studentName,
+      studentClass: isPaid ? studentClass : "",
+      studentNumber: isPaid ? studentNumber : "",
+      studentName: isPaid ? studentName : "",
       titleOffsetX,
       titleOffsetY,
       dateOffsetX,
@@ -700,12 +703,71 @@ export default function WordbookDetailPage({
     const printPageHtml = `${copyGuardStyle}${copyGuardScript}<div id="print-root">${printHtml}</div>`;
     const pages = Math.max(1, Math.ceil(effectiveCount / 50));
 
-    // 支払いゲート: Personal/Teacher 以外は、単品購入 or Personal を選ぶまで印刷しない。
-    if (!isPaid) {
+    if (!isLoggedIn) {
+      guideToRegister("印刷には無料会員登録が必要です。登録後は、透かし付き1ページを月5回まで印刷できます。");
+      return;
+    }
+
+    let usageAllowed = true;
+    let usageMessage = "";
+    try {
+      const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
+      if (token) {
+        const response = await fetch("/api/usage/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ wordCount: effectiveCount, pageCount: pages, wordbookId: String(book.id) }),
+        });
+        const result = await response.json().catch(() => ({}));
+        usageAllowed = response.ok && Boolean(result.ok);
+        usageMessage = result.message ?? "";
+      }
+    } catch {
+      usageAllowed = isPaid || (pages <= 1 && effectiveCount <= FREE_WORD_LIMIT);
+    }
+
+    if (!usageAllowed && isPaid) {
+      window.alert(usageMessage || "このプランの印刷上限を超えています。設定を減らしてもう一度お試しください。");
+      return;
+    }
+
+    if (!usageAllowed) {
+      const premiumHtml = buildSharedPrintHtml({
+        title: `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`,
+        words: testWords.slice(0, effectiveCount),
+        type: testType,
+        showPageNo,
+        makeQuestion: (word) => makeSharedQuestion(word, testDirection),
+        direction: testDirection,
+        redSheet,
+        plan: "personal",
+        printStyle,
+        includeWatermark,
+        includeDate,
+        generatedAt: new Date(),
+        userEmail: "",
+        showRecordFields,
+        showClassField,
+        showNumberField,
+        showNameField,
+        studentClass,
+        studentNumber,
+        studentName,
+        titleOffsetX,
+        titleOffsetY,
+        dateOffsetX,
+        dateOffsetY,
+        infoOffsetX,
+        infoOffsetY,
+        gridOffsetX,
+        gridOffsetY,
+        pageNoOffsetX,
+        pageNoOffsetY,
+      });
       sessionStorage.setItem(
         "vpp-print-job",
         JSON.stringify({
-          html: printPageHtml,
+          html: `${copyGuardStyle}${copyGuardScript}<div id="print-root">${premiumHtml}</div>`,
           title: printTitle,
           sourceLabel: "wordbook-detail",
           createdAt: new Date().toISOString(),
@@ -717,7 +779,7 @@ export default function WordbookDetailPage({
       return;
     }
 
-    // 有料ユーザーのみ。記録は最大600msだけ待つ（記録が遅くても印刷を止めない）。
+    // 利用記録は最大600msだけ待つ（記録が遅くても印刷を止めない）。
     await Promise.race([
       recordPdfUsage(),
       new Promise((resolve) => window.setTimeout(resolve, 600)),
@@ -913,6 +975,10 @@ export default function WordbookDetailPage({
   }
 
   function toggleMarked(word: Pick<Word, "no" | "english">) {
+    if (!isLoggedIn) {
+      guideToRegister("復習マークの保存には無料会員登録が必要です。");
+      return;
+    }
     const key = `${word.no}-${word.english}`;
     setMarkedKeys((current) => {
       const next = new Set(current);
@@ -1208,9 +1274,11 @@ export default function WordbookDetailPage({
                 <input
                   value={customTitle}
                   onChange={(event) => setCustomTitle(event.target.value)}
-                  placeholder={selectedUnit === "all" ? book?.title : `${book?.title} - ${selectedUnit}`}
-                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none"
+                  placeholder={userPlan === "teacher" ? automaticPrintTitle : "Teacherプランで変更できます"}
+                  disabled={userPlan !== "teacher"}
+                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                 />
+                {userPlan !== "teacher" ? <span className="mt-1 block text-[11px] font-bold text-amber-600">印刷タイトルの変更はTeacherプランの機能です。</span> : null}
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -1298,7 +1366,7 @@ export default function WordbookDetailPage({
                   </label>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上はこの範囲の全単語を印刷できます。" : controlsLocked ? `いまは一覧・先頭${FREE_WORD_LIMIT}語の見本のみ。無料登録すると形式や番号を自由に選べます（印刷は${FREE_WORD_LIMIT}語まで）。` : `無料プランは1回${FREE_WORD_LIMIT}語まで印刷できます。${FREE_WORD_LIMIT}語を超えるにはPersonalの7日間無料トライアルへ。`}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使います。{isPaid ? "Personal以上は1回20ページまで印刷できます。" : `無料会員は1回${FREE_WORD_LIMIT}語・月5回まで印刷できます。${FREE_WORD_LIMIT}語を超えるにはPersonalの7日間無料トライアルへ。`}
                 </p>
               </div>
 
@@ -1414,7 +1482,7 @@ export default function WordbookDetailPage({
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入り・1回{FREE_WORD_LIMIT}語まで印刷できます。透かしなしで、全単語をまとめて印刷するにはPersonalプランへ。
+                  無料会員は「見本」の透かし入りで1回1ページ・月5回まで印刷できます。透かしなし・氏名入力・1回20ページまでの印刷はPersonalで利用できます。
                 </p>
                 <Link
                   href="/pricing"
@@ -1551,7 +1619,9 @@ export default function WordbookDetailPage({
                 <span className="text-xs font-black text-slate-500">印刷する量</span>
                 <select value={pageLimit} onChange={(event) => setPageLimit(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
                   <option value={1}>少なめ</option>
-                  <option value={5}>多め</option>
+                  {isPaid ? <option value={5}>5ページ</option> : null}
+                  {isPaid ? <option value={10}>10ページ</option> : null}
+                  {isPaid ? <option value={20}>20ページ</option> : null}
                 </select>
               </label>
               <div className="grid gap-2 text-sm font-bold">

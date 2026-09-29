@@ -86,6 +86,7 @@ export default function ListeningPage() {
   const [showTestMeaning, setShowTestMeaning] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [loadingWordsId, setLoadingWordsId] = useState("");
   const [error, setError] = useState("");
   const timerRef = useRef<number | null>(null);
@@ -201,6 +202,13 @@ export default function ListeningPage() {
   }, [officialBooks, officialId, loadingWordsId, tab]);
 
   useEffect(() => {
+    if (!supabase) return;
+    void supabase.auth.getUser().then(({ data }) => setAuthUserId(data.user?.id ?? null));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => setAuthUserId(session?.user.id ?? null));
+    return () => data.subscription.unsubscribe();
+  }, [supabase]);
+
+  useEffect(() => {
     async function loadMine() {
       if (!supabase) return;
       const { data: userData } = await supabase.auth.getUser();
@@ -248,7 +256,7 @@ export default function ListeningPage() {
   const currentWord = words[listeningIndex] ?? null;
   const currentWordKey = currentWord ? `${currentWord.no}-${currentWord.english}` : "";
   const displayCurrentMeaning = currentWord ? formatMeaning(currentWord.japanese, meaningMode) : "";
-  const markStorageKey = activeBook ? `vpp-word-marks:${activeBook.id}` : "";
+  const markStorageKey = activeBook && authUserId ? `vpp-word-marks:${authUserId}:${activeBook.id}` : "";
 
   useEffect(() => {
     const total = Math.max(1, allWords.length);
@@ -296,6 +304,10 @@ export default function ListeningPage() {
   }
 
   function toggleMarked(word: Pick<Word, "no" | "english">) {
+    if (!authUserId) {
+      setError("復習マークの保存には無料会員登録が必要です。トップページから登録またはログインしてください。");
+      return;
+    }
     const key = `${word.no}-${word.english}`;
     setMarkedKeys((current) => {
       const next = new Set(current);
