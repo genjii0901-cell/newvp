@@ -510,6 +510,7 @@ export default function Home() {
   });
   const [pdfTitle, setPdfTitle] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [showPrintConfirm, setShowPrintConfirm] = useState(false);
   const [studyPanelMode, setStudyPanelMode] = useState<StudyPanelMode>("list");
   const [listeningIndex, setListeningIndex] = useState(0);
   const [listeningRepeat, setListeningRepeat] = useState(1);
@@ -3039,10 +3040,10 @@ export default function Home() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={() => setShowPreview(true)}
+                onClick={() => setShowPrintConfirm(true)}
                 className="flex-1 rounded-2xl bg-blue-600 px-4 py-4 sm:py-3 text-base sm:text-sm font-black text-white hover:bg-blue-700 active:bg-blue-800"
               >
-                印刷内容を確認
+                印刷内容を確認して印刷する
               </button>
               <button
                 type="button"
@@ -3050,7 +3051,7 @@ export default function Home() {
                 className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 sm:py-3 font-black text-blue-700 hover:bg-blue-100 active:bg-blue-200"
                 title="印刷レイアウトを確認・調整"
               >
-                レイアウト
+                レイアウト調整
               </button>
             </div>
             {pdfMessage && <p className="mt-3 rounded-xl bg-blue-50 p-3 text-xs font-bold text-blue-700">{pdfMessage}</p>}
@@ -3100,26 +3101,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-black text-blue-900">レイアウト調整</p>
-                  <p className="mt-1 text-xs font-bold text-blue-700">タイトル・日付・単語表・記入欄・ページ番号の位置を調整できます。</p>
-                </div>
-                <button type="button" onClick={() => setShowPreview(true)} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700">
-                  全ページ確認・位置調整
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={() => setShowPreview(true)}
-                className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700"
-              >
-                レイアウトを見る
-              </button>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {selectedBook ? (
                 <Link href={buildWordbookPath(selectedBook.id, selectedBook.title)} prefetch={false} className="rounded-xl border bg-white px-4 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">
                   単語帳ページへ
@@ -3389,6 +3371,28 @@ export default function Home() {
         </div>
       </section>
 
+      {showPrintConfirm ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4" onClick={() => setShowPrintConfirm(false)}>
+          <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+              <div>
+                <p className="text-xs font-black text-blue-700">印刷内容を確認</p>
+                <h2 className="mt-1 text-lg font-black text-slate-950">全{outputPageCount}ページを確認して印刷</h2>
+                <p className="mt-1 text-xs font-bold text-slate-500">この枠内を下へスクロールすると、すべてのページを確認できます。</p>
+              </div>
+              <button type="button" onClick={() => setShowPrintConfirm(false)} className="rounded-xl border px-3 py-2 text-sm font-black text-slate-600 hover:bg-slate-50">閉じる</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-3 sm:p-5" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
+              <iframe title="印刷内容の全ページ確認" srcDoc={buildPreviewDoc()} scrolling="yes" className="h-full min-h-[62vh] w-full rounded-2xl border bg-white shadow-sm" />
+            </div>
+            <div className="grid gap-2 border-t bg-white p-4 sm:grid-cols-2 sm:px-6">
+              <button type="button" onClick={() => { setShowPrintConfirm(false); setShowPreview(true); }} className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100">レイアウトを調整する</button>
+              <button type="button" onClick={() => { setShowPrintConfirm(false); void printPdf(); }} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">この内容で印刷する</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {showPreview && (() => {
         const ppMM = PREVIEW_SCALE * 3.78;
         const iframeW = 794;
@@ -3500,13 +3504,43 @@ export default function Home() {
         };
 
         const fmt = (v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 10) / 10}`;
+        const nudge = (target: "title" | "date" | "grid" | "info" | "pageNo", dx: number, dy: number) => {
+          const update = (current: { x: number; y: number }, yMin: number, yMax: number) => ({
+            x: Math.max(-80, Math.min(80, current.x + dx)),
+            y: Math.max(yMin, Math.min(yMax, current.y + dy)),
+          });
+          if (target === "title") setTitleOffset((current) => update(current, -5, 15));
+          if (target === "date") setDateOffset((current) => update(current, -5, 20));
+          if (target === "grid") setGridOffset((current) => update(current, -30, 30));
+          if (target === "info") setInfoOffset((current) => update(current, -10, 10));
+          if (target === "pageNo") setPageNoOffset((current) => update(current, -20, 20));
+        };
+        const PositionControl = ({ label, target, value, tone }: { label: string; target: "title" | "date" | "grid" | "info" | "pageNo"; value: { x: number; y: number }; tone: string }) => (
+          <div className={`rounded-xl border p-3 ${tone}`}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-black text-slate-800">{label}</p>
+              <p className="text-[11px] font-bold text-slate-500">横 {fmt(value.x)} / 縦 {fmt(value.y)}mm</p>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-1">
+              <span />
+              <button type="button" onClick={() => nudge(target, 0, -1)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を上へ`}>↑</button>
+              <span />
+              <button type="button" onClick={() => nudge(target, -1, 0)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を左へ`}>←</button>
+              <button type="button" onClick={() => nudge(target, -value.x, -value.y)} className="rounded-lg border bg-white py-1.5 text-[10px] font-black text-blue-700 hover:bg-blue-50" aria-label={`${label}を中央へ戻す`}>中央</button>
+              <button type="button" onClick={() => nudge(target, 1, 0)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を右へ`}>→</button>
+              <span />
+              <button type="button" onClick={() => nudge(target, 0, 1)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を下へ`}>↓</button>
+              <span />
+            </div>
+          </div>
+        );
 
         return (
           <div
             className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-2 sm:items-center sm:p-4"
             onMouseLeave={() => { if (dragging) setDragging(null); }}
           >
-            <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl md:flex-row">
+            <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl lg:flex-row">
               {/* A4レイアウト */}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b px-5 py-4">
@@ -3520,8 +3554,8 @@ export default function Home() {
                     <span style={{ color: "#64748b" }}>■</span> ページ数
                   </p>
                 </div>
-                <div className="overflow-auto p-4" style={{ background: "#e8edf2" }}>
-                  <div style={{ position: "relative", width: overlayW, height: overlayH, background: "white", boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
+                <div className="flex flex-1 items-start justify-center overflow-auto p-4" style={{ background: "#e8edf2" }}>
+                  <div style={{ position: "relative", width: overlayW, minWidth: overlayW, height: overlayH, background: "white", boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
                     <iframe
                       ref={previewIframeRef}
                       style={{
@@ -3576,49 +3610,23 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="mt-6 w-full rounded-2xl border border-slate-300 bg-white p-3 shadow-sm">
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-black text-slate-900">全ページ確認</p>
-                        <p className="text-xs font-bold text-slate-500">この枠内をスクロールして、2ページ目以降も確認できます。</p>
-                      </div>
-                      <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700">{outputPageCount}ページ</span>
-                    </div>
-                    <iframe
-                      title="全ページ印刷プレビュー"
-                      srcDoc={buildPreviewDoc()}
-                      scrolling="yes"
-                      className="h-[65vh] min-h-[520px] w-full rounded-xl border bg-slate-100"
-                    />
-                  </div>
                 </div>
               </div>
 
               {/* コントロールパネル */}
-              <div className="flex w-full flex-col border-t md:w-56 md:border-l md:border-t-0">
-                <div className="flex-1 space-y-4 overflow-auto p-5 text-xs">
-                  <div className="rounded-xl border border-blue-100 bg-blue-50 p-3">
-                    <p className="mb-1 font-bold text-blue-700">タイトル</p>
-                    <p className="text-slate-500">横 {fmt(titleOffset.x)}mm / 縦 {fmt(titleOffset.y)}mm</p>
-                  </div>
-                  <div className="rounded-xl border border-yellow-100 bg-yellow-50 p-3">
-                    <p className="mb-1 font-bold text-yellow-700">日付</p>
-                    <p className="text-slate-500">横 {fmt(dateOffset.x)}mm / 縦 {fmt(dateOffset.y)}mm</p>
-                  </div>
-                  <div className="rounded-xl border border-violet-100 bg-violet-50 p-3">
-                    <p className="mb-1 font-bold text-violet-700">単語リスト</p>
-                    <p className="text-slate-500">横 {fmt(gridOffset.x)}mm / 縦 {fmt(gridOffset.y)}mm</p>
-                  </div>
+              <div className="flex w-full flex-col border-t lg:w-72 lg:border-l lg:border-t-0">
+                <div className="border-b px-5 py-4">
+                  <p className="text-sm font-black text-slate-900">位置を調整</p>
+                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">紙の上をドラッグするか、矢印で1mmずつ動かせます。</p>
+                </div>
+                <div className="flex-1 space-y-3 overflow-auto p-4 text-xs">
+                  <PositionControl label="タイトル" target="title" value={titleOffset} tone="border-blue-100 bg-blue-50" />
+                  {includeDate ? <PositionControl label="日付" target="date" value={dateOffset} tone="border-yellow-100 bg-yellow-50" /> : null}
+                  <PositionControl label="単語リスト" target="grid" value={gridOffset} tone="border-violet-100 bg-violet-50" />
                   {hasInfoFields && (
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3">
-                      <p className="mb-1 font-bold text-emerald-700">記入欄</p>
-                      <p className="text-slate-500">横 {fmt(infoOffset.x)}mm / 縦 {fmt(infoOffset.y)}mm</p>
-                    </div>
+                    <PositionControl label="記入欄" target="info" value={infoOffset} tone="border-emerald-100 bg-emerald-50" />
                   )}
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                    <p className="mb-1 font-bold text-slate-600">ページ数</p>
-                    <p className="text-slate-500">横 {fmt(pageNoOffset.x)}mm / 縦 {fmt(pageNoOffset.y)}mm</p>
-                  </div>
+                  {showPageNo ? <PositionControl label="ページ番号" target="pageNo" value={pageNoOffset} tone="border-slate-200 bg-slate-50" /> : null}
                   <button
                     type="button"
                     onClick={() => { setTitleOffset({ x: 0, y: 0 }); setDateOffset({ x: 0, y: 0 }); setGridOffset({ x: 0, y: 0 }); setInfoOffset({ x: 0, y: 0 }); setPageNoOffset({ x: 0, y: 0 }); }}
@@ -3631,10 +3639,10 @@ export default function Home() {
                 <div className="space-y-3 border-t bg-white p-5">
                   <button
                     type="button"
-                    onClick={() => { setShowPreview(false); void printPdf(); }}
+                    onClick={() => { setShowPreview(false); setShowPrintConfirm(true); }}
                     className="w-full rounded-2xl bg-blue-600 py-3 text-sm font-black text-white hover:bg-blue-700"
                   >
-                    この設定で印刷
+                    印刷内容を確認して印刷する
                   </button>
                   <button
                     type="button"
