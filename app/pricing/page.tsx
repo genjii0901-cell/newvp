@@ -67,6 +67,7 @@ export default function PricingPage() {
   const [currentPlan, setCurrentPlan] = useState<Plan>("free");
   const [trialOffer, setTrialOffer] = useState<TrialOffer>("first");
   const [message, setMessage] = useState("");
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
     personal: PERSONAL_PUBLIC_CONFIGURED,
     teacher: false,
@@ -134,6 +135,7 @@ export default function PricingPage() {
   }, []);
 
   async function startCheckout(plan: PaidPlan) {
+    if (checkoutBusy) return;
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
       setMessage("Teacherプランの公開設定を確認中です。");
       return;
@@ -154,7 +156,7 @@ export default function PricingPage() {
     }
 
     if (!user) {
-      setMessage("先にログインしてください。");
+      window.location.assign(plan === "personal" ? "/?print_auth=personal" : "/?checkout_plan=teacher");
       return;
     }
 
@@ -166,26 +168,28 @@ export default function PricingPage() {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) {
-      setMessage("ログインセッションを確認できませんでした。");
+      window.location.assign(plan === "personal" ? "/?print_auth=personal" : "/?checkout_plan=teacher");
       return;
     }
-
-    const response = await fetch("/api/stripe/create-checkout-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ plan }),
-    });
-
-    const result = await response.json().catch(() => ({}));
-    if (result.url) {
-      window.location.href = result.url;
-      return;
+    setCheckoutBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result.url) {
+        window.location.assign(result.url);
+        return;
+      }
+      setMessage(result.error ?? "チェックアウトページを開けませんでした。");
+    } catch {
+      setMessage("通信に失敗しました。接続を確認してもう一度お試しください。");
+    } finally {
+      setCheckoutBusy(false);
     }
-
-    setMessage(result.error ?? "チェックアウトページを開けませんでした。");
   }
 
   async function openPortal() {
@@ -278,9 +282,9 @@ export default function PricingPage() {
                   <button
                     onClick={() => startCheckout(plan.id)}
                     className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
-                    disabled={!canCheckout}
+                    disabled={!canCheckout || checkoutBusy}
                   >
-                    {!canCheckout
+                    {checkoutBusy ? "決済画面を準備中..." : !canCheckout
                       ? "Stripe設定確認中"
                       : isTeacher
                         ? "Teacherに申し込む"

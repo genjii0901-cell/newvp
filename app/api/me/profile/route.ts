@@ -35,7 +35,7 @@ function planFromPriceId(priceId: string | null): Exclude<Plan, "free"> | null {
 
 async function planFromActiveStripeSubscription(customerId: string | null) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-  if (!stripeSecretKey || !customerId) return null;
+  if (!stripeSecretKey || !customerId) return undefined;
 
   const response = await fetch(
     `https://api.stripe.com/v1/subscriptions?customer=${encodeURIComponent(
@@ -49,10 +49,10 @@ async function planFromActiveStripeSubscription(customerId: string | null) {
     }
   );
 
-  if (!response.ok) return null;
+  if (!response.ok) throw new Error("Stripe subscription lookup failed.");
 
   const result = (await response.json()) as { data?: unknown };
-  if (!Array.isArray(result.data)) return null;
+  if (!Array.isArray(result.data)) throw new Error("Stripe subscription response is invalid.");
 
   for (const subscription of result.data) {
     const subscriptionObject = getObject(subscription);
@@ -105,7 +105,7 @@ export async function GET(request: Request) {
   try {
     const profile = await ensureProfile(auth.user);
     let plan = normalizePlan(profile.plan);
-    let stripeCustomerId = profile.stripe_customer_id ?? null;
+    const stripeCustomerId = profile.stripe_customer_id ?? null;
 
     const activeSubscription = await planFromActiveStripeSubscription(stripeCustomerId);
     const supabase = getSupabaseAdmin();
@@ -131,7 +131,7 @@ export async function GET(request: Request) {
           { onConflict: "stripe_subscription_id" }
         );
       }
-    } else if (plan !== "free") {
+    } else if (activeSubscription === null && plan !== "free") {
       plan = "free";
       await supabase
         .from("profiles")

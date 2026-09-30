@@ -197,12 +197,11 @@ export async function POST(request: Request) {
       body.append("customer_email", auth.user.email);
     }
 
+    const checkoutAttemptId = crypto.randomUUID();
     const checkoutHeaders = {
       Authorization: `Bearer ${stripeSecretKey}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      ...(trialOffer
-        ? { "Idempotency-Key": `personal-${trialOffer}-trial-${auth.user.id}` }
-        : {}),
+      "Idempotency-Key": `vpp-checkout-${checkoutAttemptId}`,
     };
 
     let response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
@@ -220,9 +219,7 @@ export async function POST(request: Request) {
 
       response = await fetch("https://api.stripe.com/v1/checkout/sessions", {
         method: "POST",
-        headers: trialOffer
-          ? { ...checkoutHeaders, "Idempotency-Key": `personal-${trialOffer}-trial-${auth.user.id}-email` }
-          : checkoutHeaders,
+        headers: { ...checkoutHeaders, "Idempotency-Key": `vpp-checkout-${checkoutAttemptId}-email` },
         body,
       });
 

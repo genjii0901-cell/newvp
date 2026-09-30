@@ -30,15 +30,11 @@ export default function Nav() {
 
   function goToAuth() {
     if (pathname === "/") {
-      const authSection = document.getElementById("auth");
-      if (authSection) {
-        authSection.scrollIntoView({ behavior: "smooth", block: "start" });
-        window.history.replaceState({}, "", "/#auth");
-        setOpen(false);
-        return;
-      }
+      window.dispatchEvent(new CustomEvent("vpp:open-auth", { detail: { mode: "login" } }));
+      setOpen(false);
+      return;
     }
-    window.location.href = "/#auth";
+    window.location.href = "/?auth=login";
   }
 
   const links = [

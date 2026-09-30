@@ -360,7 +360,7 @@ export default function PdfMaterialsClient() {
           : filteredGroups.length === 0 ? <div className="mt-5 rounded-lg border bg-white p-8 text-center"><p className="font-bold text-slate-500">該当する教材がありません。</p><Link href="/wordbooks" className="mt-3 inline-block text-sm font-black text-blue-600">みんなの単語帳を見る</Link></div>
             : <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filteredGroups.map((group) => (
-                <button key={group.id} type="button" onClick={() => void openGroup(group)} aria-expanded={selectedId === group.id} className={`flex min-h-28 items-center gap-3 rounded-lg border bg-white p-3 text-left transition hover:border-blue-300 hover:shadow-sm ${selectedId === group.id ? "border-blue-500 ring-2 ring-blue-100" : ""}`}>
+                <button key={group.id} type="button" onClick={() => void openGroup(group)} aria-expanded={selectedId === group.id} className={`flex min-h-28 cursor-pointer items-center gap-3 rounded-lg border bg-white p-3 text-left transition duration-150 hover:border-blue-300 hover:shadow-sm active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${selectedId === group.id ? "border-blue-500 bg-blue-50/60 ring-2 ring-blue-100" : ""}`}>
                   <div className="h-20 w-16 shrink-0 overflow-hidden rounded-md border bg-slate-50">
                     {group.coverImageUrl || group.sampleImageUrl ? (
                       <img
@@ -383,6 +383,7 @@ export default function PdfMaterialsClient() {
                     <h2 className="line-clamp-2 text-sm font-black leading-5 text-slate-950">{group.title}</h2>
                     <p className="mt-1 text-xs font-bold text-blue-600">{group.variantCount}形式・セット ¥{group.bundlePriceJpy.toLocaleString()}</p>
                     <p className="mt-1 line-clamp-1 text-[11px] text-slate-500">完全版 {group.saleCount}件 / サンプル {group.sampleCount}件</p>
+                    <p className="mt-1 text-[11px] font-bold text-blue-700">{selectedId === group.id ? detailLoading ? "読み込み中..." : "詳細を表示中" : "タップして詳細を見る"}</p>
                   </div>
                   <ChevronRight size={18} className="shrink-0 text-slate-300" />
                 </button>

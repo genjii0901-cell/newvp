@@ -105,7 +105,7 @@ function consumePrintPurchaseIntent() {
   }
 }
 
-function rememberPostAuthAction(action: "personal") {
+function rememberPostAuthAction(action: "personal" | "teacher") {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(POST_AUTH_ACTION_KEY, action);
@@ -119,7 +119,7 @@ function consumePostAuthAction() {
   try {
     const action = window.localStorage.getItem(POST_AUTH_ACTION_KEY);
     window.localStorage.removeItem(POST_AUTH_ACTION_KEY);
-    return action === "personal" ? action : null;
+    return action === "personal" || action === "teacher" ? action : null;
   } catch {
     return null;
   }
@@ -483,7 +483,7 @@ export default function Home() {
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const [printAuthIntent, setPrintAuthIntent] = useState<"free" | "personal" | "purchase" | null>(null);
+  const [printAuthIntent, setPrintAuthIntent] = useState<"login" | "free" | "personal" | "purchase" | null>(null);
   const [printAuthReason, setPrintAuthReason] = useState("");
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
@@ -511,6 +511,10 @@ export default function Home() {
   const [pdfTitle, setPdfTitle] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
+  const [printConfirmPlan, setPrintConfirmPlan] = useState<"free" | "personal">("free");
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState("");
+  const checkoutInFlightRef = useRef(false);
   const [studyPanelMode, setStudyPanelMode] = useState<StudyPanelMode>("list");
   const [listeningIndex, setListeningIndex] = useState(0);
   const [listeningRepeat, setListeningRepeat] = useState(1);
@@ -653,6 +657,7 @@ export default function Home() {
     const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
+        setPrintAuthIntent(null);
         const cachedPlan = readCachedPlan(session.user.id);
         if (cachedPlan) setPlan(cachedPlan);
         void ensureProfile(session.user);
@@ -670,12 +675,9 @@ export default function Home() {
     const authStatus = params.get("auth");
 
     if (authStatus === "login") {
-      // 教材購入などから「ログインが必要」で戻された導線。ログインフォームを前面に出す。
       setAuthMode("login");
-      setAuthPanelOpen(true);
-      setMessageTone("info");
-      setMessage("購入を続けるには、ログインまたは新規登録してください。完了後、元のページに戻って手続きが進みます。");
-      window.setTimeout(() => document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+      setPrintAuthIntent("login");
+      setPrintAuthReason("ログインまたは新規登録して続けてください。");
     } else if (authStatus === "confirmed") {
       setMessageTone("success");
       setMessage("メール認証が完了しました。ログインして利用を始められます。");
@@ -700,13 +702,32 @@ export default function Home() {
       setPrintAuthIntent("purchase");
       setPrintAuthReason("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
     }
+    const checkoutPlan = params.get("checkout_plan");
+    if (checkoutPlan === "teacher") {
+      setAuthMode("signup");
+      setPrintAuthIntent("login");
+      setPrintAuthReason("登録またはログイン後、そのままTeacherプランの決済画面へ進みます。");
+      rememberPostAuthAction("teacher");
+    }
 
-    if (!authStatus && !printAuth) return;
+    if (!authStatus && !printAuth && !checkoutPlan) return;
 
     const nextUrl = new URL(window.location.href);
     nextUrl.searchParams.delete("auth");
     nextUrl.searchParams.delete("print_auth");
+    nextUrl.searchParams.delete("checkout_plan");
     window.history.replaceState({}, "", nextUrl.pathname + nextUrl.search + nextUrl.hash);
+  }, []);
+
+  useEffect(() => {
+    const openAuth = (event: Event) => {
+      const mode = (event as CustomEvent<{ mode?: "login" | "signup" }>).detail?.mode;
+      setAuthMode(mode === "signup" ? "signup" : "login");
+      setPrintAuthIntent("login");
+      setPrintAuthReason("ログインまたは新規登録して続けてください。");
+    };
+    window.addEventListener("vpp:open-auth", openAuth);
+    return () => window.removeEventListener("vpp:open-auth", openAuth);
   }, []);
 
   useEffect(() => {
@@ -1087,12 +1108,12 @@ export default function Home() {
   useEffect(() => {
     if (!user || !supabase) return;
     const postAuthAction = consumePostAuthAction();
-    if (postAuthAction === "personal") {
+    if (postAuthAction === "personal" || postAuthAction === "teacher") {
       setPrintAuthIntent(null);
       setTrialModalOpen(false);
       setMessageTone("info");
-      setMessage("ログインできました。Personalの決済ページを準備しています。");
-      void startCheckout("personal");
+      setMessage(`ログインできました。${postAuthAction === "teacher" ? "Teacher" : "Personal"}の決済ページを準備しています。`);
+      void startCheckout(postAuthAction);
       return;
     }
 
@@ -1104,15 +1125,6 @@ export default function Home() {
     setPrintAuthIntent(null);
     void startPrintPurchaseCheckout(pendingPurchase.pages);
   }, [user, supabase]);
-
-  useEffect(() => {
-    if (!user || !supabase || printAuthIntent !== "personal") return;
-    setPrintAuthIntent(null);
-    setTrialModalOpen(false);
-    setMessageTone("info");
-    setMessage("ログインできました。Personalの決済ページを準備しています。");
-    void startCheckout("personal");
-  }, [user, supabase, printAuthIntent]);
 
   // 「有料登録の完了」ポップアップを閉じる（＝上部の勧誘バーに切り替わる）
   function dismissTrialModal() {
@@ -1830,6 +1842,21 @@ export default function Home() {
     await printWords(outputWords, selectedBook.title, selectedBook.title);
   }
 
+  function openPrintConfirm() {
+    setPrintConfirmPlan(plan === "free" ? "free" : "personal");
+    setShowPrintConfirm(true);
+  }
+
+  function confirmPrint() {
+    if (printConfirmPlan === "personal" && plan === "free" && !hasPersonalLicense) {
+      setShowPrintConfirm(false);
+      void startCheckout("personal");
+      return;
+    }
+    setShowPrintConfirm(false);
+    void printPdf();
+  }
+
   async function printPastedPdf() {
     const words = parsePastedWords(pasteText);
     if (words.length === 0) {
@@ -2043,16 +2070,19 @@ export default function Home() {
     const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const previewPlan: Plan = user ? plan : "free";
     const canCustomizeTitle = previewPlan === "teacher" || role === "admin";
-    const printWordsList = previewPlan === "free" ? outputWords.slice(0, 50) : outputWords;
+    const previewWords = previewPlan === "free"
+      ? outputWords.map((word, index) => index < 50 ? word : { no: index + 1, english: "", japanese: "" })
+      : outputWords;
     const bodyHtml = buildPrintHtml({
       title: canCustomizeTitle && pdfTitle.trim() ? pdfTitle.trim() : autoTitle,
-      words: printWordsList,
+      words: previewWords,
       type,
       showPageNo,
       makeQuestion,
       direction,
       redSheet,
       plan: previewPlan,
+      previewAllPages: true,
       printStyle,
       includeWatermark: previewPlan === "free" ? true : includeWatermark,
       showRecordFields,
@@ -2123,6 +2153,7 @@ export default function Home() {
       }
       window.addEventListener('resize',fitPreview);
       window.addEventListener('load',fitPreview);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitPreview);
       fitPreview();
     <\/script></body></html>`;
   }
@@ -2194,9 +2225,8 @@ export default function Home() {
   function guideToRegister(reason: string) {
     if (user) return;
     setAuthMode("signup");
-    setMessageTone("info");
-    setMessage(`${reason} メールアドレスだけで完全無料の会員登録をすると、すぐに使えます。`);
-    document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setPrintAuthIntent("free");
+    setPrintAuthReason(`${reason} 無料会員登録すると、すぐに使えます。`);
   }
 
   async function guideToPersonal(reason: string) {
@@ -2208,9 +2238,9 @@ export default function Home() {
         // localStorageが使えない環境では通常の無料登録として扱う
       }
       setAuthMode("signup");
-      setMessageTone("info");
-      setMessage(`${reason} まず無料会員登録を完了すると、そのままPersonalの7日間無料トライアルへ進めます。`);
-      document.getElementById("auth")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPrintAuthIntent("personal");
+      setPrintAuthReason(`${reason} 登録後、そのままPersonalの手続きへ進めます。`);
+      rememberPostAuthAction("personal");
       return;
     }
 
@@ -2224,44 +2254,63 @@ export default function Home() {
   }
 
   async function startCheckout(targetPlan: Exclude<Plan, "free">) {
+    if (checkoutInFlightRef.current) return;
+    setCheckoutError("");
     if (plan === targetPlan) {
-      alert("現在利用中のプランです。");
+      setMessageTone("info");
+      setMessage("現在利用中のプランです。");
       return;
     }
-    if (!configuredPlans[targetPlan]) {
-      alert(`${targetPlan === "teacher" ? "Teacher" : "Personal"}プランのStripe設定が未完了です。`);
+    if (!user) {
+      setSignupPlan(targetPlan === "personal" ? "personal" : "free");
+      setAuthMode("signup");
+      setPrintAuthIntent(targetPlan === "personal" ? "personal" : "login");
+      setPrintAuthReason(`登録またはログイン後、そのまま${targetPlan === "teacher" ? "Teacher" : "Personal"}の決済画面へ進みます。`);
+      rememberPostAuthAction(targetPlan);
       return;
     }
-
     if (!supabase) {
-      alert("Supabaseの設定が必要です。");
+      setCheckoutError("ログイン設定を確認できません。時間をおいて再度お試しください。");
+      setMessageTone("error");
+      setMessage("ログイン設定を確認できません。時間をおいて再度お試しください。");
       return;
     }
+    checkoutInFlightRef.current = true;
+    setCheckoutBusy(true);
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setUser(null);
+        setAuthMode("login");
+        setPrintAuthIntent(targetPlan === "personal" ? "personal" : "login");
+        setPrintAuthReason("ログイン状態を確認できませんでした。もう一度ログインすると決済へ進みます。");
+        rememberPostAuthAction(targetPlan);
+        return;
+      }
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-
-    if (!token) {
-      alert("ログインセッションを確認できません。もう一度ログインしてください。");
-      return;
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ plan: targetPlan }),
+      });
+      const result = await res.json().catch(() => ({}));
+      if (res.ok && typeof result.url === "string") {
+        window.location.assign(result.url);
+        return;
+      }
+      setMessageTone("error");
+      const errorMessage = result.message ?? result.error ?? "決済ページを開けませんでした。もう一度お試しください。";
+      setMessage(errorMessage);
+      setCheckoutError(errorMessage);
+    } catch {
+      setMessageTone("error");
+      setMessage("通信に失敗しました。接続を確認してもう一度お試しください。");
+      setCheckoutError("通信に失敗しました。接続を確認してもう一度お試しください。");
+    } finally {
+      checkoutInFlightRef.current = false;
+      setCheckoutBusy(false);
     }
-
-    const res = await fetch("/api/stripe/create-checkout-session", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ plan: targetPlan }),
-    });
-
-    const result = await res.json();
-    if (result.url) {
-      window.location.href = result.url;
-      return;
-    }
-
-    alert(result.message ?? result.error ?? "決済ページを作成できませんでした。");
   }
 
   async function openBillingPortal() {
@@ -2329,6 +2378,8 @@ export default function Home() {
     <main className="min-h-screen bg-slate-50 text-slate-900">
       <style>{printCss}</style>
       <div id="print-root" className="hidden print:block" />
+      {checkoutBusy ? <div role="status" className="fixed left-1/2 top-20 z-[90] -translate-x-1/2 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow-xl">決済画面を準備中...</div> : null}
+      {checkoutError ? <div role="alert" className="fixed left-1/2 top-20 z-[90] flex w-[min(90vw,32rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-white p-4 text-sm font-bold text-red-700 shadow-xl"><span className="flex-1">{checkoutError}</span><button type="button" onClick={() => setCheckoutError("")} aria-label="エラーを閉じる" className="rounded-lg border px-2 py-1">閉じる</button></div> : null}
 
       <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
         <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-slate-900 p-5 sm:p-8 text-white">
@@ -3040,10 +3091,10 @@ export default function Home() {
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
               <button
                 type="button"
-                onClick={() => setShowPrintConfirm(true)}
+                onClick={openPrintConfirm}
                 className="flex-1 rounded-2xl bg-blue-600 px-4 py-4 sm:py-3 text-base sm:text-sm font-black text-white hover:bg-blue-700 active:bg-blue-800"
               >
-                印刷内容を確認して印刷する
+                印刷内容を確認して印刷
               </button>
               <button
                 type="button"
@@ -3090,13 +3141,13 @@ export default function Home() {
               </div>
             </summary>
 
-            <div className="mt-4 rounded-2xl border bg-slate-100 p-3">
-              <div className="mx-auto max-w-[440px] rounded-2xl bg-white p-2 shadow-sm">
+            <div className="mt-4 rounded-2xl border bg-slate-100 p-2 sm:p-4">
+              <div className="mx-auto w-full max-w-[720px] rounded-2xl bg-white p-1 shadow-sm sm:p-2">
                 <iframe
                   title="印刷プレビュー"
                   srcDoc={buildPreviewDoc()}
                   scrolling="yes"
-                  className="h-[70vh] min-h-[520px] w-full rounded-xl border-0 bg-slate-100"
+                  className="h-[72dvh] min-h-[480px] w-full rounded-xl border-0 bg-slate-100"
                 />
               </div>
             </div>
@@ -3373,21 +3424,33 @@ export default function Home() {
 
       {showPrintConfirm ? (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/65 p-2 backdrop-blur-sm sm:p-4" onClick={() => setShowPrintConfirm(false)}>
-          <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-4 sm:px-6">
+          <div className="flex h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-2 border-b px-3 py-2 sm:px-6 sm:py-4">
               <div>
                 <p className="text-xs font-black text-blue-700">印刷内容を確認</p>
-                <h2 className="mt-1 text-lg font-black text-slate-950">全{outputPageCount}ページを確認して印刷</h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">この枠内を下へスクロールすると、すべてのページを確認できます。</p>
+                <h2 className="text-base font-black text-slate-950 sm:mt-1 sm:text-lg">全{outputPageCount}ページを確認して印刷</h2>
+                <p className="hidden text-xs font-bold text-slate-500 sm:mt-1 sm:block">この枠内を下へスクロールすると、すべてのページを確認できます。</p>
               </div>
               <button type="button" onClick={() => setShowPrintConfirm(false)} className="rounded-xl border px-3 py-2 text-sm font-black text-slate-600 hover:bg-slate-50">閉じる</button>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-3 sm:p-5" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
-              <iframe title="印刷内容の全ページ確認" srcDoc={buildPreviewDoc()} scrolling="yes" className="h-full min-h-[62vh] w-full rounded-2xl border bg-white shadow-sm" />
+            <div className="min-h-0 flex-1 overflow-hidden bg-slate-100 p-2 sm:p-4" onCopy={(event) => event.preventDefault()} onCut={(event) => event.preventDefault()} onContextMenu={(event) => event.preventDefault()}>
+              <iframe title="印刷内容の全ページ確認" srcDoc={buildPreviewDoc()} scrolling="yes" className="h-full w-full rounded-xl border bg-white shadow-sm" />
             </div>
-            <div className="grid gap-2 border-t bg-white p-4 sm:grid-cols-2 sm:px-6">
-              <button type="button" onClick={() => { setShowPrintConfirm(false); setShowPreview(true); }} className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100">レイアウトを調整する</button>
-              <button type="button" onClick={() => { setShowPrintConfirm(false); void printPdf(); }} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">この内容で印刷する</button>
+            <div className="border-t bg-white p-2 sm:p-3 sm:px-6">
+              {plan === "free" && !hasPersonalLicense ? (
+                <div className="mb-2 grid grid-cols-2 gap-2" role="radiogroup" aria-label="印刷プラン">
+                  <button type="button" role="radio" aria-checked={printConfirmPlan === "free"} onClick={() => setPrintConfirmPlan("free")} className={`rounded-xl border p-2 text-left text-[11px] font-bold sm:p-3 sm:text-xs ${printConfirmPlan === "free" ? "border-blue-500 bg-blue-50" : "border-slate-200"}`}>
+                    <span className="block text-sm font-black">Free</span>1ページ・月5回<br />透かしあり
+                  </button>
+                  <button type="button" role="radio" aria-checked={printConfirmPlan === "personal"} onClick={() => setPrintConfirmPlan("personal")} className={`rounded-xl border p-2 text-left text-[11px] font-bold sm:p-3 sm:text-xs ${printConfirmPlan === "personal" ? "border-blue-500 bg-blue-50" : "border-blue-200 bg-blue-50/50"}`}>
+                    <span className="block text-sm font-black text-blue-700">おすすめ：Personal</span>最大20ページ・透かしなし<br />初回7日無料、以降月780円
+                  </button>
+                </div>
+              ) : null}
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => { setShowPrintConfirm(false); setShowPreview(true); }} className="rounded-xl border border-blue-200 bg-blue-50 px-2 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-100 sm:text-sm">レイアウト調整</button>
+                <button type="button" onClick={confirmPrint} className="rounded-xl bg-blue-600 px-2 py-2.5 text-xs font-black text-white hover:bg-blue-700 sm:text-sm">{printConfirmPlan === "personal" && plan === "free" && !hasPersonalLicense ? "Personalの登録へ" : "この内容で印刷"}</button>
+              </div>
             </div>
           </div>
         </div>
@@ -3515,6 +3578,10 @@ export default function Home() {
           if (target === "info") setInfoOffset((current) => update(current, -10, 10));
           if (target === "pageNo") setPageNoOffset((current) => update(current, -20, 20));
         };
+        const setPosition = (target: "title" | "date" | "grid" | "info" | "pageNo", axis: "x" | "y", value: number, current: { x: number; y: number }) => {
+          if (!Number.isFinite(value)) return;
+          nudge(target, axis === "x" ? value - current.x : 0, axis === "y" ? value - current.y : 0);
+        };
         const PositionControl = ({ label, target, value, tone }: { label: string; target: "title" | "date" | "grid" | "info" | "pageNo"; value: { x: number; y: number }; tone: string }) => (
           <div className={`rounded-xl border p-3 ${tone}`}>
             <div className="flex items-center justify-between gap-2">
@@ -3531,6 +3598,10 @@ export default function Home() {
               <span />
               <button type="button" onClick={() => nudge(target, 0, 1)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を下へ`}>↓</button>
               <span />
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-600">
+              <label>横 (mm)<input type="number" step="0.5" min="-80" max="80" value={value.x} onChange={(event) => setPosition(target, "x", Number(event.target.value), value)} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5 text-sm" /></label>
+              <label>縦 (mm)<input type="number" step="0.5" min={target === "grid" ? -30 : target === "pageNo" ? -20 : target === "info" ? -10 : -5} max={target === "grid" ? 30 : target === "pageNo" || target === "date" ? 20 : target === "info" ? 10 : 15} value={value.y} onChange={(event) => setPosition(target, "y", Number(event.target.value), value)} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5 text-sm" /></label>
             </div>
           </div>
         );
@@ -3639,10 +3710,10 @@ export default function Home() {
                 <div className="space-y-3 border-t bg-white p-5">
                   <button
                     type="button"
-                    onClick={() => { setShowPreview(false); setShowPrintConfirm(true); }}
+                    onClick={() => { setShowPreview(false); openPrintConfirm(); }}
                     className="w-full rounded-2xl bg-blue-600 py-3 text-sm font-black text-white hover:bg-blue-700"
                   >
-                    印刷内容を確認して印刷する
+                    印刷内容を確認して印刷
                   </button>
                   <button
                     type="button"
@@ -3678,24 +3749,30 @@ export default function Home() {
             onClick={(event) => event.stopPropagation()}
           >
             <p className="text-center text-xs font-black text-blue-700">
-              {printAuthIntent === "free"
+              {printAuthIntent === "login"
+                ? "Vocab Print Pro アカウント"
+                : printAuthIntent === "free"
                 ? "無料会員で印刷する"
                 : printAuthIntent === "personal"
                   ? "Personalで続ける"
                   : "今回だけ印刷する"}
             </p>
             <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-              {printAuthIntent === "free"
+              {printAuthIntent === "login"
+                ? "ログインまたは新規登録"
+                : printAuthIntent === "free"
                 ? "無料会員登録後、すぐに印刷できます"
                 : printAuthIntent === "personal"
                   ? "登録後、そのまま決済へ進みます"
                   : "登録後、そのまま50円決済へ進みます"}
             </h3>
             <div className={`mt-4 rounded-2xl border-2 p-4 text-center ${
-              printAuthIntent === "free" || printAuthIntent === "personal" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
+              printAuthIntent === "free" || printAuthIntent === "personal" || printAuthIntent === "login" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
             }`}>
               <p className="text-sm font-black text-slate-900">
-                {printAuthIntent === "free"
+                {printAuthIntent === "login"
+                  ? "無料会員登録もこちらからできます"
+                  : printAuthIntent === "free"
                   ? "1回1ページ・月5回まで / カード不要"
                   : printAuthIntent === "personal"
                     ? "Personal 7日間0円 / その後 月額780円"
@@ -3703,6 +3780,7 @@ export default function Home() {
               </p>
               <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{printAuthReason}</p>
             </div>
+            {message && messageTone === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
 
             <div className="mt-4 flex gap-2">
               <button
@@ -3791,6 +3869,8 @@ export default function Home() {
                     ? "無料会員登録して印刷へ"
                     : printAuthIntent === "personal"
                       ? "登録してPersonalへ進む"
+                    : printAuthIntent === "login"
+                      ? "新規登録する"
                       : "登録して今回だけ印刷へ進む"}
               </button>
               <button
@@ -3934,6 +4014,7 @@ function buildPrintHtml({
   direction = "en-ja",
   redSheet = false,
   plan,
+  previewAllPages = false,
   printStyle,
   includeWatermark,
   showRecordFields,
@@ -3965,6 +4046,7 @@ function buildPrintHtml({
   direction?: Direction;
   redSheet?: boolean;
   plan: Plan;
+  previewAllPages?: boolean;
   printStyle: PrintStyle;
   includeWatermark: boolean;
   userEmail?: string;
@@ -3989,7 +4071,7 @@ function buildPrintHtml({
   pageNoOffsetY?: number;
 }) {
   const perPage = 50;
-  const visibleWords = plan === "free" ? words.slice(0, perPage) : words;
+  const visibleWords = plan === "free" && !previewAllPages ? words.slice(0, perPage) : words;
   const pages: Word[][] = [];
 
   for (let index = 0; index < visibleWords.length; index += perPage) {
@@ -4100,7 +4182,7 @@ function buildPrintHtml({
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
           ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
         </div>
-        ${plan === "free" ? `<p class="print-note">Free版は1ページのみです。</p>` : ""}
+        ${plan === "free" ? `<p class="print-note">${previewAllPages && pages.length > 1 ? "Freeは1ページまで印刷できます。2ページ目以降はPersonalで利用できます。" : "Free版は1ページのみです。"}</p>` : ""}
         <div class="print-grid"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${table(right)}</div>
         ${hasInfoBox ? `<div class="print-info-box" style="${infoStyle}"><div class="print-info-fields">
           ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
