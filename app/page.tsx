@@ -54,7 +54,7 @@ function SignupPlanOptions({ value, onChange, compact = false }: {
   return (
     <div className="mt-4">
       <p className="text-sm font-black text-slate-700">登録するプランを選ぶ</p>
-      <div className={`mt-2 grid gap-2 ${compact ? "grid-cols-2" : ""}`} role="radiogroup" aria-label="登録するプラン">
+      <div className="mt-2 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="登録するプラン">
         <button
           type="button"
           role="radio"
@@ -64,7 +64,7 @@ function SignupPlanOptions({ value, onChange, compact = false }: {
         >
           <span className="block text-xs font-black text-blue-700">おすすめ・Personal</span>
           <span className="mt-1 block text-lg font-black text-slate-950">7日間無料</span>
-          <span className="mt-1 block text-[11px] font-bold leading-5 text-slate-600">その後 月780円。透かしなし・1回20ページまで</span>
+          <span className="mt-1 block text-[11px] font-bold leading-5 text-slate-600">印刷回数は無制限。透かしなし・1回20ページまで</span>
         </button>
         <button
           type="button"
@@ -80,8 +80,8 @@ function SignupPlanOptions({ value, onChange, compact = false }: {
       </div>
       <p className="mt-2 text-[11px] font-bold leading-5 text-slate-500">
         {value === "personal"
-          ? "登録・メール認証後、決済画面で7日間無料トライアルを開始します。"
-          : "カード登録なしで始められます。あとからPersonalに変更できます。"}
+          ? "初回7日間無料。その後は月780円で自動更新。1回20ページまで、タイトル変更・CSV出力はTeacher限定です。"
+          : "無料枠を超えた分は1ページ50円で都度購入できます。繰り返し印刷すると費用がかさむため、Personalがおすすめです。"}
       </p>
     </div>
   );
@@ -288,7 +288,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
   try {
     const key = localUsageKey(userId, plan);
     const used = Number(window.localStorage.getItem(key) ?? "0");
-    if (used >= rule.maxGenerations) {
+    if (typeof rule.maxGenerations === "number" && used >= rule.maxGenerations) {
       return {
         ok: false,
         message: `${rule.period === "month" ? "今月" : "本日"}の印刷（作成）回数の上限に達しました。`,
@@ -312,6 +312,7 @@ function checkLocalUsage(userId: string, plan: Plan, wordCount: number, pageCoun
 }
 
 function recordLocalUsage(userId: string, plan: Plan) {
+  if (planLimits[plan].maxGenerations === undefined && planLimits[plan].maxTotalGenerations === undefined) return;
   try {
     const key = localUsageKey(userId, plan);
     const used = Number(window.localStorage.getItem(key) ?? "0");
@@ -3075,7 +3076,7 @@ export default function Home() {
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料版は「見本」の透かし入りで、1回1ページ・月5回まで印刷できます。Personalなら透かしなし・氏名入力・1回20ページまでの印刷に加え、単語帳と履歴の保存、聞き流し、苦手語の復習までまとめて使えます。
+                  無料版は「見本」の透かし入りで、1回1ページ・月5回まで。超過分は1ページ50円で都度購入できます。Personalは印刷回数無制限、透かしなし・氏名入力・1回20ページまで。単語帳と履歴の保存も使えます。
                 </p>
                 <a
                   href="/pricing"
@@ -3399,11 +3400,11 @@ export default function Home() {
         )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <PlanCard title="Free" price="¥0" text="1回1ページ・月5回まで。透かし付きで印刷できる無料プラン。" />
+          <PlanCard title="Free" price="¥0" text="1回1ページ・月5回まで。超過分は1ページ50円で都度購入。透かし付き。" />
           <PlanCard
             title="Personal"
             price="¥780/月"
-            text="7日無料トライアル。透かしなし・氏名入力・1回20ページまで。履歴と単語帳も保存できます。"
+            text="初回7日無料。その後月780円。印刷回数無制限、透かしなし・1回20ページまで。履歴と単語帳も保存できます。"
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}
@@ -3411,7 +3412,7 @@ export default function Home() {
           <PlanCard
             title="Teacher"
             price="¥2,980/月"
-            text="先生・塾向け。タイトル変更、CSV出力、クラス別教材管理、月5,000回の作成に対応。"
+            text="先生・塾向け。印刷回数無制限。タイトル変更、CSV出力、クラス別教材管理に対応。"
             onClick={plan === "teacher" ? undefined : () => startCheckout("teacher")}
             disabled={plan !== "teacher" && !configuredPlans.teacher}
             disabledLabel="Stripe設定を確認中"
@@ -3895,7 +3896,7 @@ export default function Home() {
               <p className="mt-1 text-sm font-black text-slate-600">その後は月額780円・いつでも解約OK</p>
             </div>
             <ul className="mt-4 space-y-1.5 text-sm font-bold text-slate-700">
-              <li>✓ 1回20ページまで・月300回</li>
+              <li>✓ 印刷回数無制限・1回20ページまで</li>
               <li>✓ 「見本」の透かしなし・氏名入力</li>
               <li>✓ 出題範囲・問題数・形式も自由</li>
               <li>✓ 単語帳の保存</li>

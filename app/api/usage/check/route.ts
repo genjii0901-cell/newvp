@@ -81,6 +81,19 @@ export async function POST(request: Request) {
       });
     }
 
+    if (rule.maxGenerations === undefined && rule.maxTotalGenerations === undefined) {
+      return NextResponse.json({
+        ok: true,
+        plan,
+        licenseKind,
+        remaining: null,
+        maxPages: rule.maxPages ?? null,
+        maxWords: rule.maxWords ?? null,
+        maxGenerations: null,
+        period: rule.period,
+      });
+    }
+
     const supabase = getSupabaseAdmin();
     const { count, error } = await supabase
       .from("pdf_generations")
@@ -93,7 +106,9 @@ export async function POST(request: Request) {
     }
 
     const used = count ?? 0;
-    const remaining = Math.max(rule.maxGenerations - used, 0);
+    const remaining = typeof rule.maxGenerations === "number"
+      ? Math.max(rule.maxGenerations - used, 0)
+      : null;
 
     if (typeof rule.maxTotalGenerations === "number") {
       const { count: totalCount, error: totalError } = await supabase
@@ -118,7 +133,7 @@ export async function POST(request: Request) {
       }
     }
 
-    if (remaining <= 0) {
+    if (remaining !== null && remaining <= 0) {
       return NextResponse.json({
         ok: false,
         plan,
@@ -135,7 +150,7 @@ export async function POST(request: Request) {
       remaining,
       maxPages: rule.maxPages ?? null,
       maxWords: rule.maxWords,
-      maxGenerations: rule.maxGenerations,
+      maxGenerations: rule.maxGenerations ?? null,
       period: rule.period,
     });
   } catch (error) {

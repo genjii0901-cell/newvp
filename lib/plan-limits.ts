@@ -2,7 +2,7 @@ export type Plan = "free" | "personal" | "teacher";
 
 export type PlanLimit = {
   period: "day" | "month";
-  maxGenerations: number;
+  maxGenerations?: number;
   maxPages?: number;
   maxWords?: number;
   maxTotalGenerations?: number;
@@ -12,8 +12,8 @@ export const WORDS_PER_PAGE = 50;
 
 export const planLimits: Record<Plan, PlanLimit> = {
   free: { period: "month", maxGenerations: 5, maxPages: 1, maxWords: 50 },
-  personal: { period: "month", maxGenerations: 300, maxPages: 20 },
-  teacher: { period: "month", maxGenerations: 5000, maxWords: 1900 },
+  personal: { period: "month", maxPages: 20 },
+  teacher: { period: "month", maxWords: 1900 },
 };
 
 export function getPageCount(wordCount: number, wordsPerPage = WORDS_PER_PAGE) {

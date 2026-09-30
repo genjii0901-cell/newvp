@@ -69,7 +69,7 @@ export default function PrintGateModal({
             <span className="text-[11px] font-bold text-slate-500">その後 月額780円</span>
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
-            たくさん印刷するならこちらがおすすめです。1回20ページまで、透かしなしで使えます。
+            印刷回数は無制限。1回20ページまで、透かしなしで使えます。
           </p>
           <ul className="mt-3 grid gap-1.5 text-[11px] font-bold leading-5 text-slate-700 sm:grid-cols-2">
             <li>✓ 透かしなし・氏名入力</li>
@@ -93,7 +93,7 @@ export default function PrintGateModal({
             </span>
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
-            {safePages}ページ × {PER_PAGE_PRICE_JPY}円。今回の印刷分だけをStripeで決済します。
+            {safePages}ページ × {PER_PAGE_PRICE_JPY}円。今回の印刷分だけをStripeで決済します。繰り返し購入すると割高です。
             {!isLoggedIn && " 先に無料会員登録が必要です。登録後、そのまま決済へ進みます。"}
           </p>
         </button>

@@ -23,8 +23,9 @@ const plans = [
     features: [
       "月5回まで印刷",
       "1回1ページまで",
+      "無料枠を超えた分は1ページ50円で都度購入可能",
       "Personal単語帳もお試し利用可能",
-      "透かし付き・記入名なしで出力",
+      "透かし付き・記入名なし。繰り返し購入すると割高",
     ],
   },
   {
@@ -34,12 +35,13 @@ const plans = [
     description: "個人学習向け。保存や履歴も使える本番プランです。",
     features: [
       "初回7日無料トライアル",
-      "月300回まで作成",
+      "印刷回数は無制限",
       "1回20ページまで出力",
       "透かしなし・記入名を設定可能",
       "マイ単語帳の保存",
       "PDF生成履歴の保存",
       "みんなの単語帳をまとめて利用可能",
+      "7日後は月780円で自動更新。タイトル変更・CSV出力はTeacher限定",
     ],
   },
   {
@@ -50,7 +52,7 @@ const plans = [
     features: [
       "単語テストのタイトルを自由に変更",
       "単語リストをCSVで出力",
-      "月5,000回まで教材を作成",
+      "印刷回数は無制限",
       "クラス名・番号・氏名欄を設定",
       "複数教材・クラス別教材の管理",
     ],
@@ -311,13 +313,13 @@ export default function PricingPage() {
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">まず試せる</p>
               <p className="mt-2 text-sm text-slate-600">
-                Freeは登録だけで使えます。まず印刷の流れや使い心地を確認できます。
+                Freeはカード不要で月5回、1回1ページまで。超過分は1ページ50円で都度購入できますが、何度も印刷するならPersonalの方が費用を抑えやすくなります。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">保存ができる</p>
               <p className="mt-2 text-sm text-slate-600">
-                Personalではマイ単語帳や履歴が使えるので、繰り返しのプリント作成が楽になります。
+                Personalは月780円で印刷回数無制限。透かしなし、マイ単語帳と履歴も使えます。1回の印刷は20ページまでです。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
