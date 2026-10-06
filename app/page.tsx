@@ -1854,10 +1854,11 @@ export default function Home() {
       const res = await fetch("/api/stripe/print-purchase-session", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ pages }),
+        body: JSON.stringify({ pages, pricingVariant }),
       });
       const data = await res.json().catch(() => ({}));
       if (data?.ok && data.url) {
+        if (pricingVariant) trackPricingEvent("checkout", pricingVariant);
         window.location.href = data.url as string;
         return;
       }

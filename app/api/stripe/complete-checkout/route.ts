@@ -3,6 +3,7 @@ import {
   getSupabaseAdmin,
   readableError,
 } from "@/lib/supabase/admin";
+import { recordPricingPurchase } from "@/lib/pricing-experiment-server";
 
 type Plan = "personal" | "teacher";
 
@@ -176,11 +177,7 @@ export async function POST(request: Request) {
 
     const pricingVariant = getString(metadata.pricing_variant);
     if (plan === "personal" && (pricingVariant === "choice" || pricingVariant === "personal")) {
-      const { error: experimentError } = await supabase.from("app_settings").upsert(
-        { key: `pricing_exp:v1:paid:${sessionId}`, value: pricingVariant },
-        { onConflict: "key", ignoreDuplicates: true },
-      );
-      if (experimentError) console.error("Pricing experiment conversion logging failed", experimentError.message);
+      await recordPricingPurchase(sessionId, pricingVariant, session.amount_total);
     }
 
     return NextResponse.json({

@@ -100,7 +100,7 @@ function batchRandomOrderKey(config: BatchVariantConfig) {
 type AdminMetrics = {
   warnings?: string[];
   pricingExperiment?: {
-    variants: Array<{ variant: "choice" | "personal"; views: number; checkouts: number; paid: number }>;
+    variants: Array<{ variant: "choice" | "personal"; views: number; checkouts: number; paid: number; revenueJpy: number }>;
   };
   visitorMetrics?: {
     available?: boolean;
@@ -2086,17 +2086,18 @@ export default function AdminPage() {
                     <p className="mt-1 text-xs text-slate-500">同じ料金・利用権限で、都度購入を並べる案とPersonalを中心に見せる案を比較します。ブラウザごとに案を固定しています。</p>
                     <div className="mt-4 overflow-x-auto">
                       <table className="w-full min-w-[440px] text-left text-sm">
-                        <thead><tr className="border-b text-xs text-slate-500"><th className="py-2">表示案</th><th className="py-2">閲覧</th><th className="py-2">決済へ</th><th className="py-2">購入完了</th><th className="py-2">購入率</th></tr></thead>
+                        <thead><tr className="border-b text-xs text-slate-500"><th className="py-2">表示案</th><th className="py-2">閲覧</th><th className="py-2">決済へ</th><th className="py-2">購入完了</th><th className="py-2">購入率</th><th className="py-2">初回売上</th></tr></thead>
                         <tbody>{metrics.pricingExperiment.variants.map((row) => (
                           <tr key={row.variant} className="border-b last:border-0">
                             <th className="py-3 font-bold">{row.variant === "choice" ? "都度購入 + Personal" : "Personal中心"}</th>
                             <td>{row.views}</td><td>{row.checkouts}</td><td>{row.paid}</td>
                             <td>{row.views ? `${(row.paid / row.views * 100).toFixed(1)}%` : "-"}</td>
+                            <td>¥{row.revenueJpy.toLocaleString()}</td>
                           </tr>
                         ))}</tbody>
                       </table>
                     </div>
-                    <p className="mt-2 text-xs text-slate-500">購入完了はPersonalのみ集計。少人数の間は差を断定できません。</p>
+                    <p className="mt-2 text-xs text-slate-500">購入完了と初回売上はPersonal・都度購入を集計します。継続課金は含みません。少人数の間は差を断定できません。</p>
                   </section>
                 )}
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">

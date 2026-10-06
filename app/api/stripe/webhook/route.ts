@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { isMaterialPurchaseSchemaError, recordMaterialPurchase } from "@/lib/material-purchases";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getWinbackEligibleAt } from "@/lib/trial-offers";
+import { recordPricingPurchase } from "@/lib/pricing-experiment-server";
 
 export const dynamic = "force-dynamic";
 
@@ -255,12 +256,12 @@ export async function POST(request: Request) {
         const sessionId = getString(object.id);
         if (plan === "personal" && sessionId &&
             (pricingVariant === "choice" || pricingVariant === "personal")) {
-          const { error } = await getSupabaseAdmin().from("app_settings").upsert(
-            { key: `pricing_exp:v1:paid:${sessionId}`, value: pricingVariant },
-            { onConflict: "key", ignoreDuplicates: true },
-          );
-          if (error) console.error("Pricing experiment conversion logging failed", error.message);
+          await recordPricingPurchase(sessionId, pricingVariant, object.amount_total);
         }
+      }
+
+      if (userId && getString(metadata.kind) === "print_purchase" && checkoutPaid) {
+        await recordPricingPurchase(getString(object.id) ?? "", metadata.pricing_variant, object.amount_total);
       }
 
       if (userId && getString(metadata.kind) === "pdf_material" && getString(object.payment_status) === "paid") {

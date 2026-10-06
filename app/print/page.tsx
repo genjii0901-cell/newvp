@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
 
 type PrintJob = {
   html: string;
@@ -558,10 +559,11 @@ export default function PrintPage() {
       const res = await fetch("/api/stripe/print-purchase-session", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ pages }),
+        body: JSON.stringify({ pages, pricingVariant: getPricingVariant() }),
       });
       const data = await res.json().catch(() => ({}));
       if (data?.ok && data.url) {
+        trackPricingEvent("checkout", getPricingVariant());
         window.location.href = data.url as string;
         return;
       }

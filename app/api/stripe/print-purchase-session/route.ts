@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
 
-    const { pages } = (await request.json().catch(() => ({}))) as { pages?: unknown };
+    const { pages, pricingVariant } = (await request.json().catch(() => ({}))) as { pages?: unknown; pricingVariant?: unknown };
     const pageCount = Number(pages);
     if (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > MAX_PAGES) {
       return NextResponse.json({ ok: false, error: `都度購入は1回${MAX_PAGES}ページまでです。` }, { status: 400 });
@@ -66,6 +66,9 @@ export async function POST(request: Request) {
     body.append("metadata[user_id]", auth.user.id);
     body.append("metadata[kind]", "print_purchase");
     body.append("metadata[pages]", String(pageCount));
+    if (pricingVariant === "choice" || pricingVariant === "personal") {
+      body.append("metadata[pricing_variant]", pricingVariant);
+    }
 
     if (profile?.stripe_customer_id) {
       body.append("customer", profile.stripe_customer_id);

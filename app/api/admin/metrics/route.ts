@@ -273,6 +273,15 @@ export async function GET(request: Request) {
         return { variant, event, count: count ?? 0, error: error?.message ?? null };
       }))
     );
+    const experimentAmounts = await safeSelect<AppSettingRow>(() => supabase.from("app_settings")
+      .select("key,value")
+      .like("key", "pricing_exp:v1:amount:%")
+      .limit(5000));
+    const revenueByVariant = { choice: 0, personal: 0 };
+    for (const row of experimentAmounts.data) {
+      const match = /^(choice|personal):(\d+)$/.exec(row.value ?? "");
+      if (match) revenueByVariant[match[1] as "choice" | "personal"] += Number(match[2]);
+    }
 
     const profiles = profilesResult.data;
     const subscriptions = subscriptionsResult.data;
@@ -288,6 +297,7 @@ export async function GET(request: Request) {
         result.warning ? `app_settings (${analyticsPrefixes[index]}): ${result.warning}` : null
       ),
       ...experimentCounts.map((result) => result.error ? `料金比較 (${result.event}): ${result.error}` : null),
+      experimentAmounts.warning ? `料金比較 (売上): ${experimentAmounts.warning}` : null,
     ].filter((value): value is string => Boolean(value));
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -663,6 +673,7 @@ export async function GET(request: Request) {
             views: experimentCounts.find((row) => row.variant === variant && row.event === "view")?.count ?? 0,
             checkouts: experimentCounts.find((row) => row.variant === variant && row.event === "checkout")?.count ?? 0,
             paid: experimentCounts.find((row) => row.variant === variant && row.event === "paid")?.count ?? 0,
+            revenueJpy: revenueByVariant[variant],
           })),
         },
         warnings,

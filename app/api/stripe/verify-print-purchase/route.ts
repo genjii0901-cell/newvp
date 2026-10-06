@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+import { recordPricingPurchase } from "@/lib/pricing-experiment-server";
 
 // 単品購入のチェックアウトセッションが支払い済みかを検証し、印刷を許可する。
 // 成功時に pdf_generations へ記録（テーブルが無ければ無視）。二重記録を避けるため session_id を保存する。
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     }
 
     const pages = Math.max(1, Math.floor(Number(metadata.pages) || 1));
+    await recordPricingPurchase(sessionId, metadata.pricing_variant, session.amount_total);
 
     // 記録（pdf_generations が無い環境でも印刷は許可する）。
     try {
