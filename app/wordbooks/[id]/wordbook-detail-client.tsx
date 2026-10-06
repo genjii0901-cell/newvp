@@ -724,7 +724,7 @@ export default function WordbookDetailPage({
     const pages = Math.max(1, Math.ceil(effectiveCount / 50));
 
     if (!isLoggedIn) {
-      guideToRegister("印刷にはアカウント登録が必要です。登録後、1ページ50円の都度購入かPersonalを選べます。");
+      guideToRegister("印刷を続けるにはアカウント登録が必要です。登録だけでは料金はかかりません。");
       return;
     }
 
@@ -1399,7 +1399,7 @@ export default function WordbookDetailPage({
                   </div>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{!isLoggedIn ? "印刷する前に利用条件と料金を確認できます。" : userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
                 </p>
               </div>
 
@@ -1519,7 +1519,7 @@ export default function WordbookDetailPage({
               </details>
             </div>
 
-            {!isPaid && !freePrintBlocked ? (
+            {isLoggedIn && !isPaid && !freePrintBlocked ? (
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
@@ -2139,32 +2139,19 @@ export default function WordbookDetailPage({
           >
             <p className="text-xs font-black text-blue-700">会員登録が必要です</p>
             <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{registerPrompt}</h3>
-            <div className="mt-3 space-y-2">
-              {pricingVariant === "choice" && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-black text-slate-700">都度購入（1ページ50円）</p>
-                <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-500">
-                  アカウント登録は無料。印刷するページ分だけ決済します。
-                </p>
-              </div>}
-              <div className="rounded-2xl border-2 border-blue-500 bg-blue-50 p-3">
-                <p className="text-xs font-black text-blue-700">Personal（初回7日間380円）</p>
-                <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-600">
-                  印刷回数無制限・透かしなし。8日目から月額1,580円で自動更新。
-                </p>
-              </div>
-            </div>
             <p className="mt-3 text-xs font-bold text-slate-500">
-              {pricingVariant === "choice" ? "次の画面で印刷方法を選べます。" : "登録後にPersonalの決済へ進めます。"}
+              印刷は有料です。料金と自動更新などの条件は、登録後、支払い前の画面で確認できます。
             </p>
             <div className="mt-5 space-y-2">
               <button
                 type="button"
                 onClick={() => {
-                  window.location.href = "/?print_auth=personal";
+                  const next = window.location.pathname + window.location.search;
+                  window.location.href = `/?print_auth=free&next=${encodeURIComponent(next)}`;
                 }}
                 className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
               >
-                登録して印刷する
+                無料で会員登録して続ける
               </button>
               <button
                 type="button"

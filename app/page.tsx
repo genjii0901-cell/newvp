@@ -14,7 +14,6 @@ import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-build
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
-import { PERSONAL_INTRO_JPY, PERSONAL_MONTHLY_JPY, PRINT_PAGE_JPY } from "@/lib/personal-pricing";
 import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
 
 type Word = {
@@ -48,53 +47,6 @@ type ListeningVoiceMode = "en-only" | "en-ja" | "ja-en";
 type MeaningMode = "all" | "main";
 type ListeningStudyMode = "listen" | "test";
 
-function SignupPlanOptions({ value, onChange, compact = false, pricingVariant }: {
-  value: "free" | "personal";
-  onChange: (plan: "free" | "personal") => void;
-  compact?: boolean;
-  pricingVariant: PricingVariant | null;
-}) {
-  return (
-    <div className="mt-4">
-      <p className="text-sm font-black text-slate-700">登録するプランを選ぶ</p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="登録するプラン">
-        <button
-          type="button"
-          role="radio"
-          aria-checked={value === "personal"}
-          onClick={() => onChange("personal")}
-          className={`rounded-xl border-2 text-left transition ${compact ? "p-3" : "p-4"} ${value === "personal" ? "border-blue-600 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-300"}`}
-        >
-          <span className="block text-xs font-black text-blue-700">おすすめ・Personal</span>
-          <span className="mt-1 block text-lg font-black text-slate-950">最初の7日間 ¥{PERSONAL_INTRO_JPY}</span>
-          <span className="mt-1 block text-[11px] font-bold leading-5 text-slate-600">印刷回数は無制限。透かしなし・1回20ページまで</span>
-        </button>
-        {pricingVariant === "choice" && (
-        <button
-          type="button"
-          role="radio"
-          aria-checked={value === "free"}
-          onClick={() => onChange("free")}
-          className={`rounded-xl border-2 text-left transition ${compact ? "p-3" : "p-4"} ${value === "free" ? "border-blue-600 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-300"}`}
-        >
-          <span className="block text-xs font-black text-slate-600">都度購入</span>
-          <span className="mt-1 block text-lg font-black text-slate-950">1ページ ¥{PRINT_PAGE_JPY}</span>
-          <span className="mt-1 block text-[11px] font-bold leading-5 text-slate-600">アカウント作成は無料。印刷するときだけ決済</span>
-        </button>
-        )}
-      </div>
-      {pricingVariant === "personal" && (
-        <button type="button" className="mt-2 text-xs font-bold text-slate-500 underline" aria-pressed={value === "free"} onClick={() => onChange("free")}>{value === "free" ? "無料アカウントで登録します（印刷は都度購入）" : "無料アカウントだけ作成する"}</button>
-      )}
-      <p className="mt-2 text-[11px] font-bold leading-5 text-slate-500">
-        {value === "personal"
-          ? `初回7日間は${PERSONAL_INTRO_JPY}円、8日目から月${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新。いつでも解約できます。`
-          : "印刷の無料枠はありません。繰り返し購入すると費用がかさむため、Personalがおすすめです。"}
-      </p>
-    </div>
-  );
-}
-
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
 }
@@ -121,6 +73,7 @@ function planCacheKey(userId: string) {
 
 const PRINT_PURCHASE_INTENT_KEY = "vpp-print-purchase-intent";
 const POST_AUTH_ACTION_KEY = "vpp-post-auth-action";
+const RESUME_PRINT_KEY = "vpp-resume-print-v1";
 const PERSONAL_PUBLIC_CONFIGURED = Boolean(
   process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
 );
@@ -536,8 +489,8 @@ export default function Home() {
   const [type, setType] = useState<PdfType>("list");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
-  // 無料アカウントとPersonalを比較する実験。既定表示はPersonal。
-  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("personal");
+  // Registration is free; paid offers are chosen after registration or on /pricing.
+  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("free");
   // Personalを選んで登録した人に、ログイン後トライアル開始を促すためのフラグ
   const [pendingTrial, setPendingTrial] = useState(false);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
@@ -1150,6 +1103,51 @@ export default function Home() {
   const outputPageCount = Math.max(1, getPageCount(outputWords.length));
   const currentMaxPages = planLimits[plan].maxPages;
 
+  useEffect(() => {
+    if (!user || !booksLoaded) return;
+    let pending: Record<string, unknown> | null = null;
+    try {
+      const raw = window.localStorage.getItem(RESUME_PRINT_KEY);
+      pending = raw ? JSON.parse(raw) as Record<string, unknown> : null;
+    } catch {
+      return;
+    }
+    if (!pending) return;
+    if (typeof pending.createdAt !== "number" || Date.now() - pending.createdAt > 60 * 60 * 1000) {
+      window.localStorage.removeItem(RESUME_PRINT_KEY);
+      return;
+    }
+    if (pending.kind !== "book" || typeof pending.bookId !== "string") {
+      window.localStorage.removeItem(RESUME_PRINT_KEY);
+      return;
+    }
+    const targetBook = books.find((book) => book.id === pending.bookId);
+    if (!targetBook) {
+      window.localStorage.removeItem(RESUME_PRINT_KEY);
+      return;
+    }
+    if (bookId !== targetBook.id) {
+      queueMicrotask(() => setBookId(targetBook.id));
+      return;
+    }
+    if (targetBook.words.length === 0 && getBookWordCount(targetBook) > 0) return;
+    window.localStorage.removeItem(RESUME_PRINT_KEY);
+    queueMicrotask(() => {
+      setStartNo(Number(pending.startNo) || 1);
+      setEndNo(Number(pending.endNo) || targetBook.words.length);
+      setCount(Number(pending.count) || targetBook.words.length);
+      setRandom(pending.random === true);
+      if (pending.type === "list" || pending.type === "test" || pending.type === "answer") setType(pending.type);
+      if (pending.direction === "en-ja" || pending.direction === "ja-en" || pending.direction === "spelling") setDirection(pending.direction);
+      if (pending.printStyle === "standard" || pending.printStyle === "blank-english" || pending.printStyle === "blank-japanese" || pending.printStyle === "red-english" || pending.printStyle === "red-japanese") setPrintStyle(pending.printStyle);
+      setRedSheet(pending.redSheet === true);
+      setShowPageNo(pending.showPageNo !== false);
+      setIncludeDate(pending.includeDate !== false);
+      setShowPrintConfirm(true);
+      setMessage("ログインしました。印刷内容をもう一度確認してください。");
+    });
+  }, [user, booksLoaded, books, bookId]);
+
   // 設定（出題方向・出力形式・範囲・問題数）は未登録でも最初から自由に使える。
   // 課金/登録のゲートは「最後の印刷」だけにかける方針。
   const controlsLocked = false;
@@ -1473,12 +1471,12 @@ export default function Home() {
           setMessage(
             signupPlan === "personal"
               ? "登録が完了しました。続けてPersonalの決済へ進んでください。"
-              : "登録が完了しました。印刷時に1ページ50円の都度購入を選べます。"
+              : "登録が完了しました。印刷内容を確認してから料金プランを選べます。"
           );
           if (signupPlan === "free" && printAuthIntent === "free") {
             setPrintAuthIntent(null);
             setAuthPanelOpen(false);
-            setMessage("アカウント登録が完了しました。印刷時にお支払い方法を選べます。");
+            setMessage("アカウント登録が完了しました。印刷内容を確認して続けてください。");
           }
           if (authReturnPath !== "/") window.location.assign(authReturnPath);
           return;
@@ -1662,12 +1660,20 @@ export default function Home() {
 
     // 作成とプレビューは誰でも使える。印刷前に登録と決済を案内する。
     if (!user) {
-      setSignupPlan(pricingVariant === "choice" ? "free" : "personal");
+      try {
+        window.localStorage.setItem(RESUME_PRINT_KEY, JSON.stringify({
+          createdAt: Date.now(),
+          kind: selectedBook?.title === sourceTitle ? "book" : "other",
+          bookId: selectedBook?.id,
+          startNo, endNo, count, random, type, direction, printStyle, redSheet, showPageNo, includeDate,
+        }));
+      } catch {
+        // When storage is unavailable, the user can still return to the print settings.
+      }
+      setSignupPlan("free");
       setAuthMode("signup");
-      setPrintAuthIntent(pricingVariant === "choice" ? "free" : "personal");
-      setPrintAuthReason(pricingVariant === "choice"
-        ? "アカウント登録後、もう一度印刷を押して1ページ50円の都度購入に進めます。"
-        : "登録後、Personalの決済画面へ進めます。初回7日間は380円です。");
+      setPrintAuthIntent("free");
+      setPrintAuthReason("印刷を続けるには無料のアカウント登録が必要です。");
       return;
     }
     if (!token) {
@@ -1890,6 +1896,7 @@ export default function Home() {
     try {
       window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
       window.localStorage.removeItem(POST_AUTH_ACTION_KEY);
+      window.localStorage.removeItem(RESUME_PRINT_KEY);
     } catch {
       // 保存済み意図を消せなくても、画面操作は続けられる
     }
@@ -2638,7 +2645,7 @@ export default function Home() {
             <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
               <div>
                 <p className="text-xs font-black text-blue-700">アカウント作成は無料</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">印刷は1ページ50円、Personalは初週380円</h3>
+                <h3 className="mt-1 text-lg font-black text-slate-950">会員登録して続ける</h3>
                 <p className="mt-1 text-xs font-bold text-slate-500">設定とプレビューは登録前でも利用できます。</p>
               </div>
               <span className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">
@@ -2646,11 +2653,10 @@ export default function Home() {
               </span>
             </summary>
             <div className="border-t p-5">
-            <p className="text-xs font-black text-blue-700">印刷には会員登録が必要です</p>
-            <h3 className="mt-1 text-2xl font-black text-slate-950">登録して印刷する</h3>
+            <p className="text-xs font-black text-blue-700">無料でアカウント作成</p>
+            <h3 className="mt-1 text-2xl font-black text-slate-950">作成したプリントを続ける</h3>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              アカウント登録は無料です。印刷は1ページ50円の都度購入、またはPersonalをご利用ください。
-              Personalは<span className="text-slate-900">初回7日間380円、その後月1,580円</span>です。
+              登録だけでは料金はかかりません。印刷は有料です。料金と利用条件は印刷方法を選ぶ画面で確認できます。
             </p>
             <p className="mt-2 text-xs text-slate-400">
               新規登録後は確認メールが届きます。メール内のリンクを開くと、このサイトに戻って認証が完了します。
@@ -2674,8 +2680,6 @@ export default function Home() {
                 新規登録
               </button>
             </div>
-
-            {authMode === "signup" && <SignupPlanOptions value={signupPlan} onChange={setSignupPlan} pricingVariant={pricingVariant} />}
 
             <div className="mt-4 grid gap-2">
               <button
@@ -2884,7 +2888,7 @@ export default function Home() {
               </div>
             </div>
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-              50語ごとに1ページとして自動計算します。{typeof currentMaxPages === "number" ? `${planLabel(plan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
+              50語ごとに1ページとして自動計算します。{!user ? "印刷時に利用条件と料金を確認できます。" : typeof currentMaxPages === "number" ? `${planLabel(plan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
             </p>
             {numbersLocked ? (
               <button
@@ -3107,18 +3111,12 @@ export default function Home() {
               </div>
             </details>
 
-            {plan === "free" ? (
+            {user && plan === "free" ? (
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
-                <p className="text-sm font-black text-blue-800">印刷プランを選ぶ</p>
+                <p className="text-sm font-black text-blue-800">印刷方法は最後に選べます</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  アカウント作成は無料ですが、印刷の無料枠はありません。1ページ50円の都度購入、またはPersonalで利用できます。Personalは初回7日間380円、その後月1,580円。印刷回数無制限・透かしなし・1回20ページまでです。
+                  内容を確認してから、都度購入またはPersonalを選んで決済できます。登録だけでは課金されません。
                 </p>
-                <a
-                  href="/pricing"
-                  className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
-                >
-                  初回7日間380円で始める
-                </a>
               </div>
             ) : null}
 
@@ -3777,41 +3775,15 @@ export default function Home() {
             onClick={(event) => event.stopPropagation()}
           >
             <p className="text-center text-xs font-black text-blue-700">
-              {authMode === "signup" && printAuthIntent !== "purchase"
-                ? "Vocab Print Pro 新規登録"
-                : printAuthIntent === "login"
-                ? "Vocab Print Pro アカウント"
-                : printAuthIntent === "free"
-                ? "都度購入の準備"
-                : printAuthIntent === "personal"
-                  ? "Personalで続ける"
-                  : "今回だけ印刷する"}
+              Vocab Print Pro アカウント
             </p>
             <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-              {authMode === "signup" && printAuthIntent !== "purchase"
-                ? "プランを選んで会員登録"
-                : printAuthIntent === "login"
-                ? "ログインまたは新規登録"
-                : printAuthIntent === "free"
-                ? "登録後に印刷を購入できます"
-                : printAuthIntent === "personal"
-                  ? "登録後、そのまま決済へ進みます"
-                  : "登録後、そのまま50円決済へ進みます"}
+              {authMode === "signup" ? "無料でアカウントを作成" : "ログインして続ける"}
             </h3>
-            {(authMode !== "signup" || printAuthIntent === "purchase") && <div className={`mt-4 rounded-2xl border-2 p-4 text-center ${
-              printAuthIntent === "free" || printAuthIntent === "personal" || printAuthIntent === "login" ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-slate-50"
-            }`}>
-              <p className="text-sm font-black text-slate-900">
-                {printAuthIntent === "login"
-                  ? "アカウント登録もこちらからできます"
-                  : printAuthIntent === "free"
-                  ? "印刷は1ページ50円 / 月額料金なし"
-                  : printAuthIntent === "personal"
-                    ? "Personal 初回7日間380円 / その後 月額1,580円"
-                    : `今回だけ ${printGatePages}ページ × 50円`}
-              </p>
-              <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">{printAuthReason}</p>
-            </div>}
+            <p className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-800">
+              {printAuthReason || "登録だけでは料金はかかりません。印刷は有料です。"}
+              {authMode === "signup" && " 登録後、印刷する前に料金と条件を確認できます。"}
+            </p>
             {message && messageTone === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
 
             <div className="mt-4 flex gap-2">
@@ -3830,10 +3802,6 @@ export default function Home() {
                 ログイン
               </button>
             </div>
-
-            {authMode === "signup" && printAuthIntent !== "purchase" && (
-              <SignupPlanOptions value={signupPlan} onChange={setSignupPlan} compact pricingVariant={pricingVariant} />
-            )}
 
             <div className="mt-4 grid gap-2">
               <button
@@ -3901,11 +3869,7 @@ export default function Home() {
                   ? "処理中..."
                   : authMode === "login"
                   ? "ログインして続ける"
-                  : printAuthIntent === "purchase"
-                    ? "登録して今回だけ印刷へ進む"
-                    : signupPlan === "personal"
-                      ? "登録してPersonalへ進む"
-                      : "アカウントを作成する"}
+                  : "アカウントを作成する"}
               </button>
               <button
                 type="button"

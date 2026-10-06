@@ -76,6 +76,11 @@ export default function PrintGateModal({
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
             印刷回数は無制限。1回20ページまで、透かしなしで使えます。
           </p>
+          <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
+            {introEligible
+              ? `申込時に${PERSONAL_INTRO_JPY}円。7日後から月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。`
+              : `月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。`}
+          </p>
           <ul className="mt-3 grid gap-1.5 text-[11px] font-bold leading-5 text-slate-700 sm:grid-cols-2">
             <li>✓ 透かしなし・氏名入力</li>
             <li>✓ 1回20ページまで印刷</li>
@@ -98,7 +103,7 @@ export default function PrintGateModal({
             </span>
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
-            {safePages}ページ × {PRINT_PAGE_JPY}円。今回の印刷分だけをStripeで決済します。繰り返し購入すると割高です。
+            {safePages}ページ × {PRINT_PAGE_JPY}円。今回の印刷分だけをStripeで決済します。自動更新はありません。繰り返し購入すると割高です。
             {!isLoggedIn && " 先にアカウント登録が必要です。登録後、そのまま決済へ進みます。"}
           </p>
         </button>}
@@ -109,7 +114,7 @@ export default function PrintGateModal({
           disabled={busy}
           className="mt-4 w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {busy ? "決済ページを準備中..." : selectedMethod === "personal" ? "Personalで次へ" : "今回だけ印刷で次へ"}
+          {busy ? "決済ページを準備中..." : selectedMethod === "personal" ? "Personalの決済へ進む" : "今回分の決済へ進む"}
         </button>
 
         <button
