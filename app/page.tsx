@@ -1651,10 +1651,12 @@ export default function Home() {
   async function printWords(words: Word[], sourceTitle: string, sourceLabel: string, forcePremiumGate = false) {
     const activePlan = user ? plan : "free";
     const selectedBookLicensed = Boolean(selectedBook && licenseWordbookIds.includes(String(selectedBook.id)));
-    const isPaidUser = activePlan === "personal" || activePlan === "teacher" || hasPersonalLicense || selectedBookLicensed;
+    const isPaidUser = activePlan === "personal" || activePlan === "teacher" || role === "admin" || hasPersonalLicense || selectedBookLicensed;
     const usageUserId = user?.id ?? "guest";
     const token = supabase && user ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
     let usageCheckedByServer = false;
+    let licensedByServer = false;
+    let verifiedPlan: Plan | null = null;
     const wordCount = words.length;
     const pageCount = getPageCount(wordCount);
 
@@ -1668,6 +1670,10 @@ export default function Home() {
         : "登録後、Personalの決済画面へ進めます。初回7日間は380円です。");
       return;
     }
+    if (!token) {
+      setPdfMessage("ログインを確認できませんでした。再度ログインしてから印刷してください。");
+      return;
+    }
 
     // 無料枠・有料枠・Noteライセンスを同じAPIで再確認する。
     if (token && !forcePremiumGate) {
@@ -1678,22 +1684,29 @@ export default function Home() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ wordCount, pageCount, wordbookId: selectedBook ? String(selectedBook.id) : null }),
-      });
+      }).catch(() => null);
+      if (!usageResponse) {
+        setPdfMessage("印刷権限を確認できませんでした。通信状態を確認して再試行してください。");
+        return;
+      }
       const usageResult = await usageResponse.json().catch(() => ({}));
 
       if (usageResponse.ok && usageResult.ok) {
         usageCheckedByServer = true;
+        licensedByServer = usageResult.licenseKind === "personal" || usageResult.licenseKind === "wordbook";
+        verifiedPlan = normalizePlan(usageResult.plan);
         if (usageResult.plan && !usageResult.licenseKind) {
           const serverPlan = normalizePlan(usageResult.plan);
           setPlan(serverPlan);
           writeCachedPlan(user.id, serverPlan);
         }
-      } else if (usageResponse.status !== 401) {
-        const fallback = checkLocalUsage(usageUserId, activePlan, wordCount, pageCount);
-        if (!fallback.ok) {
-          setPdfMessage(usageResult.message ?? fallback.message);
-          return printWords(words, sourceTitle, sourceLabel, true);
+      } else {
+        if (activePlan === "personal" || activePlan === "teacher" || role === "admin") {
+          setPdfMessage(usageResult.message ?? "印刷権限を確認できませんでした。少し待ってから再試行してください。");
+          return;
         }
+        setPdfMessage(usageResult.message ?? "印刷には決済が必要です。");
+        return printWords(words, sourceTitle, sourceLabel, true);
       }
     }
 
@@ -1707,8 +1720,8 @@ export default function Home() {
 
     const buildPlan: Plan = forcePremiumGate
       ? "personal"
-      : isPaidUser
-        ? (activePlan === "teacher" ? "teacher" : "personal")
+      : isPaidUser || licensedByServer || verifiedPlan === "personal" || verifiedPlan === "teacher"
+        ? (verifiedPlan === "teacher" || role === "admin" ? "teacher" : "personal")
         : "free";
 
     const now = new Date();

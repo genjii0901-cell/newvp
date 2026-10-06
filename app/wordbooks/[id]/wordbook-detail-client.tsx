@@ -743,7 +743,8 @@ export default function WordbookDetailPage({
         usageMessage = result.message ?? "";
       }
     } catch {
-      usageAllowed = isPaid;
+      usageAllowed = false;
+      usageMessage = "印刷権限を確認できませんでした。通信状態を確認して再試行してください。";
     }
 
     // Free users can explicitly choose the one-time purchase flow even when the

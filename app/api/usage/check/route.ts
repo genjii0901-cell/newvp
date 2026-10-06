@@ -49,6 +49,9 @@ export async function POST(request: Request) {
       if (!isLicenseSchemaError(error)) throw error;
     }
     const plan = licenseKind === "personal" ? "personal" : normalizePlan(profile?.plan);
+    if (profile?.role === "admin") {
+      return NextResponse.json({ ok: true, plan, remaining: null, maxPages: null, maxWords: null, period: "admin" });
+    }
     if (licenseKind === "wordbook") {
       return NextResponse.json({
         ok: true,
