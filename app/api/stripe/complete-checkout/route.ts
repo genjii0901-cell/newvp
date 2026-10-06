@@ -88,6 +88,8 @@ export async function POST(request: Request) {
     }
 
     const paymentStatus = getString(session.payment_status);
+    const introPaymentRequired = getString(metadata.intro_paid_week) === "1";
+    const legacyFreeTrial = !introPaymentRequired && getString(metadata.trial) === "1";
     const subscriptionId = getNestedId(session.subscription);
     let subscription = getObject(session.subscription);
 
@@ -108,7 +110,9 @@ export async function POST(request: Request) {
 
     const subscriptionStatus = getString(subscription?.status);
 
-    if (paymentStatus !== "paid" && subscriptionStatus !== "active" && subscriptionStatus !== "trialing") {
+    if (getString(session.status) !== "complete" ||
+        (paymentStatus !== "paid" && !legacyFreeTrial) ||
+        (legacyFreeTrial && subscriptionStatus !== "active" && subscriptionStatus !== "trialing")) {
       return NextResponse.json(
         { ok: false, error: "Checkout is not completed yet." },
         { status: 409 }
@@ -136,7 +140,7 @@ export async function POST(request: Request) {
 
     if (profileError) throw profileError;
 
-    if (getString(metadata.trial) === "1") {
+    if (introPaymentRequired || getString(metadata.trial) === "1") {
       const trialOffer = getString(metadata.trial_offer);
       const { error: trialError } = await supabase
         .from("profiles")
@@ -168,6 +172,15 @@ export async function POST(request: Request) {
       if (subscriptionError) {
         console.error("Failed to save subscription", readableError(subscriptionError));
       }
+    }
+
+    const pricingVariant = getString(metadata.pricing_variant);
+    if (plan === "personal" && (pricingVariant === "choice" || pricingVariant === "personal")) {
+      const { error: experimentError } = await supabase.from("app_settings").upsert(
+        { key: `pricing_exp:v1:paid:${sessionId}`, value: pricingVariant },
+        { onConflict: "key", ignoreDuplicates: true },
+      );
+      if (experimentError) console.error("Pricing experiment conversion logging failed", experimentError.message);
     }
 
     return NextResponse.json({

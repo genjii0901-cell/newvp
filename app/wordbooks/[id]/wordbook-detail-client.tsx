@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import QuizPanel from "./quiz-panel";
 import PrintGateModal from "../../print-gate-modal";
+import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen";
@@ -56,7 +57,7 @@ function planLabel(plan: Plan) {
 function planCopy(plan: Plan) {
   if (plan === "teacher") return "Teacher向け教材";
   if (plan === "personal") return "Personalで全範囲利用";
-  return "無料でも1ページまで作成できます";
+  return "印刷は1ページ50円の都度購入、またはPersonalで利用できます";
 }
 
 function isJapaneseOnlyText(value: string) {
@@ -317,7 +318,14 @@ export default function WordbookDetailPage({
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
+  const [pricingVariant, setPricingVariant] = useState<PricingVariant | null>(null);
+  const [introEligible, setIntroEligible] = useState(true);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
+
+  useEffect(() => { setPricingVariant(getPricingVariant()); }, []);
+  useEffect(() => {
+    if (printGateOpen && pricingVariant) trackPricingEvent("view", pricingVariant);
+  }, [printGateOpen, pricingVariant]);
   const isPaid = temporaryLicensed || userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定とプレビューは自由。実際の印刷時にプラン上限を確認する。
@@ -467,6 +475,7 @@ export default function WordbookDetailPage({
       if (!response) return;
       const result = await response.json().catch(() => ({}));
       const plan = result?.profile?.plan;
+      if (active && response.ok) setIntroEligible(result?.profile?.trialOffer === "first");
       if (active && response.ok && (plan === "personal" || plan === "teacher")) setUserPlan(plan);
     });
     return () => {
@@ -715,11 +724,11 @@ export default function WordbookDetailPage({
     const pages = Math.max(1, Math.ceil(effectiveCount / 50));
 
     if (!isLoggedIn) {
-      guideToRegister("印刷には無料会員登録が必要です。登録後は、透かし付き1ページを月5回まで印刷できます。");
+      guideToRegister("印刷にはアカウント登録が必要です。登録後、1ページ50円の都度購入かPersonalを選べます。");
       return;
     }
 
-    let usageAllowed = true;
+    let usageAllowed = false;
     let usageMessage = "";
     try {
       const token = supabase ? (await supabase.auth.getSession()).data.session?.access_token : undefined;
@@ -734,7 +743,7 @@ export default function WordbookDetailPage({
         usageMessage = result.message ?? "";
       }
     } catch {
-      usageAllowed = isPaid || (pages <= 1 && effectiveCount <= FREE_WORD_LIMIT);
+      usageAllowed = isPaid;
     }
 
     // Free users can explicitly choose the one-time purchase flow even when the
@@ -1388,7 +1397,7 @@ export default function WordbookDetailPage({
                   </div>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : `無料会員は1回${FREE_WORD_LIMIT}語・月5回までです。超える場合はページ購入またはPersonalをご案内します。`}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
                 </p>
               </div>
 
@@ -1512,13 +1521,13 @@ export default function WordbookDetailPage({
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">無料プランでできること</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
-                  無料会員は「見本」の透かし入りで1回1ページ・月5回まで印刷できます。透かしなし・氏名入力・1回20ページまでの印刷はPersonalで利用できます。
+                  アカウント登録は無料ですが、印刷の無料枠はありません。1ページ50円の都度購入か、印刷回数無制限のPersonalを選べます。
                 </p>
                 <Link
                   href="/pricing"
                   className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
                 >
-                  7日間無料で試す
+                  初回7日間380円で始める
                 </Link>
                 <button
                   type="button"
@@ -1534,7 +1543,7 @@ export default function WordbookDetailPage({
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  無料プランは1回{FREE_WORD_LIMIT}語までです。現在の問題数は{requestedCount}語なので、このままでは印刷できません。問題数を{FREE_WORD_LIMIT}語以内にするか、Personalの7日無料トライアルをご利用ください。
+                  この設定では印刷できません。問題数を調整するか、Personalプランをご利用ください。
                 </p>
                 <Link
                   href="/pricing"
@@ -1558,7 +1567,7 @@ export default function WordbookDetailPage({
                 disabled={visibleWords.length === 0 || (freePrintBlocked && !oneTimeOptionsEnabled)}
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:bg-slate-300"
               >
-                {freePrintBlocked && !oneTimeOptionsEnabled ? "50語以内にすると無料印刷できます" : "単語テストを印刷"}
+                {freePrintBlocked && !oneTimeOptionsEnabled ? "問題数を調整してください" : "単語テストを印刷"}
               </button>
               <button
                 onClick={openAdvancedPrinter}
@@ -1787,7 +1796,7 @@ export default function WordbookDetailPage({
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  無料プランは1回{FREE_WORD_LIMIT}語までです。全範囲をまとめて印刷するにはPersonalの7日無料トライアルをご利用ください。
+                  全範囲をまとめて印刷するにはPersonalをご利用ください。初回7日間は380円です。
                 </p>
                 <Link
                   href="/pricing"
@@ -2109,6 +2118,8 @@ export default function WordbookDetailPage({
         open={printGateOpen}
         pages={printGatePages}
         isLoggedIn={isLoggedIn}
+        showOneTime={pricingVariant === "choice"}
+        introEligible={introEligible}
         busy={printGateBusy}
         onPurchase={handlePrintPurchase}
         onPersonal={handlePersonalFromGate}
@@ -2127,21 +2138,21 @@ export default function WordbookDetailPage({
             <p className="text-xs font-black text-blue-700">会員登録が必要です</p>
             <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{registerPrompt}</h3>
             <div className="mt-3 space-y-2">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-black text-slate-700">無料プラン（0円）</p>
+              {pricingVariant === "choice" && <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-black text-slate-700">都度購入（1ページ50円）</p>
                 <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-500">
-                  メールアドレスだけで登録。1回50語まで・「見本」の透かし入りで印刷できます。
+                  アカウント登録は無料。印刷するページ分だけ決済します。
                 </p>
-              </div>
+              </div>}
               <div className="rounded-2xl border-2 border-blue-500 bg-blue-50 p-3">
-                <p className="text-xs font-black text-blue-700">Personal（7日間 0円）</p>
+                <p className="text-xs font-black text-blue-700">Personal（初回7日間380円）</p>
                 <p className="mt-0.5 text-[11px] font-bold leading-5 text-slate-600">
-                  語数制限なし・透かしなし・範囲や問題数も自由。その後は月額780円、いつでも解約OK。
+                  印刷回数無制限・透かしなし。8日目から月額1,580円で自動更新。
                 </p>
               </div>
             </div>
             <p className="mt-3 text-xs font-bold text-slate-500">
-              次の画面でどちらか選べます。
+              {pricingVariant === "choice" ? "次の画面で印刷方法を選べます。" : "登録後にPersonalの決済へ進めます。"}
             </p>
             <div className="mt-5 space-y-2">
               <button

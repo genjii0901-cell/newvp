@@ -541,7 +541,7 @@ export default function OverlapTool({
                   無料版は結果を先頭{FREE_VISIBLE_ROWS}語まで表示します。全部見て保存・印刷するにはPersonalをご利用ください。
                 </p>
                 <a href="/pricing" className="mt-3 inline-block rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700">
-                  7日間無料で試す
+                  初回7日間380円で始める
                 </a>
               </div>
             ) : null}

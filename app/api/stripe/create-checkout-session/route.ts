@@ -5,7 +5,8 @@ import {
   requireSupabaseUser,
   tryEnsureProfile,
 } from "@/lib/supabase/admin";
-import { getTrialOffer, TRIAL_DAYS } from "@/lib/trial-offers";
+import { getTrialOffer } from "@/lib/trial-offers";
+import { appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
 
 type CheckoutPlan = "personal" | "teacher";
 const TEACHER_PUBLIC_ENABLED = true;
@@ -100,14 +101,14 @@ export async function POST(request: Request) {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
 
-    const { plan } = (await request.json()) as { plan?: unknown };
+    const { plan, pricingVariant } = (await request.json()) as { plan?: unknown; pricingVariant?: unknown };
     if (!isCheckoutPlan(plan)) {
       return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
     }
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
-    let priceId = getPriceId(plan);
+    let priceId = plan === "teacher" ? getPriceId("teacher") : undefined;
 
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
       return NextResponse.json(
@@ -141,14 +142,14 @@ export async function POST(request: Request) {
       priceId = await resolveTeacherPriceId(stripeSecretKey);
     }
 
-    if (!priceId) {
+    if (plan === "teacher" && !priceId) {
       return NextResponse.json(
         { ok: false, error: "Stripeの価格設定が見つかりません。" },
         { status: 500 },
       );
     }
 
-    if (!priceId.startsWith("price_")) {
+    if (plan === "teacher" && !priceId?.startsWith("price_")) {
       return NextResponse.json(
         {
           ok: false,
@@ -159,10 +160,29 @@ export async function POST(request: Request) {
     }
 
     const profile = await tryEnsureProfile(auth.user);
+    if (!profile) {
+      return NextResponse.json(
+        { ok: false, error: "アカウント情報を確認できませんでした。時間をおいて再度お試しください。" },
+        { status: 503 },
+      );
+    }
+    const { data: currentSubscriptions, error: subscriptionLookupError } = await getSupabaseAdmin()
+      .from("subscriptions")
+      .select("stripe_subscription_id")
+      .eq("user_id", auth.user.id)
+      .eq("plan", plan)
+      .in("status", ["active", "trialing"])
+      .limit(1);
+    if (subscriptionLookupError) throw subscriptionLookupError;
+    if (currentSubscriptions?.length) {
+      return NextResponse.json(
+        { ok: false, error: "このプランはすでに契約中です。請求情報から契約内容を確認してください。" },
+        { status: 409 },
+      );
+    }
 
-    // 初回は1回だけ。解約から90日以上経過した人には、生涯1回だけ再体験を付与する。
-    const trialOffer = plan === "personal" ? getTrialOffer(profile) : null;
-    const grantTrial = trialOffer !== null;
+    // Introductory pricing is once per account. Existing subscriptions keep their old Stripe price.
+    const introductoryWeek = plan === "personal" && Boolean(profile && getTrialOffer(profile) === "first");
 
     const body = new URLSearchParams({
       mode: "subscription",
@@ -172,22 +192,19 @@ export async function POST(request: Request) {
     });
 
     body.append("payment_method_types[]", "card");
-    body.append("line_items[0][price]", priceId);
-    body.append("line_items[0][quantity]", "1");
+    if (plan === "personal") {
+      appendPersonalCheckoutPrices(body, introductoryWeek);
+    } else if (priceId) {
+      body.append("line_items[0][price]", priceId);
+      body.append("line_items[0][quantity]", "1");
+    }
     body.append("metadata[user_id]", auth.user.id);
     body.append("metadata[plan]", plan);
+    if (pricingVariant === "choice" || pricingVariant === "personal") {
+      body.append("metadata[pricing_variant]", pricingVariant);
+    }
     body.append("subscription_data[metadata][user_id]", auth.user.id);
     body.append("subscription_data[metadata][plan]", plan);
-
-    if (grantTrial) {
-      body.append("subscription_data[trial_period_days]", String(TRIAL_DAYS));
-      // カード登録は必須（デフォルト）。7日間は無料、その後 自動で課金開始。
-      // 解約すれば次回課金されず、webhookでFreeに戻る。
-      body.append("metadata[trial]", "1");
-      body.append("metadata[trial_offer]", trialOffer);
-      body.append("subscription_data[metadata][trial]", "1");
-      body.append("subscription_data[metadata][trial_offer]", trialOffer);
-    }
 
     let fallbackToEmailCustomer = false;
 

@@ -61,6 +61,14 @@ export async function POST(request: Request) {
         period: "license",
       });
     }
+    if (plan === "free") {
+      return NextResponse.json({
+        ok: false,
+        plan,
+        remaining: 0,
+        message: "印刷は1ページ50円の都度購入、またはPersonalプランでご利用いただけます。",
+      });
+    }
     const rule = planLimits[plan];
 
     if (typeof rule.maxPages === "number" && pageCount > rule.maxPages) {

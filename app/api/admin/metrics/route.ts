@@ -9,9 +9,6 @@ import {
   readableError,
 } from "@/lib/supabase/admin";
 
-const PERSONAL_PRICE_JPY = 780;
-const TEACHER_PRICE_JPY = 2980;
-
 type ProfileRow = {
   id: string;
   email?: string | null;
@@ -265,6 +262,18 @@ export async function GET(request: Request) {
       loadSearchConsoleReport(),
     ]);
 
+    const experimentEvents = ["view", "checkout", "paid"] as const;
+    const experimentVariants = ["choice", "personal"] as const;
+    const experimentCounts = await Promise.all(
+      experimentVariants.flatMap((variant) => experimentEvents.map(async (event) => {
+        const { count, error } = await supabase.from("app_settings")
+          .select("key", { count: "exact", head: true })
+          .like("key", `pricing_exp:v1:${event}:%`)
+          .eq("value", variant);
+        return { variant, event, count: count ?? 0, error: error?.message ?? null };
+      }))
+    );
+
     const profiles = profilesResult.data;
     const subscriptions = subscriptionsResult.data;
     const pdfGenerations = pdfResult.data;
@@ -278,6 +287,7 @@ export async function GET(request: Request) {
       ...analyticsResults.map((result, index) =>
         result.warning ? `app_settings (${analyticsPrefixes[index]}): ${result.warning}` : null
       ),
+      ...experimentCounts.map((result) => result.error ? `料金比較 (${result.event}): ${result.error}` : null),
     ].filter((value): value is string => Boolean(value));
 
     const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
@@ -401,8 +411,8 @@ export async function GET(request: Request) {
       user_id: item.user_id,
     }));
 
-    const estimatedMonthlyRevenue =
-      personalCount * PERSONAL_PRICE_JPY + teacherCount * TEACHER_PRICE_JPY;
+    // Legacy and new subscriptions have different prices. Do not infer revenue from plan counts.
+    const estimatedMonthlyRevenue = null;
 
     const date30dThreshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
     const date7dThreshold = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -646,6 +656,14 @@ export async function GET(request: Request) {
                 lastPath: currentBrowserSummary.lastPath,
               }
             : null,
+        },
+        pricingExperiment: {
+          variants: experimentVariants.map((variant) => ({
+            variant,
+            views: experimentCounts.find((row) => row.variant === variant && row.event === "view")?.count ?? 0,
+            checkouts: experimentCounts.find((row) => row.variant === variant && row.event === "checkout")?.count ?? 0,
+            paid: experimentCounts.find((row) => row.variant === variant && row.event === "paid")?.count ?? 0,
+          })),
         },
         warnings,
         overview: {

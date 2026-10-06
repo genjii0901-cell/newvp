@@ -4,44 +4,32 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import { PERSONAL_INTRO_JPY, PERSONAL_MONTHLY_JPY, PRINT_PAGE_JPY } from "@/lib/personal-pricing";
+import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
 
 type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
 type TrialOffer = "first" | "winback" | null;
 
 const TEACHER_PUBLIC_ENABLED = true;
-const PERSONAL_PUBLIC_CONFIGURED = Boolean(
-  process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL?.startsWith("price_"),
-);
+const PERSONAL_PUBLIC_CONFIGURED = false;
 
 const plans = [
   {
-    id: "free" as const,
-    title: "Free",
-    price: "¥0",
-    description: "まず試したい人向けの無料プランです。",
-    features: [
-      "月5回まで印刷",
-      "1回1ページまで",
-      "無料枠を超えた分は1ページ50円で都度購入可能",
-      "Personal単語帳もお試し利用可能",
-      "透かし付き・記入名なし。繰り返し購入すると割高",
-    ],
-  },
-  {
     id: "personal" as const,
     title: "Personal",
-    price: "¥780/月",
-    description: "個人学習向け。保存や履歴も使える本番プランです。",
+    price: `最初の7日間 ¥${PERSONAL_INTRO_JPY}`,
+    description: "個人学習向け。最初の7日間は380円、その後は月1,580円で自動更新します。",
     features: [
-      "初回7日無料トライアル",
+      "最初の7日間は380円（初回のみ）",
+      "8日目から月1,580円で自動更新",
       "印刷回数は無制限",
       "1回20ページまで出力",
       "透かしなし・記入名を設定可能",
       "マイ単語帳の保存",
       "PDF生成履歴の保存",
       "みんなの単語帳をまとめて利用可能",
-      "7日後は月780円で自動更新。タイトル変更・CSV出力はTeacher限定",
+      "タイトル変更・CSV出力はTeacher限定",
     ],
   },
   {
@@ -68,6 +56,7 @@ export default function PricingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan>("free");
   const [trialOffer, setTrialOffer] = useState<TrialOffer>("first");
+  const [pricingVariant, setPricingVariant] = useState<PricingVariant | null>(null);
   const [message, setMessage] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
@@ -76,6 +65,12 @@ export default function PricingPage() {
   });
   const [stripeLiveMode, setStripeLiveMode] = useState(PERSONAL_PUBLIC_CONFIGURED);
   const [missingStripeVars, setMissingStripeVars] = useState<string[]>([]);
+
+  useEffect(() => {
+    const variant = getPricingVariant();
+    setPricingVariant(variant);
+    trackPricingEvent("view", variant);
+  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -132,7 +127,7 @@ export default function PricingPage() {
       .catch(() => {
         setStripeLiveMode(false);
         setConfiguredPlans({ personal: false, teacher: false });
-        setMissingStripeVars(["STRIPE_SECRET_KEY", "STRIPE_PRICE_PERSONAL"]);
+        setMissingStripeVars(["STRIPE_SECRET_KEY"]);
       });
   }, []);
 
@@ -179,10 +174,11 @@ export default function PricingPage() {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, pricingVariant }),
       });
       const result = await response.json().catch(() => ({}));
       if (response.ok && result.url) {
+        if (plan === "personal" && pricingVariant) trackPricingEvent("checkout", pricingVariant);
         window.location.assign(result.url);
         return;
       }
@@ -229,7 +225,9 @@ export default function PricingPage() {
             <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
             <h1 className="mt-1 text-3xl font-black">料金プラン</h1>
             <p className="mt-2 text-sm text-slate-500">
-              Freeで試して、個人学習はPersonal、授業や塾教材にはTeacherを選べます。
+              {pricingVariant === "choice"
+                ? `印刷は1ページ${PRINT_PAGE_JPY}円の都度購入、またはPersonal。授業向けにはTeacherも選べます。`
+                : "印刷回数を気にせず使うならPersonal。授業向けにはTeacherも選べます。"}
             </p>
           </div>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
@@ -248,14 +246,27 @@ export default function PricingPage() {
 
         {message && <p className="mt-5 rounded-2xl bg-white p-4 text-sm shadow-sm">{message}</p>}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className={`mt-6 grid gap-4 ${pricingVariant === "choice" ? "md:grid-cols-3" : "md:max-w-4xl md:grid-cols-2"}`}>
+          {pricingVariant === "choice" && (
+            <div className="rounded-lg border bg-white p-5 shadow-sm">
+              <h2 className="text-xl font-black">都度購入</h2>
+              <p className="mt-2 text-3xl font-black text-slate-900">1ページ ¥{PRINT_PAGE_JPY}</p>
+              <p className="mt-3 text-sm text-slate-600">無料でアカウントを作成し、印刷するページ分だけ支払います。月額料金はありません。</p>
+              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+                <li>・印刷するたびに決済が必要</li>
+                <li>・まとめて印刷するとPersonalより高くなる場合があります</li>
+                <li>・印刷回数の無料枠はありません</li>
+              </ul>
+              <Link href="/?print_auth=purchase" className="mt-5 block rounded-lg bg-slate-100 px-4 py-2 text-center text-sm font-bold">都度購入で始める</Link>
+            </div>
+          )}
           {plans.map((plan) => {
             const isCurrent = currentPlan === plan.id;
             const isTeacher = plan.id === "teacher";
             const canCheckout = plan.id === "personal" ? configuredPlans.personal : configuredPlans.teacher;
 
             return (
-              <div key={plan.id} className="rounded-3xl border bg-white p-5 shadow-sm">
+              <div key={plan.id} className={`rounded-lg border bg-white p-5 shadow-sm ${plan.id === "personal" ? "border-blue-400 ring-2 ring-blue-100" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-xl font-black">{plan.title}</h2>
                   {isTeacher && !configuredPlans.teacher && (
@@ -264,19 +275,15 @@ export default function PricingPage() {
                     </span>
                   )}
                 </div>
-                <p className="mt-2 text-3xl font-black text-blue-600">{plan.price}</p>
-                <p className="mt-3 text-sm text-slate-500">{plan.description}</p>
+                <p className="mt-2 text-3xl font-black text-blue-600">{plan.id === "personal" && trialOffer !== "first" ? `¥${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}/月` : plan.price}</p>
+                <p className="mt-3 text-sm text-slate-500">{plan.id === "personal" && trialOffer !== "first" ? `初回割引利用済みの方は月${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で開始します。` : plan.description}</p>
                 <ul className="mt-4 space-y-2 text-sm text-slate-700">
-                  {plan.features.map((feature) => (
+                  {plan.features.filter((feature) => plan.id !== "personal" || trialOffer === "first" || (!feature.includes("最初の7日間") && !feature.includes("8日目から"))).map((feature) => (
                     <li key={feature}>・{feature}</li>
                   ))}
                 </ul>
 
-                {plan.id === "free" ? (
-                  <Link href="/" className="mt-5 block rounded-xl bg-slate-100 px-4 py-2 text-center text-sm font-bold">
-                    Freeで使う
-                  </Link>
-                ) : isCurrent ? (
+                {isCurrent ? (
                   <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-bold text-emerald-700">
                     現在利用中
                   </div>
@@ -290,10 +297,8 @@ export default function PricingPage() {
                       ? "Stripe設定確認中"
                       : isTeacher
                         ? "Teacherに申し込む"
-                        : trialOffer === "winback"
-                          ? "お帰りなさい・7日無料で再開"
-                          : trialOffer === "first"
-                            ? "初回7日無料で始める"
+                        : trialOffer === "first"
+                            ? "最初の7日間380円で始める"
                             : "Personalに申し込む"}
                   </button>
                 )}
@@ -307,19 +312,21 @@ export default function PricingPage() {
           })}
         </div>
 
-        <section className="mt-8 rounded-3xl border bg-white p-6 shadow-sm">
+        <section className="mt-8 rounded-lg border bg-white p-6 shadow-sm">
           <h2 className="text-xl font-black">プランの使い分け</h2>
           <div className="mt-4 grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">まず試せる</p>
+              <p className="text-sm font-black text-slate-900">{pricingVariant === "choice" ? "まず試せる" : "アカウント作成"}</p>
               <p className="mt-2 text-sm text-slate-600">
-                Freeはカード不要で月5回、1回1ページまで。超過分は1ページ50円で都度購入できますが、何度も印刷するならPersonalの方が費用を抑えやすくなります。
+                {pricingVariant === "choice"
+                  ? "アカウント作成は無料ですが、印刷の無料枠はありません。都度購入なら1ページ50円。繰り返し印刷するならPersonalの方が費用を抑えやすくなります。"
+                  : "アカウントは無料で作成できます。印刷の無料枠はありません。まずはPersonalの内容を確認できます。"}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">保存ができる</p>
               <p className="mt-2 text-sm text-slate-600">
-                Personalは月780円で印刷回数無制限。透かしなし、マイ単語帳と履歴も使えます。1回の印刷は20ページまでです。
+                Personalは初回7日間380円、その後月1,580円で印刷回数無制限。透かしなし、マイ単語帳と履歴も使えます。1回20ページまでです。
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
@@ -340,11 +347,9 @@ export default function PricingPage() {
             請求情報を確認
           </button>
           <p className="text-xs text-slate-500">
-            {trialOffer === "winback"
-              ? "久しぶりに利用する方限定で、7日間無料のお帰りキャンペーンが適用されます。"
-              : trialOffer === "first"
-                ? "Personalは初回1回限定の7日無料トライアル付きです。期間中の解約なら料金は発生しません。"
-                : "無料トライアルは利用済みです。Personalは月額780円で再開できます。"}
+            {trialOffer === "first"
+              ? "初回7日間380円は申込時に決済。8日目から月1,580円で自動更新します。解約しても初週料金は返金されません。"
+              : "初回割引は利用済みです。Personalは月額1,580円で再開できます。既存契約は現在の料金のまま継続します。"}
           </p>
         </div>
       </section>

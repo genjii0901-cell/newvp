@@ -33,7 +33,7 @@ function planFromPriceId(priceId: string | null): Exclude<Plan, "free"> | null {
   return null;
 }
 
-async function planFromActiveStripeSubscription(customerId: string | null) {
+async function planFromActiveStripeSubscription(customerId: string | null, introPaymentVerified: boolean) {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecretKey || !customerId) return undefined;
 
@@ -61,6 +61,10 @@ async function planFromActiveStripeSubscription(customerId: string | null) {
     if (subscriptionObject && isCanceledDuringTrial(subscriptionObject)) continue;
 
     const metadataPlan = getString(getObject(subscriptionObject?.metadata)?.plan);
+    const introPaymentPending = status === "trialing" &&
+      getString(getObject(subscriptionObject?.metadata)?.intro_paid_week) === "1" &&
+      !introPaymentVerified;
+    if (introPaymentPending) continue;
     if (metadataPlan === "personal" || metadataPlan === "teacher") {
       const activePlan: Exclude<Plan, "free"> = metadataPlan;
       return {
@@ -107,7 +111,7 @@ export async function GET(request: Request) {
     let plan = normalizePlan(profile.plan);
     const stripeCustomerId = profile.stripe_customer_id ?? null;
 
-    const activeSubscription = await planFromActiveStripeSubscription(stripeCustomerId);
+    const activeSubscription = await planFromActiveStripeSubscription(stripeCustomerId, profile.trial_used === true);
     const supabase = getSupabaseAdmin();
 
     if (activeSubscription) {

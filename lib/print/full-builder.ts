@@ -262,7 +262,7 @@ export function buildPrintHtml({
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
           ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
         </div>
-        ${plan === "free" ? `<p class="print-note">Free版は1ページのみです。</p>` : ""}
+        ${plan === "free" ? `<p class="print-note">プレビューです。印刷にはお支払いが必要です。</p>` : ""}
         <div class="print-grid${isOneColumn ? " print-grid-one" : ""}"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${right.length > 0 ? table(right) : ""}</div>
         ${hasInfoBox ? `<div class="print-info-box" style="${infoStyle}"><div class="print-info-fields">
           ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}

@@ -221,7 +221,10 @@ export async function POST(request: Request) {
       const customerId = getNestedString(object, "customer");
       const subscriptionId = getNestedString(object, "subscription");
 
-      if (event.type === "checkout.session.completed" && userId && plan) {
+      const introPaymentRequired = getString(metadata.intro_paid_week) === "1";
+      const checkoutPaid = getString(object.payment_status) === "paid";
+      const legacyFreeTrial = !introPaymentRequired && getString(metadata.trial) === "1";
+      if (userId && plan && (checkoutPaid || legacyFreeTrial)) {
         await updatePlan({
           userId,
           plan,
@@ -231,8 +234,8 @@ export async function POST(request: Request) {
           currentPeriodEnd: null,
         });
 
-        // 無料トライアルを利用したら trial_used を立てて再利用を防ぐ（保険）
-        if (getString(metadata.trial) === "1") {
+        // 初回割引や旧無料トライアルの再利用を防ぐ。
+        if (introPaymentRequired || getString(metadata.trial) === "1") {
           try {
             const supabase = getSupabaseAdmin();
             const trialOffer = getString(metadata.trial_offer);
@@ -247,6 +250,16 @@ export async function POST(request: Request) {
           } catch (error) {
             console.error("Failed to mark trial_used", error);
           }
+        }
+        const pricingVariant = getString(metadata.pricing_variant);
+        const sessionId = getString(object.id);
+        if (plan === "personal" && sessionId &&
+            (pricingVariant === "choice" || pricingVariant === "personal")) {
+          const { error } = await getSupabaseAdmin().from("app_settings").upsert(
+            { key: `pricing_exp:v1:paid:${sessionId}`, value: pricingVariant },
+            { onConflict: "key", ignoreDuplicates: true },
+          );
+          if (error) console.error("Pricing experiment conversion logging failed", error.message);
         }
       }
 
@@ -282,9 +295,12 @@ export async function POST(request: Request) {
         typeof object.current_period_end === "number"
           ? new Date(object.current_period_end * 1000).toISOString()
           : null;
-      const plan = isCanceledDuringTrial(object)
+      const introPaymentPending = getString(metadata.intro_paid_week) === "1" &&
+        status === "trialing" &&
+        !(await getSupabaseAdmin().from("profiles").select("trial_used").eq("id", userId ?? "").maybeSingle()).data?.trial_used;
+      const plan = introPaymentPending || isCanceledDuringTrial(object)
         ? "free"
-        : status && ["canceled", "unpaid", "incomplete_expired"].includes(status)
+        : status && !["active", "trialing"].includes(status)
         ? "free"
         : rawPlan ?? (await findPlanByUserId(userId));
 

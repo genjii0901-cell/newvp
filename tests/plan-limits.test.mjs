@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { planLimits } from "../lib/plan-limits.ts";
 
-test("Free keeps the monthly allowance and one-page limit", () => {
-  assert.equal(planLimits.free.maxGenerations, 5);
+test("Free accounts have no included printing", () => {
+  assert.equal(planLimits.free.maxGenerations, 0);
   assert.equal(planLimits.free.maxPages, 1);
 });
 

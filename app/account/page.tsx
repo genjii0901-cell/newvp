@@ -22,16 +22,16 @@ const cancellationReasons: Array<{ value: CancellationReason; label: string }> =
 
 const planInfo: Record<Plan, { label: string; color: string; limit: string; price: string }> = {
   free: {
-    label: "Free",
+    label: "都度購入",
     color: "bg-slate-100 text-slate-700",
-    limit: "1日2回、1回50語まで。合計10回までお試しできます。",
-    price: "無料",
+    limit: "印刷の無料枠はありません。印刷時に1ページ50円で購入できます。",
+    price: "アカウント作成は無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
     limit: "語数制限なし。履歴保存、自作単語帳、透かしなし印刷に対応します。",
-    price: "¥780 / 月",
+    price: "契約料金は請求情報で確認できます",
   },
   teacher: {
     label: "Teacher",
@@ -350,7 +350,7 @@ export default function AccountPage() {
               有料プランを見る
             </Link>
             <p className="mt-2 text-xs text-slate-500">
-              Freeプランではお試し印刷ができます。印刷回数や機能に制限があります。
+              印刷は1ページ50円の都度購入、またはPersonalでご利用いただけます。
             </p>
           </>
         )}
@@ -492,7 +492,7 @@ export default function AccountPage() {
               <>
                 <h3 className="font-black text-red-700">契約を終了しますか？</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
-                  無料トライアル中に解約すると、この時点でPersonal機能は使えなくなり、Freeプランに戻ります。
+                  初回7日間を含むトライアル状態の契約は、解約時点でPersonal機能が終了し、都度購入のアカウントに戻ります。
                   すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
                 </p>
                 <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">

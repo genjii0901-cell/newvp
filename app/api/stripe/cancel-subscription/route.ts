@@ -210,7 +210,7 @@ export async function POST(request: Request) {
         ok: true,
         action: "already_free",
         profile: { plan: "free" },
-        message: "有効な契約が見つからなかったため、Freeプランに戻しました。",
+        message: "有効な契約が見つからなかったため、都度購入のアカウントに戻しました。",
       });
     }
 
@@ -241,7 +241,7 @@ export async function POST(request: Request) {
       const result = (await response.json()) as { error?: { message?: string } };
       if (!response.ok) {
         return NextResponse.json(
-          { ok: false, error: result.error?.message ?? "無料トライアルの解約に失敗しました。" },
+          { ok: false, error: result.error?.message ?? "契約の解約に失敗しました。" },
           { status: response.status }
         );
       }
@@ -260,7 +260,7 @@ export async function POST(request: Request) {
         ok: true,
         action: "trial_canceled_now",
         profile: { plan: "free" },
-        message: "無料トライアルを解約しました。Personal機能はこの時点で使えなくなり、Freeプランに戻りました。",
+        message: "契約を解約しました。Personal機能はこの時点で使えなくなり、都度購入のアカウントに戻りました。",
       });
     }
 

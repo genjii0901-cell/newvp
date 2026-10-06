@@ -9,7 +9,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-12">
       <h1 className="text-2xl font-black text-slate-900">利用規約</h1>
-      <p className="mt-2 text-sm text-slate-500">最終更新日: 2026年6月27日</p>
+      <p className="mt-2 text-sm text-slate-500">最終更新日: 2026年10月6日</p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-slate-700">
         <section>
@@ -34,9 +34,9 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-black text-slate-900">第4条（無料トライアル・解約）</h2>
+          <h2 className="text-lg font-black text-slate-900">第4条（初回割引・解約）</h2>
           <p className="mt-2">
-            Personalプランには初回登録から7日間の無料トライアルが付与される場合があります。トライアル期間中に解約された場合、料金は発生しません。トライアル終了後は自動的に有料プランへ移行し、登録された決済方法へ課金されます。解約はいつでも可能で、解約後は次回更新日以降の課金が停止します。
+            新たに申し込むPersonalプランには、初回に限り7日間380円の割引が適用される場合があります。申込時に380円を決済し、解約しない場合は8日目から月額1,580円で自動更新します。割引対象外の方は申込時から月額1,580円で利用します。既存の契約には契約時の料金が適用されます。解約はいつでも可能で、以後の自動更新による課金が停止します。
           </p>
         </section>
 

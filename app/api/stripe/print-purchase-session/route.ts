@@ -25,9 +25,9 @@ export async function POST(request: Request) {
     if (auth.response) return auth.response;
 
     const { pages } = (await request.json().catch(() => ({}))) as { pages?: unknown };
-    const pageCount = Math.max(1, Math.min(MAX_PAGES, Math.floor(Number(pages) || 0)));
-    if (!pageCount) {
-      return NextResponse.json({ ok: false, error: "ページ数が不正です。" }, { status: 400 });
+    const pageCount = Number(pages);
+    if (!Number.isInteger(pageCount) || pageCount < 1 || pageCount > MAX_PAGES) {
+      return NextResponse.json({ ok: false, error: `都度購入は1回${MAX_PAGES}ページまでです。` }, { status: 400 });
     }
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;

@@ -491,7 +491,7 @@ export default function WordbooksClient({
             {!loggedIn ? (
               <div className="text-sm text-slate-500">
                 <p className="font-bold text-slate-700">ログインするとマイ単語帳を保存できます。</p>
-                <p className="mt-2">無料でも1回50語まで印刷を試せます。保存したい場合はログインしてください。</p>
+                <p className="mt-2">アカウント作成は無料です。印刷は1ページ50円の都度購入、またはPersonalで利用できます。</p>
                 <Link href="/#auth" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 font-bold text-white">
                   ログインする
                 </Link>

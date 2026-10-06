@@ -22,15 +22,12 @@ export async function GET() {
 
   const missing = [
     ["STRIPE_SECRET_KEY", stripeSecretKey],
-    ["STRIPE_PRICE_PERSONAL or NEXT_PUBLIC_STRIPE_PRICE_PERSONAL", personalPrice],
   ]
     .filter(([, value]) => !value)
     .map(([name]) => name);
 
   const liveMode = isLiveStripeKey(stripeSecretKey);
-  const personalConfigured = Boolean(
-    liveMode && personalPrice && String(personalPrice).startsWith("price_"),
-  );
+  const personalConfigured = liveMode;
   const teacherConfigured = Boolean(
     TEACHER_PUBLIC_ENABLED &&
       liveMode &&

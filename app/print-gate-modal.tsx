@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-const PER_PAGE_PRICE_JPY = 50;
+import { PERSONAL_INTRO_JPY, PERSONAL_MONTHLY_JPY, PRINT_PAGE_JPY } from "@/lib/personal-pricing";
 
 export type PrintGateModalProps = {
   open: boolean;
   pages: number;
   isLoggedIn: boolean;
   busy?: boolean;
+  showOneTime?: boolean;
+  introEligible?: boolean;
   onPurchase: () => void;
   onPersonal: () => void;
   onClose: () => void;
@@ -19,6 +20,8 @@ export default function PrintGateModal({
   pages,
   isLoggedIn,
   busy,
+  showOneTime = true,
+  introEligible = true,
   onPurchase,
   onPersonal,
   onClose,
@@ -32,7 +35,7 @@ export default function PrintGateModal({
   if (!open) return null;
 
   const safePages = Math.max(1, pages);
-  const amount = safePages * PER_PAGE_PRICE_JPY;
+  const amount = safePages * PRINT_PAGE_JPY;
 
   return (
     <div
@@ -45,10 +48,12 @@ export default function PrintGateModal({
       >
         <p className="text-center text-xs font-black text-blue-700">印刷を続けるには</p>
         <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-          印刷方法を選んでください
+          {showOneTime ? "印刷方法を選んでください" : "Personalで印刷を始める"}
         </h3>
         <p className="mt-2 text-center text-xs font-bold leading-5 text-slate-500">
-          無料枠を超える印刷や透かし解除・氏名入力は、Personalか1回ごとの印刷購入で利用できます。
+          {showOneTime
+            ? "印刷はPersonal、または今回のページ分だけの都度購入で利用できます。"
+            : "Personalで印刷回数を気にせず使えます。"}
         </p>
 
         <button
@@ -61,12 +66,12 @@ export default function PrintGateModal({
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-black text-blue-800">Personalで印刷をもっと自由に</span>
             <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
-              7日間無料
+              {introEligible ? "初回7日間" : "月額プラン"}
             </span>
           </span>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-xl font-black text-slate-950">7日間 0円</span>
-            <span className="text-[11px] font-bold text-slate-500">その後 月額780円</span>
+            <span className="text-xl font-black text-slate-950">{introEligible ? `最初の7日間 ¥${PERSONAL_INTRO_JPY}` : `月額 ¥${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}`}</span>
+            {introEligible && <span className="text-[11px] font-bold text-slate-500">8日目から月額¥{PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}</span>}
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
             印刷回数は無制限。1回20ページまで、透かしなしで使えます。
@@ -79,7 +84,7 @@ export default function PrintGateModal({
           </ul>
         </button>
 
-        <button
+        {showOneTime && <button
           type="button"
           onClick={() => setSelectedMethod("purchase")}
           disabled={busy}
@@ -93,10 +98,10 @@ export default function PrintGateModal({
             </span>
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-500">
-            {safePages}ページ × {PER_PAGE_PRICE_JPY}円。今回の印刷分だけをStripeで決済します。繰り返し購入すると割高です。
-            {!isLoggedIn && " 先に無料会員登録が必要です。登録後、そのまま決済へ進みます。"}
+            {safePages}ページ × {PRINT_PAGE_JPY}円。今回の印刷分だけをStripeで決済します。繰り返し購入すると割高です。
+            {!isLoggedIn && " 先にアカウント登録が必要です。登録後、そのまま決済へ進みます。"}
           </p>
-        </button>
+        </button>}
 
         <button
           type="button"

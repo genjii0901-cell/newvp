@@ -99,6 +99,9 @@ function batchRandomOrderKey(config: BatchVariantConfig) {
 
 type AdminMetrics = {
   warnings?: string[];
+  pricingExperiment?: {
+    variants: Array<{ variant: "choice" | "personal"; views: number; checkouts: number; paid: number }>;
+  };
   visitorMetrics?: {
     available?: boolean;
     message?: string;
@@ -167,7 +170,7 @@ type AdminMetrics = {
     activeSubscriptions: number;
     trialingSubscriptions: number;
     canceledSubscriptions: number;
-    estimatedMonthlyRevenue: number;
+    estimatedMonthlyRevenue: number | null;
   };
   pdf: {
     totalGenerations: number;
@@ -2077,6 +2080,25 @@ export default function AdminPage() {
 
             {metrics && (
               <>
+                {metrics.pricingExperiment && (
+                  <section className="rounded-lg border bg-white p-5 shadow-sm">
+                    <h3 className="text-sm font-black text-slate-900">料金案の比較</h3>
+                    <p className="mt-1 text-xs text-slate-500">同じ料金・利用権限で、都度購入を並べる案とPersonalを中心に見せる案を比較します。ブラウザごとに案を固定しています。</p>
+                    <div className="mt-4 overflow-x-auto">
+                      <table className="w-full min-w-[440px] text-left text-sm">
+                        <thead><tr className="border-b text-xs text-slate-500"><th className="py-2">表示案</th><th className="py-2">閲覧</th><th className="py-2">決済へ</th><th className="py-2">購入完了</th><th className="py-2">購入率</th></tr></thead>
+                        <tbody>{metrics.pricingExperiment.variants.map((row) => (
+                          <tr key={row.variant} className="border-b last:border-0">
+                            <th className="py-3 font-bold">{row.variant === "choice" ? "都度購入 + Personal" : "Personal中心"}</th>
+                            <td>{row.views}</td><td>{row.checkouts}</td><td>{row.paid}</td>
+                            <td>{row.views ? `${(row.paid / row.views * 100).toFixed(1)}%` : "-"}</td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">購入完了はPersonalのみ集計。少人数の間は差を断定できません。</p>
+                  </section>
+                )}
                 <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">登録ユーザー</p>
@@ -2098,9 +2120,9 @@ export default function AdminPage() {
                     <p className="mt-2 text-xs text-slate-500">トライアル中 {metrics.overview.trialingSubscriptions} / 解約済み {metrics.overview.canceledSubscriptions}</p>
                   </div>
                   <div className="rounded-3xl border bg-white p-5 shadow-sm">
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">推定月額売上</p>
-                    <p className="mt-2 text-3xl font-black text-violet-700">{formatCurrencyJPY(metrics.overview.estimatedMonthlyRevenue)}</p>
-                    <p className="mt-2 text-xs text-slate-500">固定料金ベースの概算です</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">月額売上</p>
+                    <p className="mt-2 text-xl font-black text-violet-700">{metrics.overview.estimatedMonthlyRevenue === null ? "Stripeで確認" : formatCurrencyJPY(metrics.overview.estimatedMonthlyRevenue)}</p>
+                    <p className="mt-2 text-xs text-slate-500">新旧料金が混在するため、人数からの概算は表示しません。</p>
                   </div>
                 </section>
 

@@ -146,7 +146,7 @@ export function buildPrintHtml(opts: BuildPrintHtmlOptions): string {
         ${watermark ? `<div class="print-watermark">${escapeHtml(watermark)}</div>` : ""}
         <div class="print-body">
           <h1>${escapeHtml(title)}</h1>
-          ${isFree ? `<p class="print-note">Free版は1ページのみです。</p>` : ""}
+          ${isFree ? `<p class="print-note">プレビューです。印刷にはお支払いが必要です。</p>` : ""}
           <div class="print-grid">
             ${table(left)}
             ${table(right)}
