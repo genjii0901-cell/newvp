@@ -544,6 +544,7 @@ export default function Home() {
   });
   const [pdfTitle, setPdfTitle] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  const [layoutPreviewScale, setLayoutPreviewScale] = useState(0.58);
   const [showPrintConfirm, setShowPrintConfirm] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [checkoutError, setCheckoutError] = useState("");
@@ -566,7 +567,6 @@ export default function Home() {
   const [pageNoOffset, setPageNoOffset] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState<"title" | "date" | "info" | "grid" | "pageNo" | null>(null);
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
-  const previewIframeRef = useRef<HTMLIFrameElement>(null);
   const listeningTimerRef = useRef<number | null>(null);
   const listeningRunRef = useRef({ stopped: false, id: 0 });
 
@@ -2207,7 +2207,7 @@ export default function Home() {
     }
   }
 
-  function buildPreviewDoc(): string {
+  function buildPreviewDoc(onlyFirstPage = false): string {
     if (!outputWords.length) return `<!DOCTYPE html><html><body style="margin:0;background:#f9fafb;font-family:sans-serif;padding:20px;color:#64748b">プレビューデータなし</body></html>`;
     const now = new Date();
     const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
@@ -2266,6 +2266,13 @@ export default function Home() {
           box-shadow:0 14px 34px rgba(15,23,42,.22)!important;
         }
       </style>`;
+    const layoutPreviewOverrides = onlyFirstPage ? `<style>
+      html,body{overflow:hidden!important;}
+      body{padding:0!important;min-height:0!important;}
+      #home-preview-frame{margin:0!important;}
+      .print-page{margin:0!important;border-radius:0!important;}
+      .print-page ~ .print-page{display:none!important;}
+    </style>` : "";
     return `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">${PREVIEW_COPY_GUARD_STYLE}<style>
       html,body{margin:0;background:#eef2f7;font-family:sans-serif;}
       body{padding:16px 12px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;}
@@ -2283,12 +2290,12 @@ export default function Home() {
         transform-origin:top left;
         will-change:transform;
       }
-    </style></head><body>${PREVIEW_COPY_GUARD_SCRIPT}<div id="home-preview-frame"><div id="home-preview-scale">${previewBody}${homePreviewOverrides}</div></div><script>
+    </style></head><body>${PREVIEW_COPY_GUARD_SCRIPT}<div id="home-preview-frame"><div id="home-preview-scale">${previewBody}${homePreviewOverrides}${layoutPreviewOverrides}</div></div><script>
       function fitPreview(){
         var scaleRoot=document.getElementById('home-preview-scale');
         var frame=document.getElementById('home-preview-frame');
         if(!scaleRoot)return;
-        var scale=Math.min(1,(window.innerWidth-32)/794);
+        var scale=${onlyFirstPage ? "1" : "Math.min(1,(window.innerWidth-32)/794)"};
         document.documentElement.style.setProperty('--preview-scale',String(scale));
         var height=Math.ceil(scaleRoot.scrollHeight*scale);
         if(frame) frame.style.height=height+'px';
@@ -2302,18 +2309,24 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!showPreview || !previewIframeRef.current) return;
-    const doc = previewIframeRef.current.contentDocument;
-    if (!doc) return;
-    doc.open();
-    doc.write(buildPreviewDoc());
-    doc.close();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPreview, titleOffset, dateOffset, infoOffset, gridOffset, pageNoOffset, outputWords, type, pdfTitle, printStyle, includeWatermark, showRecordFields, showClassField, showNumberField, showNameField, studentClass, studentNumber, studentName, includeDate]);
+    if (!showPreview) return;
+    const updateScale = () => {
+      const desktop = window.innerWidth >= 1024;
+      const modalWidth = Math.min(window.innerWidth - (desktop ? 32 : 16), 1100);
+      const availableWidth = modalWidth - (desktop ? 288 : 0) - 32;
+      const availableHeight = desktop
+        ? window.innerHeight * 0.96 - 120
+        : Math.min(window.innerHeight * 0.66, 650);
+      setLayoutPreviewScale(Math.max(0.25, Math.min(0.78, availableWidth / 794, availableHeight / 1123)));
+    };
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, [showPreview]);
 
   useEffect(() => {
     if (!dragging) return;
-    const ppMM = PREVIEW_SCALE * 3.78;
+    const ppMM = layoutPreviewScale * 3.78;
     // 中心(0)に近づいたらスナップ
     const sx = (v: number) => (Math.abs(v) <= 3 ? 0 : v);
     const sy = (v: number) => (Math.abs(v) <= 2 ? 0 : v);
@@ -2338,7 +2351,7 @@ export default function Home() {
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging, dragStart]);
+  }, [dragging, dragStart, layoutPreviewScale]);
 
   async function savePdfHistory() {
     if (!supabase || !user) return;
@@ -3550,11 +3563,11 @@ export default function Home() {
       ) : null}
 
       {showPreview && (() => {
-        const ppMM = PREVIEW_SCALE * 3.78;
+        const ppMM = layoutPreviewScale * 3.78;
         const iframeW = 794;
         const iframeH = 1123;
-        const overlayW = Math.round(iframeW * PREVIEW_SCALE);
-        const overlayH = Math.round(iframeH * PREVIEW_SCALE);
+        const overlayW = Math.round(iframeW * layoutPreviewScale);
+        const overlayH = Math.round(iframeH * layoutPreviewScale);
         const hasInfoFields = showRecordFields && (showClassField || showNumberField || showNameField);
 
         // タイトルハンドル（青）: ページ上部、上下左右移動可
@@ -3704,7 +3717,7 @@ export default function Home() {
             className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/60 p-2 sm:items-center sm:p-4"
             onMouseLeave={() => { if (dragging) setDragging(null); }}
           >
-            <div className="flex max-h-[96dvh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl lg:flex-row">
+            <div className="flex max-h-[96dvh] w-full max-w-[1100px] flex-col overflow-y-auto rounded-3xl bg-white shadow-2xl lg:flex-row lg:overflow-hidden">
               {/* A4レイアウト */}
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="border-b px-5 py-4">
@@ -3718,14 +3731,15 @@ export default function Home() {
                     <span style={{ color: "#64748b" }}>■</span> ページ数
                   </p>
                 </div>
-                <div className="flex flex-1 items-start justify-center overflow-auto p-4" style={{ background: "#e8edf2" }}>
+                <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4" style={{ background: "#e8edf2" }}>
                   <div style={{ position: "relative", width: overlayW, minWidth: overlayW, height: overlayH, background: "white", boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
                     <iframe
-                      ref={previewIframeRef}
+                      title="レイアウト調整プレビュー"
+                      srcDoc={buildPreviewDoc(true)}
                       style={{
                         width: iframeW,
                         height: iframeH,
-                        transform: `scale(${PREVIEW_SCALE})`,
+                        transform: `scale(${layoutPreviewScale})`,
                         transformOrigin: "top left",
                         border: "none",
                         display: "block",
@@ -4354,8 +4368,6 @@ const printCss = `
   footer span:nth-child(3) { text-align:right; word-break:break-word; }
 }
 `;
-
-const PREVIEW_SCALE = 0.48;
 
 const previewCss = `
 body { margin:0; background:white; overflow:hidden; }
