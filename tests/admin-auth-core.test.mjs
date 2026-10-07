@@ -5,6 +5,7 @@ import {
   encryptAdminSecret,
   findMatchingTotpCounter,
   isAdminSessionSufficient,
+  isAdminSessionForUser,
   issueAdminSessionToken,
   safeEqualText,
   shouldRejectUnconfiguredTotpCode,
@@ -56,6 +57,20 @@ test("a primary admin identity alone cannot authorize when 2FA is enabled", () =
   assert.ok(claims);
   assert.equal(isAdminSessionSufficient(claims, true), false);
   assert.equal(isAdminSessionSufficient(claims, false), true);
+});
+
+test("a user-bound admin session cannot be reused by another account", () => {
+  const token = issueAdminSessionToken(SESSION_KEY, {
+    subject: "user:owner-id",
+    mfa: true,
+    nowMs: 1_000_000,
+    ttlMs: 60_000,
+    sessionId: "owner-bound-session-id",
+  });
+  const claims = verifyAdminSessionToken(token, SESSION_KEY, 1_010_000);
+  assert.equal(isAdminSessionForUser(claims, "owner-id"), true);
+  assert.equal(isAdminSessionForUser(claims, "another-id"), false);
+  assert.equal(isAdminSessionForUser(null, "owner-id"), false);
 });
 
 test("an MFA session authorizes while valid and fails after expiry", () => {

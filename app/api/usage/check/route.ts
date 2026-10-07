@@ -8,6 +8,8 @@ import {
 } from "@/lib/supabase/admin";
 import { getPageCount, planLimits, type Plan } from "@/lib/plan-limits";
 import { getLicenseEntitlements, hasPersonalLicense, hasWordbookLicense, isLicenseSchemaError } from "@/lib/licenses";
+import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
+import { hasAdminFeatureAccess } from "@/lib/plan-access";
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -49,8 +51,8 @@ export async function POST(request: Request) {
       if (!isLicenseSchemaError(error)) throw error;
     }
     const plan = licenseKind === "personal" ? "personal" : normalizePlan(profile?.plan);
-    if (profile?.role === "admin") {
-      return NextResponse.json({ ok: true, plan, remaining: null, maxPages: null, maxWords: null, period: "admin" });
+    if (hasAdminFeatureAccess(profile?.role, await hasVerifiedAdminBrowserSession(request, auth.user.id))) {
+      return NextResponse.json({ ok: true, plan, adminAccess: true, remaining: null, maxPages: null, maxWords: null, period: "admin" });
     }
     if (licenseKind === "wordbook") {
       return NextResponse.json({

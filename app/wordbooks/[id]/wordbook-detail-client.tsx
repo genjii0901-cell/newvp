@@ -37,6 +37,21 @@ type Word = {
   unit: string | null;
 };
 
+type SavedRandomPrint = {
+  bookId: string;
+  selectedUnit: string;
+  rangeStart: string;
+  rangeEnd: string;
+  count: number;
+  direction: TestDirection;
+  savedAt: string;
+  words: Word[];
+};
+
+function randomPrintStorageKey(userId: string, bookId: string) {
+  return `vpp-random-print:${userId}:${bookId}`;
+}
+
 type OfficialWordbook = {
   id: string;
   title: string;
@@ -309,6 +324,7 @@ export default function WordbookDetailPage({
 
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
+  const [adminAccess, setAdminAccess] = useState(false);
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -326,7 +342,8 @@ export default function WordbookDetailPage({
   useEffect(() => {
     if (printGateOpen && pricingVariant) trackPricingEvent("view", pricingVariant);
   }, [printGateOpen, pricingVariant]);
-  const isPaid = temporaryLicensed || userPlan === "personal" || userPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
+  const accessPlan: Plan = adminAccess ? "teacher" : userPlan;
+  const isPaid = temporaryLicensed || accessPlan === "personal" || accessPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定とプレビューは自由。実際の印刷時にプラン上限を確認する。
   const maxWords = Number.MAX_SAFE_INTEGER;
@@ -338,6 +355,18 @@ export default function WordbookDetailPage({
   function guideToRegister(reason: string) {
     if (isLoggedIn || typeof window === "undefined") return;
     setRegisterPrompt(reason);
+  }
+
+  function restoreLastRandomPrint() {
+    if (!lastRandomPrint) return;
+    setSelectedUnit(lastRandomPrint.selectedUnit);
+    setRangeStart(lastRandomPrint.rangeStart);
+    setRangeEnd(lastRandomPrint.rangeEnd);
+    setCount(lastRandomPrint.count);
+    setTestDirection(lastRandomPrint.direction);
+    setRandomOrder(true);
+    setRestoredRandomPrint(lastRandomPrint);
+    setTestType("answer");
   }
 
   const [book, setBook] = useState<OfficialWordbook | null>(null);
@@ -355,6 +384,9 @@ export default function WordbookDetailPage({
   const [pageLimit, setPageLimit] = useState(1);
   const [count, setCount] = useState(50);
   const [randomOrder, setRandomOrder] = useState(false);
+  const [randomRevision, setRandomRevision] = useState(0);
+  const [lastRandomPrint, setLastRandomPrint] = useState<SavedRandomPrint | null>(null);
+  const [restoredRandomPrint, setRestoredRandomPrint] = useState<SavedRandomPrint | null>(null);
   const [showPageNo, setShowPageNo] = useState(true);
   const [includeDate, setIncludeDate] = useState(false);
   const [showRecordFields, setShowRecordFields] = useState(true);
@@ -470,13 +502,19 @@ export default function WordbookDetailPage({
       const token = data.session?.access_token;
       if (active) setIsLoggedIn(Boolean(token));
       if (active) setAuthUserId(data.session?.user.id ?? null);
-      if (!token) return;
+      if (!token) {
+        if (active) { setUserPlan("free"); setAdminAccess(false); }
+        return;
+      }
       const response = await fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
       if (!response) return;
       const result = await response.json().catch(() => ({}));
       const plan = result?.profile?.plan;
       if (active && response.ok) setIntroEligible(result?.profile?.trialOffer === "first");
-      if (active && response.ok && (plan === "personal" || plan === "teacher")) setUserPlan(plan);
+      if (active && response.ok) {
+        setUserPlan(plan === "personal" || plan === "teacher" ? plan : "free");
+        setAdminAccess(result?.profile?.adminAccess === true);
+      }
     });
     return () => {
       active = false;
@@ -510,6 +548,18 @@ export default function WordbookDetailPage({
     return Array.from(new Set(book.words.map((word) => word.unit).filter(Boolean))) as string[];
   }, [book]);
 
+  useEffect(() => {
+    setRestoredRandomPrint(null);
+    if (!authUserId) { setLastRandomPrint(null); return; }
+    try {
+      const raw = localStorage.getItem(randomPrintStorageKey(authUserId, lookupId));
+      const saved = raw ? JSON.parse(raw) as SavedRandomPrint : null;
+      setLastRandomPrint(saved?.bookId === lookupId && Array.isArray(saved.words) ? saved : null);
+    } catch {
+      setLastRandomPrint(null);
+    }
+  }, [authUserId, lookupId]);
+
   const visibleWords = useMemo(() => {
     if (!book) return [];
     const start = Number(rangeStart) || 1;
@@ -524,13 +574,18 @@ export default function WordbookDetailPage({
 
   const testWords = useMemo(() => {
     if (!randomOrder) return visibleWords;
+    if (restoredRandomPrint?.bookId === lookupId && restoredRandomPrint.selectedUnit === selectedUnit &&
+        restoredRandomPrint.rangeStart === rangeStart && restoredRandomPrint.rangeEnd === rangeEnd &&
+        restoredRandomPrint.count === count) return restoredRandomPrint.words;
     return [...visibleWords].sort(() => Math.random() - 0.5);
-  }, [randomOrder, visibleWords]);
+  }, [randomOrder, visibleWords, restoredRandomPrint, lookupId, selectedUnit, rangeStart, rangeEnd, count, randomRevision]);
 
   // 無料はすぐ試せる50語、有料は選択範囲の全語を既定にする。
   useEffect(() => {
+    if (restoredRandomPrint?.bookId === lookupId && restoredRandomPrint.selectedUnit === selectedUnit &&
+        restoredRandomPrint.rangeStart === rangeStart && restoredRandomPrint.rangeEnd === rangeEnd) return;
     setCount(Math.min(Math.max(visibleWords.length, 1), isPaid ? maxWords : FREE_WORD_LIMIT));
-  }, [visibleWords.length, maxWords, isPaid]);
+  }, [visibleWords.length, maxWords, isPaid, restoredRandomPrint, lookupId, selectedUnit, rangeStart, rangeEnd]);
 
   // 未登録は「一覧」形式のみ（無料登録すると問題・解答も選べる）
   useEffect(() => {
@@ -547,9 +602,9 @@ export default function WordbookDetailPage({
   const markedCount = markedKeys.size;
   const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
   const automaticPrintTitle = selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`;
-  const printTitle = userPlan === "teacher" && customTitle.trim() ? customTitle.trim() : automaticPrintTitle;
+  const printTitle = accessPlan === "teacher" && customTitle.trim() ? customTitle.trim() : automaticPrintTitle;
   const printHtml = useMemo(() => {
-    if (!book || visibleWords.length === 0) return "";
+    if (!book || testWords.length === 0) return "";
     const headingTitle = `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`;
     return buildSharedPrintHtml({
       title: headingTitle,
@@ -559,7 +614,7 @@ export default function WordbookDetailPage({
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: printOptionsUnlocked ? (userPlan === "teacher" ? "teacher" : "personal") : "free",
+      plan: printOptionsUnlocked ? (accessPlan === "teacher" ? "teacher" : "personal") : "free",
       printStyle,
       includeWatermark: printOptionsUnlocked ? includeWatermark : true,
       includeDate,
@@ -614,7 +669,7 @@ export default function WordbookDetailPage({
     titleOffsetY,
     visibleWords.length,
     printOptionsUnlocked,
-    userPlan,
+    accessPlan,
   ]);
   const previewDoc = useMemo(() => {
     // メイン画面と同じ共有プレビューCSSを使い、独立iframe内で描画する（画面崩れ防止）
@@ -805,6 +860,25 @@ export default function WordbookDetailPage({
       setPrintGatePages(pages);
       setPrintGateOpen(true);
       return;
+    }
+
+    if (randomOrder && authUserId && testWords.length > 0) {
+      const snapshot: SavedRandomPrint = {
+        bookId: lookupId,
+        selectedUnit,
+        rangeStart,
+        rangeEnd,
+        count,
+        direction: testDirection,
+        savedAt: new Date().toISOString(),
+        words: testWords.slice(0, effectiveCount),
+      };
+      try {
+        localStorage.setItem(randomPrintStorageKey(authUserId, lookupId), JSON.stringify(snapshot));
+        setLastRandomPrint(snapshot);
+      } catch {
+        // Storage failures must not block printing.
+      }
     }
 
     // 利用記録は最大600msだけ待つ（記録が遅くても印刷を止めない）。
@@ -1303,11 +1377,11 @@ export default function WordbookDetailPage({
                 <input
                   value={customTitle}
                   onChange={(event) => setCustomTitle(event.target.value)}
-                  placeholder={userPlan === "teacher" ? automaticPrintTitle : "Teacherプランで変更できます"}
-                  disabled={userPlan !== "teacher"}
+                  placeholder={accessPlan === "teacher" ? automaticPrintTitle : "Teacherプランで変更できます"}
+                  disabled={accessPlan !== "teacher"}
                   className="mt-1 w-full bg-transparent text-sm font-bold outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                 />
-                {userPlan !== "teacher" ? <span className="mt-1 block text-[11px] font-bold text-amber-600">印刷タイトルの変更はTeacherプランの機能です。</span> : null}
+                {accessPlan !== "teacher" ? <span className="mt-1 block text-[11px] font-bold text-amber-600">印刷タイトルの変更はTeacherプランの機能です。</span> : null}
               </label>
 
               <div className="grid gap-2 sm:grid-cols-2">
@@ -1399,7 +1473,7 @@ export default function WordbookDetailPage({
                   </div>
                 </div>
                 <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{!isLoggedIn ? "印刷する前に利用条件と料金を確認できます。" : userPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
+                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{!isLoggedIn ? "印刷する前に利用条件と料金を確認できます。" : accessPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
                 </p>
               </div>
 
@@ -1419,6 +1493,13 @@ export default function WordbookDetailPage({
                   </label>
                 ))}
               </div>
+
+              {(randomOrder || lastRandomPrint) ? (
+                <div className="flex flex-wrap gap-2">
+                  {randomOrder ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setRandomRevision((value) => value + 1); }} className="rounded-lg border px-3 py-1.5 text-xs font-bold text-blue-700">別の並びにする</button> : null}
+                  {lastRandomPrint ? <button type="button" onClick={restoreLastRandomPrint} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800">前回の並びで解答を表示</button> : null}
+                </div>
+              ) : null}
 
               <details className="group rounded-2xl border border-slate-300 bg-white shadow-sm">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-3 py-3 hover:bg-slate-50">
@@ -1695,6 +1776,13 @@ export default function WordbookDetailPage({
                   </label>
                 ))}
               </div>
+
+              {(randomOrder || lastRandomPrint) ? (
+                <div className="flex flex-wrap gap-2">
+                  {randomOrder ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setRandomRevision((value) => value + 1); }} className="rounded-lg border px-3 py-1.5 text-xs font-bold text-blue-700">別の並びにする</button> : null}
+                  {lastRandomPrint ? <button type="button" onClick={restoreLastRandomPrint} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800">前回の並びで解答を表示</button> : null}
+                </div>
+              ) : null}
 
               <details className="rounded-2xl border bg-slate-50 p-3">
                 <summary className="cursor-pointer list-none text-sm font-black text-slate-800">

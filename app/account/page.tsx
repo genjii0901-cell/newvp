@@ -135,7 +135,7 @@ export default function AccountPage() {
 
       if (!cancelled && response.ok) {
         setPlan(normalizePlan(result.profile?.plan));
-        setRole(result.profile?.role === "admin" ? "admin" : "user");
+        setRole(result.profile?.adminAccess === true ? "admin" : "user");
       }
 
       if (!cancelled) setLoading(false);
@@ -344,7 +344,10 @@ export default function AccountPage() {
             <p className="text-sm text-slate-500">{info.limit}</p>
           </div>
         </div>
-        {plan === "free" && (
+        {role === "admin" ? (
+          <p className="mt-4 text-sm font-bold text-blue-700">管理者認証中: Personal・Teacherの機能を利用できます。請求プランは変更されません。</p>
+        ) : null}
+        {plan === "free" && role !== "admin" && (
           <>
             <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
               有料プランを見る

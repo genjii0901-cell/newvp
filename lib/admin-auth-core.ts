@@ -185,6 +185,10 @@ export function isAdminSessionSufficient(
   return Boolean(claims && (!twoFactorEnabled || claims.mfa));
 }
 
+export function isAdminSessionForUser(claims: AdminSessionClaims | null, userId: string): boolean {
+  return Boolean(claims && (claims.subject === "password" || claims.subject === `user:${userId}`));
+}
+
 function encryptionKey(key: string): Buffer {
   if (!key) throw new Error("Admin secret encryption key is not configured.");
   return crypto.createHash("sha256").update(`vocab-print-pro/admin-totp/${key}`, "utf8").digest();

@@ -33,8 +33,17 @@ export default function OverlapPageClient() {
     void supabase.auth.getUser().then(async ({ data }) => {
       setUserId(data.user?.id ?? null);
       if (!data.user) return;
-      const { data: profile } = await supabase.from("profiles").select("plan").eq("id", data.user.id).maybeSingle();
-      setPlan(profile?.plan === "teacher" || profile?.plan === "personal" ? profile.plan : "free");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+      const response = await fetch("/api/me/profile", {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      }).catch(() => null);
+      const result = await response?.json().catch(() => ({}));
+      if (!response?.ok) return;
+      const profile = result.profile;
+      setPlan(profile?.adminAccess === true ? "teacher" : profile?.plan === "teacher" || profile?.plan === "personal" ? profile.plan : "free");
     });
   }, [supabase]);
 

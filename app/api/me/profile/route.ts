@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
+import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
+import { hasAdminFeatureAccess } from "@/lib/plan-access";
 
 type Plan = "free" | "personal" | "teacher";
 
@@ -108,6 +110,7 @@ export async function GET(request: Request) {
 
   try {
     const profile = await ensureProfile(auth.user);
+    const adminAccess = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
     let plan = normalizePlan(profile.plan);
     const stripeCustomerId = profile.stripe_customer_id ?? null;
 
@@ -150,6 +153,7 @@ export async function GET(request: Request) {
         email: profile.email ?? auth.user.email ?? null,
         plan,
         role: profile.role ?? "user",
+        adminAccess,
         stripe_customer_id: stripeCustomerId,
         trialOffer: getTrialOffer(profile),
       },
@@ -171,7 +175,7 @@ export async function PATCH(request: Request) {
     const nextPlan = normalizePlan(body.plan);
     const profile = await ensureProfile(auth.user);
 
-    if ((profile.role ?? "user") !== "admin") {
+    if (!hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id))) {
       return NextResponse.json(
         { ok: false, error: "Only admin users can change preview plan." },
         { status: 403 }
@@ -198,6 +202,7 @@ export async function PATCH(request: Request) {
         email: profile.email ?? auth.user.email ?? null,
         plan: nextPlan,
         role: profile.role ?? "user",
+        adminAccess: true,
         stripe_customer_id: profile.stripe_customer_id ?? null,
       },
     });

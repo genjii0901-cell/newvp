@@ -7,6 +7,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { fallbackOfficialWordbooks } from "@/lib/official-wordbooks";
 import { getPageCount, planLimits } from "@/lib/plan-limits";
+import { effectiveAccessPlan } from "@/lib/plan-access";
 import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
@@ -22,6 +23,20 @@ type Word = {
   english: string;
   japanese: string;
 };
+
+type SavedRandomPrint = {
+  bookId: string;
+  startNo: number;
+  endNo: number;
+  count: number;
+  direction: Direction;
+  words: Word[];
+  savedAt: string;
+};
+
+function randomPrintStorageKey(userId: string, bookId: string) {
+  return `vpp-random-print:${userId}:${bookId}`;
+}
 
 type WordBook = {
   id: string;
@@ -486,6 +501,9 @@ export default function Home() {
   const [endNo, setEndNo] = useState(50);
   const [count, setCount] = useState(50);
   const [random, setRandom] = useState(false);
+  const [randomRevision, setRandomRevision] = useState(0);
+  const [lastRandomPrint, setLastRandomPrint] = useState<SavedRandomPrint | null>(null);
+  const [restoredRandomPrint, setRestoredRandomPrint] = useState<SavedRandomPrint | null>(null);
   const [type, setType] = useState<PdfType>("list");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
@@ -646,13 +664,12 @@ export default function Home() {
             8_000
           );
           setPlan("free");
-          setRole("user");
           writeCachedPlan(user.id, "free");
           return;
         }
         const nextPlan = isPlan(data.plan) ? data.plan : "free";
         setPlan(nextPlan);
-        setRole(data.role === "admin" ? "admin" : "user");
+        // ロールは管理者セッションを検証した /api/me/profile だけから取得する。
         writeCachedPlan(user.id, nextPlan);
       } catch {
         // 認証済みセッションは維持し、DB復旧後の再読み込みでプロフィールを同期する。
@@ -677,6 +694,7 @@ export default function Home() {
 
     const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setRole("user");
       if (session?.user) {
         setPrintAuthIntent(null);
         const cachedPlan = readCachedPlan(session.user.id);
@@ -946,14 +964,13 @@ export default function Home() {
           const nextPlan = normalizePlan(completeResult.profile.plan);
           if (!cancelled) {
             setPlan(nextPlan);
-            setRole(completeResult.profile.role === "admin" ? "admin" : "user");
+            setRole("user");
             setMessage("決済を確認しました。プランを更新しました。");
           }
           window.history.replaceState(null, "", window.location.pathname);
-          return;
         }
 
-        if (!cancelled) {
+        if (!cancelled && (!completeResponse.ok || !completeResult.profile?.plan)) {
           setMessage(completeResult.error ?? "決済確認中です。少し待ってから再読み込みしてください。");
         }
       }
@@ -969,7 +986,7 @@ export default function Home() {
         if (!cancelled && profileResponse.ok && profileResult.profile?.plan) {
           const nextPlan = normalizePlan(profileResult.profile.plan);
           setPlan(nextPlan);
-          setRole(profileResult.profile.role === "admin" ? "admin" : "user");
+          setRole(profileResult.profile.adminAccess === true ? "admin" : "user");
           setTrialOffer(
             profileResult.profile.trialOffer === "first" || profileResult.profile.trialOffer === "winback"
               ? profileResult.profile.trialOffer
@@ -988,7 +1005,7 @@ export default function Home() {
       if (!cancelled && profile?.plan) {
         const nextPlan = normalizePlan(profile.plan);
         setPlan(nextPlan);
-        setRole(profile.role === "admin" ? "admin" : "user");
+        setRole("user");
       }
     }
 
@@ -1059,6 +1076,19 @@ export default function Home() {
     );
   }, [bookSearch, books]);
   const selectedBook = books.find((book) => book.id === bookId) ?? books[0] ?? null;
+  const accessPlan = effectiveAccessPlan(plan, role === "admin");
+
+  useEffect(() => {
+    setRestoredRandomPrint(null);
+    if (!user || !selectedBook) { setLastRandomPrint(null); return; }
+    try {
+      const raw = localStorage.getItem(randomPrintStorageKey(user.id, selectedBook.id));
+      const saved = raw ? JSON.parse(raw) as SavedRandomPrint : null;
+      setLastRandomPrint(saved?.bookId === selectedBook.id && Array.isArray(saved.words) ? saved : null);
+    } catch {
+      setLastRandomPrint(null);
+    }
+  }, [user?.id, selectedBook?.id]);
   const pickerBooks = searchableBooks.some((book) => book.id === bookId)
     ? searchableBooks
     : selectedBook
@@ -1067,7 +1097,7 @@ export default function Home() {
   const overlapBaseBook = books.find((book) => book.id === overlapBaseBookId) ?? null;
   const overlapCompareBook = books.find((book) => book.id === overlapCompareBookId) ?? null;
   const locked =
-    selectedBook ? selectedBook.requiredPlan === "teacher" && plan !== "teacher" : false;
+    selectedBook ? selectedBook.requiredPlan === "teacher" && accessPlan !== "teacher" : false;
 
   useEffect(() => {
     if (!selectedBook) return;
@@ -1085,6 +1115,9 @@ export default function Home() {
 
   const outputWords = useMemo(() => {
     if (!selectedBook) return [];
+    if (random && restoredRandomPrint?.bookId === selectedBook.id &&
+        restoredRandomPrint.startNo === startNo && restoredRandomPrint.endNo === endNo &&
+        restoredRandomPrint.count === count) return restoredRandomPrint.words;
     const all = selectedBook.words;
     const total = all.length;
     if (total === 0) return [];
@@ -1099,9 +1132,9 @@ export default function Home() {
 
     const n = Math.max(1, Math.min(Number(count) || list.length, list.length));
     return list.slice(0, n);
-  }, [selectedBook, startNo, endNo, count, random]);
+  }, [selectedBook, startNo, endNo, count, random, randomRevision, restoredRandomPrint]);
   const outputPageCount = Math.max(1, getPageCount(outputWords.length));
-  const currentMaxPages = planLimits[plan].maxPages;
+  const currentMaxPages = planLimits[accessPlan].maxPages;
 
   useEffect(() => {
     if (!user || !booksLoaded) return;
@@ -1319,7 +1352,7 @@ export default function Home() {
       alert("マイ単語帳の保存にはログインが必要です。");
       return;
     }
-    if (plan === "free") {
+    if (accessPlan === "free") {
       alert("マイ単語帳の保存はPersonal以上のプランでご利用いただけます。アカウント登録だけでも貼り付けとプレビューは使えますが、印刷にはお支払いが必要です。");
       return;
     }
@@ -1578,7 +1611,7 @@ export default function Home() {
       alert("マイ単語帳の保存にはログインが必要です。");
       return;
     }
-    if (plan === "free") {
+    if (accessPlan === "free") {
       alert("マイ単語帳の保存はPersonal以上のプランでご利用いただけます。アカウント登録だけでも貼り付けとプレビューは使えますが、印刷にはお支払いが必要です。");
       return;
     }
@@ -1655,6 +1688,7 @@ export default function Home() {
     let usageCheckedByServer = false;
     let licensedByServer = false;
     let verifiedPlan: Plan | null = null;
+    let verifiedAdminAccess = false;
     const wordCount = words.length;
     const pageCount = getPageCount(wordCount);
 
@@ -1701,6 +1735,7 @@ export default function Home() {
         usageCheckedByServer = true;
         licensedByServer = usageResult.licenseKind === "personal" || usageResult.licenseKind === "wordbook";
         verifiedPlan = normalizePlan(usageResult.plan);
+        verifiedAdminAccess = usageResult.adminAccess === true;
         if (usageResult.plan && !usageResult.licenseKind) {
           const serverPlan = normalizePlan(usageResult.plan);
           setPlan(serverPlan);
@@ -1726,14 +1761,14 @@ export default function Home() {
 
     const buildPlan: Plan = forcePremiumGate
       ? "personal"
-      : isPaidUser || licensedByServer || verifiedPlan === "personal" || verifiedPlan === "teacher"
-        ? (verifiedPlan === "teacher" || role === "admin" ? "teacher" : "personal")
+      : isPaidUser || licensedByServer || verifiedPlan === "personal" || verifiedPlan === "teacher" || verifiedAdminAccess
+        ? (verifiedPlan === "teacher" || verifiedAdminAccess ? "teacher" : "personal")
         : "free";
 
     const now = new Date();
     const autoTitle = `${sourceTitle} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
     const printWordsList = buildPlan === "free" ? words.slice(0, 50) : words;
-    const canCustomizeTitle = activePlan === "teacher" || role === "admin";
+    const canCustomizeTitle = verifiedPlan === "teacher" || verifiedAdminAccess;
     const fullTitle = canCustomizeTitle && pdfTitle.trim() ? pdfTitle.trim() : autoTitle;
     const html = buildPrintHtml({
       title: fullTitle,
@@ -1789,6 +1824,24 @@ export default function Home() {
       setPrintGatePages(Math.max(1, pageCount));
       setPrintGateOpen(true);
       return;
+    }
+
+    if (random && selectedBook?.title === sourceTitle && printWordsList.length > 0) {
+      const snapshot: SavedRandomPrint = {
+        bookId: selectedBook.id,
+        startNo,
+        endNo,
+        count,
+        direction,
+        words: printWordsList,
+        savedAt: now.toISOString(),
+      };
+      try {
+        localStorage.setItem(randomPrintStorageKey(user.id, selectedBook.id), JSON.stringify(snapshot));
+        setLastRandomPrint(snapshot);
+      } catch {
+        // Storage failures must not block an authorized print.
+      }
     }
 
     const usePrintPage =
@@ -2158,7 +2211,7 @@ export default function Home() {
     if (!outputWords.length) return `<!DOCTYPE html><html><body style="margin:0;background:#f9fafb;font-family:sans-serif;padding:20px;color:#64748b">プレビューデータなし</body></html>`;
     const now = new Date();
     const autoTitle = `${selectedBook?.title ?? "単語帳"} ${type === "list" ? "一覧" : type === "test" ? "問題" : "解答"}`;
-    const previewPlan: Plan = user ? plan : "free";
+    const previewPlan: Plan = user ? accessPlan : "free";
     const canCustomizeTitle = previewPlan === "teacher" || role === "admin";
     const previewWords = previewPlan === "free"
       ? outputWords.map((word, index) => index < 50 ? word : { no: index + 1, english: "", japanese: "" })
@@ -2484,7 +2537,7 @@ export default function Home() {
           </p>
         </div>
 
-        {user && plan === "free" && !trialModalOpen && !upsellBarDismissed && (
+        {user && accessPlan === "free" && !trialModalOpen && !upsellBarDismissed && (
           <div className="mt-4 rounded-3xl border-2 border-blue-500 bg-gradient-to-r from-blue-50 to-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
@@ -2888,7 +2941,7 @@ export default function Home() {
               </div>
             </div>
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
-              50語ごとに1ページとして自動計算します。{!user ? "印刷時に利用条件と料金を確認できます。" : typeof currentMaxPages === "number" ? `${planLabel(plan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
+              50語ごとに1ページとして自動計算します。{!user ? "印刷時に利用条件と料金を確認できます。" : typeof currentMaxPages === "number" ? `${planLabel(accessPlan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
             </p>
             {numbersLocked ? (
               <button
@@ -2956,6 +3009,22 @@ export default function Home() {
               <input type="checkbox" checked={random} onChange={(event) => setRandom(event.target.checked)} />
               ランダム順
             </label>
+            {(random || lastRandomPrint) ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {random ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setRandomRevision((value) => value + 1); }} className="rounded-lg border px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">別の並びにする</button> : null}
+                {lastRandomPrint ? (
+                  <button type="button" onClick={() => {
+                    setRandom(true);
+                    setStartNo(lastRandomPrint.startNo);
+                    setEndNo(lastRandomPrint.endNo);
+                    setCount(lastRandomPrint.count);
+                    setDirection(lastRandomPrint.direction);
+                    setRestoredRandomPrint(lastRandomPrint);
+                    setType("answer");
+                  }} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100">前回の並びで解答を表示</button>
+                ) : null}
+              </div>
+            ) : null}
 
             <label className="mt-2 flex items-center gap-2 text-sm font-bold">
               <input
@@ -3000,13 +3069,13 @@ export default function Home() {
                 <label className="flex items-center gap-2 text-sm font-bold">
                   <input
                     type="checkbox"
-                    checked={plan === "free" ? true : includeWatermark}
-                    disabled={plan === "free"}
+                    checked={accessPlan === "free" ? true : includeWatermark}
+                    disabled={accessPlan === "free"}
                     onChange={(event) => setIncludeWatermark(event.target.checked)}
                   />
                   透かしを入れる
                 </label>
-                {plan === "free" && (
+                {accessPlan === "free" && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
                     透かし解除とクラス・番号・氏名の事前入力はロック中です。今回だけ1ページ50円、またはPersonalで解除できます。
                     <button
@@ -3067,7 +3136,7 @@ export default function Home() {
                     value={studentClass}
                     onChange={(event) => setStudentClass(event.target.value)}
                     placeholder="例: 2年A組"
-                    disabled={plan === "free" || !showRecordFields || !showClassField}
+                    disabled={accessPlan === "free" || !showRecordFields || !showClassField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -3077,7 +3146,7 @@ export default function Home() {
                     value={studentNumber}
                     onChange={(event) => setStudentNumber(event.target.value)}
                     placeholder="例: 12"
-                    disabled={plan === "free" || !showRecordFields || !showNumberField}
+                    disabled={accessPlan === "free" || !showRecordFields || !showNumberField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -3087,7 +3156,7 @@ export default function Home() {
                     value={studentName}
                     onChange={(event) => setStudentName(event.target.value)}
                     placeholder="例: 山田 太郎"
-                    disabled={plan === "free" || !showRecordFields || !showNameField}
+                    disabled={accessPlan === "free" || !showRecordFields || !showNameField}
                     className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
                   />
                 </div>
@@ -3111,7 +3180,7 @@ export default function Home() {
               </div>
             </details>
 
-            {user && plan === "free" ? (
+            {user && accessPlan === "free" ? (
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-800">印刷方法は最後に選べます</p>
                 <p className="mt-1 text-xs leading-5 text-blue-700">
@@ -3254,7 +3323,7 @@ export default function Home() {
                 onClick={addCustomBook}
                 className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-              単語帳として登録{plan === "free" ? "（Pro）" : ""}
+              単語帳として登録{accessPlan === "free" ? "（Pro）" : ""}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
@@ -3262,7 +3331,7 @@ export default function Home() {
           </p>
         </section>
 
-        <OverlapTool books={books} isPaid={plan !== "free"} onUseWords={useOverlapWords} onSaveWords={saveOverlapWords} />
+        <OverlapTool books={books} isPaid={accessPlan !== "free"} onUseWords={useOverlapWords} onSaveWords={saveOverlapWords} />
 
         {false && (
         <section className="mt-6 rounded-3xl border bg-white p-5 shadow-sm">
@@ -3883,7 +3952,7 @@ export default function Home() {
         </div>
       )}
 
-      {user && plan === "free" && trialModalOpen && (
+      {user && accessPlan === "free" && trialModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
             <p className="text-center text-xs font-black text-rose-500">

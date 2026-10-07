@@ -55,6 +55,22 @@ type BatchVariantConfig = {
   showSpellingHint: boolean;
 };
 
+type SavedRandomPrint = {
+  bookId: string;
+  start: number;
+  end: number;
+  count: number;
+  seed: string;
+  direction: Direction;
+  printStyle: PrintStyle;
+  savedAt: string;
+  words: Array<{ no: number; english: string; japanese: string }>;
+};
+
+function randomPrintStorageKey(bookId: string) {
+  return `vpp-admin-random-print:${bookId}`;
+}
+
 const BATCH_VARIANTS: Record<PdfBatchVariantId, BatchVariantConfig> = {
   "list": { label: "単語一覧", type: "list", direction: "en-ja", printStyle: "standard", random: false, showSpellingHint: true },
   "translation-test": { label: "和訳テスト 問題", type: "test", direction: "en-ja", printStyle: "standard", random: false, showSpellingHint: true },
@@ -809,6 +825,9 @@ export default function AdminPage() {
   const [pdfEndNo, setPdfEndNo] = useState(50);
   const [pdfCount, setPdfCount] = useState(50);
   const [pdfRandom, setPdfRandom] = useState(false);
+  const [pdfRandomSeed, setPdfRandomSeed] = useState("session");
+  const [lastRandomPrint, setLastRandomPrint] = useState<SavedRandomPrint | null>(null);
+  const [restoredRandomPrint, setRestoredRandomPrint] = useState<SavedRandomPrint | null>(null);
   const [pdfShowPageNo, setPdfShowPageNo] = useState(true);
   const [pdfPrintStyle, setPdfPrintStyle] = useState<PrintStyle>("standard");
   const [pdfWatermark, setPdfWatermark] = useState(false);
@@ -1256,6 +1275,22 @@ export default function AdminPage() {
   const selectedPdfBook = books.find((b) => b.id === pdfBookId) ?? null;
   const pdfWordsPerPageMax = pdfLayoutColumns === "two" ? 100 : 50;
 
+  useEffect(() => {
+    setPdfRandomSeed(crypto.randomUUID());
+  }, []);
+
+  useEffect(() => {
+    setRestoredRandomPrint(null);
+    if (!pdfBookId) { setLastRandomPrint(null); return; }
+    try {
+      const raw = localStorage.getItem(randomPrintStorageKey(pdfBookId));
+      const saved = raw ? JSON.parse(raw) as SavedRandomPrint : null;
+      setLastRandomPrint(saved?.bookId === pdfBookId && Array.isArray(saved.words) ? saved : null);
+    } catch {
+      setLastRandomPrint(null);
+    }
+  }, [pdfBookId]);
+
   function setAdminPrintColumns(next: "one" | "two") {
     setPdfLayoutColumns(next);
     setPdfWordsPerPage((current) => Math.min(current, next === "two" ? 100 : 50));
@@ -1263,6 +1298,11 @@ export default function AdminPage() {
 
   const pdfOutputWords = useMemo(() => {
     if (!selectedPdfBook) return [];
+    if (pdfRandom && restoredRandomPrint?.bookId === selectedPdfBook.id &&
+        restoredRandomPrint.start === pdfStartNo && restoredRandomPrint.end === pdfEndNo &&
+        restoredRandomPrint.count === pdfCount && restoredRandomPrint.seed === pdfRandomSeed) {
+      return restoredRandomPrint.words;
+    }
     const all = selectedPdfBook.words;
     const total = all.length;
     if (total === 0) return [];
@@ -1272,10 +1312,10 @@ export default function AdminPage() {
     let list = all
       .slice(start - 1, end)
       .map((w) => ({ no: w.no, english: w.english, japanese: w.japanese }));
-    if (pdfRandom) list = [...list].sort(() => Math.random() - 0.5);
     const count = Math.max(1, Math.min(Number(pdfCount) || list.length, list.length));
+    if (pdfRandom) list = seededShuffle(list, pdfRandomSeed);
     return list.slice(0, count);
-  }, [selectedPdfBook, pdfStartNo, pdfEndNo, pdfCount, pdfRandom]);
+  }, [selectedPdfBook, pdfStartNo, pdfEndNo, pdfCount, pdfRandom, pdfRandomSeed, restoredRandomPrint]);
 
   // メイン画面と同じエンジンで実寸A4プレビューを生成
   const pdfPreviewDoc = useMemo(() => {
@@ -1379,6 +1419,25 @@ export default function AdminPage() {
       ? seededShuffle(baseWords, `${outputBook.id}:${batchRandomOrderKey(config)}`)
       : baseWords;
     if (!outputBook || outputWords.length === 0) { setPdfMsg("単語帳と範囲を確認してください。"); return; }
+    if (!bookOverride && pdfRandom) {
+      const snapshot: SavedRandomPrint = {
+        bookId: outputBook.id,
+        start: pdfStartNo,
+        end: pdfEndNo,
+        count: pdfCount,
+        seed: pdfRandomSeed,
+        direction: pdfDir,
+        printStyle: pdfPrintStyle,
+        savedAt: new Date().toISOString(),
+        words: pdfOutputWords,
+      };
+      try {
+        localStorage.setItem(randomPrintStorageKey(outputBook.id), JSON.stringify(snapshot));
+        setLastRandomPrint(snapshot);
+      } catch {
+        // Private browsing or storage limits must not block printing.
+      }
+    }
     const now = new Date();
     const autoTitle = `${outputBook.title} ${config.type === "list" ? "一覧" : config.type === "test" ? "問題" : "解答"}`;
     const styleLabel = config.printStyle === "blank-english"
@@ -3011,6 +3070,25 @@ export default function AdminPage() {
                       {label}
                     </label>
                   ))}
+                  {(pdfRandom || lastRandomPrint) ? (
+                    <div className="flex flex-wrap gap-2 pl-5">
+                      {pdfRandom ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setPdfRandomSeed(crypto.randomUUID()); }} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">別の並びにする</button> : null}
+                      {lastRandomPrint ? (
+                        <button type="button" onClick={() => {
+                          setPdfRandom(true);
+                          setPdfStartNo(lastRandomPrint.start);
+                          setPdfEndNo(lastRandomPrint.end);
+                          setPdfCount(lastRandomPrint.count);
+                          setPdfRandomSeed(lastRandomPrint.seed);
+                          setRestoredRandomPrint(lastRandomPrint);
+                          setPdfDir(lastRandomPrint.direction);
+                          setPdfPrintStyle(lastRandomPrint.printStyle);
+                          setPdfType("answer");
+                          setPdfMsg("前回のランダム順を復元しました。プレビューを確認して解答を印刷できます。");
+                        }} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100">前回印刷した並びで解答を表示</button>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">

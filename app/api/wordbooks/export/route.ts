@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
 import { ensureProfile, requireSupabaseUser } from "@/lib/supabase/admin";
+import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
+import { hasAdminFeatureAccess } from "@/lib/plan-access";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -11,7 +13,8 @@ export async function GET(request: Request) {
   if (auth.response) return auth.response;
 
   const profile = await ensureProfile(auth.user);
-  if (profile?.plan !== "teacher" && profile?.role !== "admin") {
+  const adminAccess = hasAdminFeatureAccess(profile?.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
+  if (profile?.plan !== "teacher" && !adminAccess) {
     return NextResponse.json({ ok: false, message: "CSV出力はTeacherプランの機能です。" }, { status: 403 });
   }
 
@@ -19,7 +22,7 @@ export async function GET(request: Request) {
   if (!id) return NextResponse.json({ ok: false, message: "単語帳を選択してください。" }, { status: 400 });
 
   const result = await loadOfficialWordbooks({
-    includeAdmin: profile?.role === "admin",
+    includeAdmin: adminAccess,
     includeFallback: true,
     includeWords: true,
     includeWordStats: false,

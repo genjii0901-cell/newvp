@@ -8,6 +8,7 @@ import {
   findMatchingTotpCounter,
   fingerprintAdminValue,
   isAdminSessionSufficient,
+  isAdminSessionForUser,
   issueAdminSessionToken,
   safeEqualText,
   verifyAdminSessionToken,
@@ -216,6 +217,21 @@ function requestAdminToken(request: Request): string | null {
     // never accepted here; the value must be a valid signed v2 session token.
     request.headers.get("x-admin-password")
   );
+}
+
+export async function hasVerifiedAdminBrowserSession(request: Request, userId: string): Promise<boolean> {
+  const token = requestCookie(request, ADMIN_SESSION_COOKIE);
+  if (!token) return false;
+  try {
+    const claims = verifyAdminSessionToken(token, getAdminServerKey());
+    if (!claims) return false;
+    if (!isAdminSessionForUser(claims, userId)) return false;
+    const totpSecret = await getAdminTotpSecret();
+    return isAdminSessionSufficient(claims, Boolean(totpSecret));
+  } catch (error) {
+    console.error("Admin browser session verification failed closed", error);
+    return false;
+  }
 }
 
 export function setAdminSessionCookie(response: NextResponse, token: string): void {
