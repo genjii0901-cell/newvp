@@ -49,7 +49,7 @@ type SavedRandomPrint = {
 };
 
 function randomPrintStorageKey(userId: string, bookId: string) {
-  return `vpp-random-print:${userId}:${bookId}`;
+  return `vpp-detail-random-print:${userId}:${bookId}`;
 }
 
 type OfficialWordbook = {
