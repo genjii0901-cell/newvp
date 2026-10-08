@@ -9,6 +9,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerStyle: { backgroundColor: colors.surface }, headerTintColor: colors.ink, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="index" options={{ title: "Vocab Print Pro" }} />
         <Stack.Screen name="wordbooks/[id]" options={{ title: "単語帳" }} />
+        <Stack.Screen name="wordbooks/[id]/print" options={{ title: "印刷・CSV出力" }} />
         <Stack.Screen name="account" options={{ title: "アカウント" }} />
       </Stack>
     </>

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { ActivityIndicator, Image, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter, type Href } from "expo-router";
 import * as Speech from "expo-speech";
 import { APP_URL, coverUrl, loadWordbooks, type Word, type Wordbook } from "../../lib/api";
-import { supabase } from "../../lib/supabase";
 import { colors } from "../../ui/theme";
 
 type Mode = "overview" | "cards" | "quiz" | "listen";
@@ -18,6 +17,7 @@ function choicesFor(words: Word[], current: Word): string[] {
 
 export default function WordbookScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const [book, setBook] = useState<Wordbook | null>(null);
   const [words, setWords] = useState<Word[]>([]);
   const [mode, setMode] = useState<Mode>("overview");
@@ -27,7 +27,6 @@ export default function WordbookScreen() {
   const [correct, setCorrect] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [locked, setLocked] = useState(false);
   const [error, setError] = useState("");
   const runRef = useRef(0);
 
@@ -41,14 +40,6 @@ export default function WordbookScreen() {
         if (!summary) throw new Error("単語帳が見つかりません。");
         if (!active) return;
         setBook(summary);
-        if (summary.requiredPlan !== "free") {
-          const session = await supabase?.auth.getSession();
-          const token = session?.data.session?.access_token;
-          if (!token) { setLocked(true); return; }
-          const profileResponse = await fetch(`${APP_URL}/api/me/profile`, { headers: { Authorization: `Bearer ${token}` } });
-          const profile = await profileResponse.json() as { profile?: { plan?: string } };
-          if (!profileResponse.ok || !["personal", "teacher"].includes(profile.profile?.plan || "")) { setLocked(true); return; }
-        }
         const detail = (await loadWordbooks(id, true))[0];
         if (active) setWords((detail?.words || []).filter((word) => word.english && word.japanese));
       } catch (reason) {
@@ -105,8 +96,10 @@ export default function WordbookScreen() {
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <View style={styles.summary}>
         {coverUrl(book.coverImage) ? <Image alt={`${book.title}の表紙`} source={{ uri: coverUrl(book.coverImage)! }} resizeMode="cover" style={styles.cover} /> : null}
-        <View style={{ flex: 1 }}><Text style={styles.title}>{book.title}</Text><Text style={styles.meta}>{book.wordCount.toLocaleString()}語 · {book.requiredPlan === "free" ? "無料" : "Personal"}</Text></View>
+        <View style={{ flex: 1 }}><Text style={styles.title}>{book.title}</Text><Text style={styles.meta}>{book.wordCount.toLocaleString()}語 · 学習は無料</Text></View>
       </View>
+      <Pressable accessibilityRole="button" onPress={() => { void Share.share({ message: `${book.title}をVocab Print Proで学習: ${APP_URL}/wordbooks/${encodeURIComponent(book.id)}` }); }} style={styles.share}><Text style={styles.shareText}>この単語帳を共有</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => router.push(`/wordbooks/${encodeURIComponent(book.id)}/print` as Href)} style={styles.printLink}><Text style={styles.printLinkText}>印刷・CSV出力（有料）</Text></Pressable>
       <View style={styles.tabs}>
         {([ ["overview", "概要"], ["cards", "カード"], ["quiz", "4択"], ["listen", "聞き流し"] ] as const).map(([value, label]) => (
           <Pressable key={value} accessibilityRole="tab" accessibilityState={{ selected: mode === value }} onPress={() => { stopAudio(); setMode(value); setSelected(null); }} style={[styles.tab, mode === value && styles.tabActive]}><Text style={[styles.tabText, mode === value && styles.tabTextActive]}>{label}</Text></Pressable>
@@ -114,9 +107,8 @@ export default function WordbookScreen() {
       </View>
 
       {mode === "overview" ? <View style={styles.panel}><Text style={styles.sectionTitle}>この単語帳</Text><Text style={styles.body}>{book.description || "単語をカードや4択で確認し、音声で復習できます。"}</Text><Text style={styles.helper}>上のタブから学習方法を選んでください。</Text></View> : null}
-      {locked && mode !== "overview" ? <View style={styles.panel}><Text style={styles.sectionTitle}>Personal対象の単語帳</Text><Text style={styles.body}>学習にはPersonalまたはTeacherの利用権が必要です。現在のアカウントでログインしてください。</Text></View> : null}
-      {!locked && mode !== "overview" && words.length === 0 ? <View style={styles.panel}><Text style={styles.body}>学習できる単語がありません。</Text></View> : null}
-      {!locked && current && mode !== "overview" ? <View style={styles.panel}>
+      {mode !== "overview" && words.length === 0 ? <View style={styles.panel}><Text style={styles.body}>学習できる単語がありません。</Text></View> : null}
+      {current && mode !== "overview" ? <View style={styles.panel}>
         <Text style={styles.progress}>{index + 1} / {words.length}</Text>
         {mode === "cards" ? <>
           <Pressable accessibilityRole="button" accessibilityLabel="カードを裏返す" onPress={() => setFlipped(!flipped)} style={styles.flashcard}>
@@ -154,6 +146,8 @@ const styles = StyleSheet.create({
   cover: { width: 63, height: 84, borderRadius: 4, backgroundColor: colors.paleBlue },
   title: { color: colors.ink, fontWeight: "800", fontSize: 19, lineHeight: 27 }, meta: { color: colors.muted, fontSize: 12, marginTop: 5 },
   tabs: { flexDirection: "row", marginTop: 16, backgroundColor: colors.surface, borderRadius: 7, padding: 3, borderWidth: 1, borderColor: colors.line },
+  share: { alignSelf: "flex-end", marginTop: 11, paddingVertical: 5 }, shareText: { color: colors.blue, fontWeight: "700", fontSize: 13 },
+  printLink: { marginTop: 8, padding: 12, backgroundColor: colors.paleBlue, borderRadius: 7, alignItems: "center" }, printLinkText: { color: colors.blue, fontWeight: "800" },
   tab: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: 5 }, tabActive: { backgroundColor: colors.paleBlue },
   tabText: { fontSize: 12, fontWeight: "700", color: colors.muted }, tabTextActive: { color: colors.blue },
   panel: { backgroundColor: colors.surface, borderRadius: 8, padding: 18, borderWidth: 1, borderColor: colors.line, marginTop: 15 },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import type { Session } from "@supabase/supabase-js";
 import { APP_URL } from "../lib/api";
 import { supabase } from "../lib/supabase";
@@ -13,13 +13,14 @@ export default function AccountScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [mobilePaid, setMobilePaid] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!supabase) return;
     void supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (!next) setProfile(null); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => { setSession(next); if (!next) { setProfile(null); setMobilePaid(false); } });
     return () => listener.subscription.unsubscribe();
   }, []);
 
@@ -30,6 +31,10 @@ export default function AccountScreen() {
       .then(async (response) => response.ok ? response.json() as Promise<{ profile?: Profile }> : null)
       .then((data) => { if (active) setProfile(data?.profile || null); })
       .catch(() => { if (active) setMessage("プラン情報を取得できませんでした。"); });
+    void fetch(`${APP_URL}/api/mobile/access`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then(async (response) => response.ok ? response.json() as Promise<{ paid?: boolean }> : null)
+      .then((data) => { if (active) setMobilePaid(data?.paid === true); })
+      .catch(() => { if (active) setMobilePaid(false); });
     return () => { active = false; };
   }, [session]);
 
@@ -74,7 +79,8 @@ export default function AccountScreen() {
     {session ? <View style={styles.panel}>
       <Text style={styles.title}>アカウント</Text>
       <Text style={styles.body}>{profile?.email || session.user.email}</Text>
-      <Text style={styles.plan}>利用プラン: {profile?.plan === "teacher" ? "Teacher" : profile?.plan === "personal" ? "Personal" : "Free"}</Text>
+      <Text style={styles.plan}>利用プラン: {profile?.plan === "teacher" ? "Teacher" : profile?.plan === "personal" || mobilePaid ? "Personal" : "Free"}</Text>
+      {mobilePaid ? <Pressable onPress={() => { void Linking.openURL(Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions"); }} style={styles.secondary}><Text style={styles.secondaryText}>ストアの契約を管理</Text></Pressable> : null}
       <Pressable disabled={busy} onPress={() => { void supabase?.auth.signOut(); }} style={styles.secondary}><Text style={styles.secondaryText}>ログアウト</Text></Pressable>
       <Text style={styles.section}>アカウント管理</Text>
       <Text style={styles.note}>有料契約がある場合は、先に契約を終了してからアカウントを削除できます。</Text>

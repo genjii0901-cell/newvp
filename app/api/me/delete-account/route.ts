@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hasMobilePurchase } from "@/lib/mobile-paid-access";
 import {
   ensureProfile,
   getSupabaseAdmin,
@@ -49,6 +50,13 @@ export async function POST(request: Request) {
           error: "有料契約またはトライアルが残っています。先に請求ポータルで解約してから削除してください。",
           needsCancellation: true,
         },
+        { status: 409 }
+      );
+    }
+
+    if (await hasMobilePurchase(auth.user.id)) {
+      return NextResponse.json(
+        { ok: false, error: "ストアの有料契約が残っています。先にApp StoreまたはGoogle Playで解約し、有効期間が終わってから削除してください。", needsCancellation: true },
         { status: 409 }
       );
     }
