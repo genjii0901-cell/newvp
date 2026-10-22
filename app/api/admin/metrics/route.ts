@@ -190,6 +190,8 @@ export const revalidate = 0;
 export async function GET(request: Request) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
+  // CSV出力用。画面表示の件数制限（アカウント100件・PDF履歴10件）を外す。
+  const full = new URL(request.url).searchParams.get("full") === "1";
 
   if (!isSupabaseServerConfigured()) {
     return NextResponse.json(
@@ -409,7 +411,7 @@ export async function GET(request: Request) {
       (book) => !book.visibility || book.visibility === "public"
     ).length;
 
-    const recentPdfGenerations = pdfGenerations.slice(0, 10).map((item) => ({
+    const recentPdfGenerations = (full ? pdfGenerations : pdfGenerations.slice(0, 10)).map((item) => ({
       id: item.id,
       created_at: item.created_at ?? null,
       type: item.type ?? "unknown",
@@ -625,7 +627,7 @@ export async function GET(request: Request) {
         const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
         return bTime - aTime;
       })
-      .slice(0, 100);
+      .slice(0, full ? undefined : 100);
 
     // Keep the visitor cards diagnosable in production without exposing
     // analytics internals to non-admin users.

@@ -167,6 +167,14 @@ export function generateBase32Secret(bytes = 20): string {
   return output;
 }
 
+// APIキーなど、管理者だけが扱う設定を保存する。値は呼び出し側でハッシュ化・暗号化すること。
+export const readProtectedSetting = readSetting;
+export const writeProtectedSetting = writeSetting;
+
+export function fingerprintWithAdminKey(value: string): string {
+  return fingerprintAdminValue(value, getAdminServerKey());
+}
+
 export function issueAdminToken(subject: string, mfa: boolean): string {
   return issueAdminSessionToken(getAdminServerKey(), { subject, mfa, ttlMs: SESSION_TTL_MS });
 }
@@ -321,7 +329,10 @@ export async function verifyPrimaryAdminCredential(request: Request, password: s
   };
 }
 
-export async function requireAdmin(request: Request): Promise<NextResponse | null> {
+export async function requireAdmin(
+  request: Request,
+  options?: { allowBatchToken?: boolean }
+): Promise<NextResponse | null> {
   try {
     const totpSecret = await getAdminTotpSecret();
     const token = requestAdminToken(request);
@@ -332,7 +343,7 @@ export async function requireAdmin(request: Request): Promise<NextResponse | nul
     // setup only. Once TOTP is active it must be exchanged for an MFA session.
     const bearerAdmin = await resolveAdminUserFromBearerToken(request);
     if (bearerAdmin.ok && !totpSecret) return null;
-    if (await hasValidPdfBatchToken(request)) return null;
+    if (options?.allowBatchToken !== false && (await hasValidPdfBatchToken(request))) return null;
 
     return NextResponse.json(
       {

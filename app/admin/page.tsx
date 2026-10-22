@@ -26,6 +26,7 @@ import AdminPdfLibrary, {
   type PdfBatchResult,
   type PdfBatchVariantId,
 } from "./admin-pdf-library";
+import DataExportPanel from "./data-export-panel";
 import LicenseAdminPanel from "./license-admin-panel";
 import MarketingEmailPanel from "./marketing-email-panel";
 
@@ -779,7 +780,7 @@ export default function AdminPage() {
   const [twoFaConfirming, setTwoFaConfirming] = useState(false);
   const [twoFaOk, setTwoFaOk] = useState(false);
 
-  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "materials" | "quiz" | "licenses" | "email">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "materials" | "quiz" | "licenses" | "email" | "export">("dashboard");
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -2060,6 +2061,7 @@ export default function AdminPage() {
             ["quiz", "🧪 4択単語チェック"],
             ["licenses", "🔑 Noteライセンス"],
             ["email", "✉️ メール配信"],
+            ["export", "📤 CSV出力・API連携"],
           ] as const).map(([t, label]) => (
             <button
               key={t}
@@ -3303,6 +3305,7 @@ export default function AdminPage() {
         {tab === "quiz" && <AdminQuizPanel books={books} getHeaders={getAdminHeaders} />}
         {tab === "licenses" && <LicenseAdminPanel books={books} />}
         {tab === "email" && <MarketingEmailPanel />}
+        {tab === "export" && <DataExportPanel books={books} getHeaders={getAdminHeaders} />}
       </div>
       {showLayoutEditor && selectedPdfBook && pdfOutputWords.length > 0 && (() => {
         const ppMM = PREVIEW_SCALE * 3.78;
