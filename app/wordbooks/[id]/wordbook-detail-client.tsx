@@ -60,6 +60,7 @@ type OfficialWordbook = {
   requiredPlan: Plan;
   wordCount?: number;
   creator?: string | null;
+  languageCode?: string;
   words: Word[];
 };
 
@@ -313,10 +314,12 @@ export default function WordbookDetailPage({
   bookIdOverride,
   preservePath = false,
   temporaryLicensed = false,
+  source = "official",
 }: {
   bookIdOverride?: string;
   preservePath?: boolean;
   temporaryLicensed?: boolean;
+  source?: "official" | "community";
 } = {}) {
   const params = useParams();
   const slug = String(params.id ?? "");
@@ -460,7 +463,8 @@ export default function WordbookDetailPage({
     async function loadBook() {
       setLoading(true);
       setError("");
-      const response = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(lookupId)}&includeWords=1`);
+      const endpoint = source === "community" ? "/api/community/wordbooks" : "/api/wordbooks/official";
+      const response = await fetch(`${endpoint}?id=${encodeURIComponent(lookupId)}&includeWords=1`);
       const result = await response.json().catch(() => ({}));
 
       if (!response.ok || !Array.isArray(result.wordbooks)) {
@@ -492,7 +496,7 @@ export default function WordbookDetailPage({
       setError("単語帳を読み込めませんでした。");
       setLoading(false);
     });
-  }, [lookupId, preservePath]);
+  }, [lookupId, preservePath, source]);
 
   // ログインユーザーのプランを取得（無料は50語まで／Personal以上は制限なし）
   useEffect(() => {
@@ -1031,6 +1035,7 @@ export default function WordbookDetailPage({
     const japanesePair = isJapaneseOnlyText(word.english);
     const speakEnglish = () => speakText(word.english, {
       preferred: japanesePair ? "japanese" : "english",
+      lang: source === "community" ? book?.languageCode : undefined,
       rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
       voiceHint: japanesePair ? "male" : undefined,
       signal,

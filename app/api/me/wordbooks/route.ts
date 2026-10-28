@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
+import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
 type IncomingWord = {
   no?: number | string;
@@ -36,7 +37,7 @@ async function loadWordbooksForUser(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: books, error } = await supabase
     .from("wordbooks")
-    .select("id,title,description")
+    .select("id,title,description,visibility,cover_image")
     .eq("owner_id", userId);
 
   if (error) throw error;
@@ -48,35 +49,44 @@ async function loadWordbooksForUser(userId: string) {
   >();
 
   if (bookIds.length > 0) {
-    const { data: words, error: wordsError } = await supabase
-      .from("words")
-      .select("wordbook_id,number,english,japanese,unit")
-      .in("wordbook_id", bookIds)
-      .order("number", { ascending: true });
-
-    if (wordsError) throw wordsError;
-
-    for (const row of words ?? []) {
-      const key = String(row.wordbook_id);
-      const current = wordsByBookId.get(key) ?? [];
-      current.push({
-        no: Number(row.number) || current.length + 1,
-        english: row.english ?? "",
-        japanese: row.japanese ?? "",
-        unit: row.unit ?? null,
-      });
-      wordsByBookId.set(key, current);
+    for (let from = 0; ; from += 1000) {
+      const { data: words, error: wordsError } = await supabase
+        .from("words")
+        .select("wordbook_id,number,english,japanese,unit")
+        .in("wordbook_id", bookIds)
+        .order("id", { ascending: true })
+        .range(from, from + 999);
+      if (wordsError) throw wordsError;
+      for (const row of words ?? []) {
+        const key = String(row.wordbook_id);
+        const current = wordsByBookId.get(key) ?? [];
+        current.push({
+          no: Number(row.number) || current.length + 1,
+          english: row.english ?? "",
+          japanese: row.japanese ?? "",
+          unit: row.unit ?? null,
+        });
+        wordsByBookId.set(key, current);
+      }
+      if ((words?.length ?? 0) < 1000) break;
     }
   }
 
   return (books ?? []).map((book) => {
     const words = wordsByBookId.get(String(book.id)) ?? [];
+    words.sort((a, b) => a.no - b.no);
+    const meta = parseEmbeddedWordbookMeta(book.description);
     return {
       id: String(book.id),
       title: book.title ?? "マイ単語帳",
-      description: book.description ?? "",
+      description: stripEmbeddedWordbookMeta(book.description),
       wordCount: words.length,
       words,
+      published: book.visibility === "public",
+      creatorName: meta.creatorName ?? "",
+      anonymous: meta.anonymous === true,
+      subject: meta.subject ?? "その他",
+      coverImage: book.cover_image ?? meta.coverImage ?? null,
       requiredPlan: "free" as const,
       level: "自作",
     };
@@ -190,7 +200,7 @@ export async function PATCH(request: Request) {
     const supabase = getSupabaseAdmin();
     const { data: existing, error: existingError } = await supabase
       .from("wordbooks")
-      .select("id")
+      .select("id,description")
       .eq("id", id)
       .eq("owner_id", auth.user.id)
       .maybeSingle();
@@ -202,9 +212,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "編集対象の単語帳が見つかりません。" }, { status: 404 });
     }
 
+    const preservedDescription = embedWordbookMeta(description, parseEmbeddedWordbookMeta(existing.description));
     const { error: updateError } = await supabase
       .from("wordbooks")
-      .update({ title, description })
+      .update({ title, description: preservedDescription })
       .eq("id", id)
       .eq("owner_id", auth.user.id);
     if (updateError) {
@@ -262,7 +273,12 @@ export async function DELETE(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    await supabase.from("words").delete().eq("wordbook_id", id);
+    const { data: existing, error: lookupError } = await supabase.from("wordbooks")
+      .select("id").eq("id", id).eq("owner_id", auth.user.id).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing) return NextResponse.json({ ok: false, error: "単語帳が見つかりません。" }, { status: 404 });
+    const { error: wordsError } = await supabase.from("words").delete().eq("wordbook_id", id);
+    if (wordsError) throw wordsError;
     const { error } = await supabase
       .from("wordbooks")
       .delete()

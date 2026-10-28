@@ -1,7 +1,7 @@
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff]/;
 const ALPHABET_RE = /[A-Za-z]/;
 
-function pickVoice(lang: "en-US" | "ja-JP", voiceHint?: "male" | "female") {
+function pickVoice(lang: string, voiceHint?: "male" | "female") {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return undefined;
   const voices = window.speechSynthesis.getVoices();
   const prefix = lang.slice(0, 2).toLowerCase();
@@ -36,6 +36,7 @@ export function speakText(
   text: string,
   options: {
     preferred?: "english" | "japanese";
+    lang?: string;
     rate?: number;
     voiceHint?: "male" | "female";
     signal?: { stopped: boolean };
@@ -48,7 +49,7 @@ export function speakText(
   const value = text.trim();
   if (!value || options.signal?.stopped) return Promise.resolve(true);
 
-  const lang = guessSpeechLang(value, options.preferred ?? "japanese");
+  const lang = options.lang ?? guessSpeechLang(value, options.preferred ?? "japanese");
   const utterance = new SpeechSynthesisUtterance(value);
   utterance.lang = lang;
   utterance.rate = options.rate ?? (lang === "en-US" ? 0.9 : 0.95);

@@ -3,6 +3,9 @@ export const WORDBOOK_META_PREFIX = "\n\n__VPP_META__:";
 export type EmbeddedWordbookMeta = {
   coverImage?: string | null;
   visibility?: string | null;
+  creatorName?: string | null;
+  subject?: string | null;
+  anonymous?: boolean;
 };
 
 export function parseEmbeddedWordbookMeta(description: string | null | undefined): EmbeddedWordbookMeta {
@@ -16,6 +19,9 @@ export function parseEmbeddedWordbookMeta(description: string | null | undefined
     return {
       coverImage: typeof parsed.coverImage === "string" ? parsed.coverImage : null,
       visibility: typeof parsed.visibility === "string" ? parsed.visibility : null,
+      creatorName: typeof parsed.creatorName === "string" ? parsed.creatorName : null,
+      subject: typeof parsed.subject === "string" ? parsed.subject : null,
+      anonymous: parsed.anonymous === true,
     };
   } catch {
     return {};
@@ -34,13 +40,20 @@ export function embedWordbookMeta(
   meta: EmbeddedWordbookMeta
 ) {
   const cleanDescription = stripEmbeddedWordbookMeta(description).trim();
-  const payload: Record<string, string> = {};
+  const payload: Record<string, string | boolean> = {};
   if (typeof meta.coverImage === "string" && meta.coverImage.trim()) {
     payload.coverImage = meta.coverImage.trim();
   }
   if (typeof meta.visibility === "string" && meta.visibility.trim()) {
     payload.visibility = meta.visibility.trim();
   }
+  if (typeof meta.creatorName === "string" && meta.creatorName.trim()) {
+    payload.creatorName = meta.creatorName.trim();
+  }
+  if (typeof meta.subject === "string" && meta.subject.trim()) {
+    payload.subject = meta.subject.trim();
+  }
+  if (meta.anonymous === true) payload.anonymous = true;
   if (Object.keys(payload).length === 0) return cleanDescription;
   return `${cleanDescription}${WORDBOOK_META_PREFIX}${JSON.stringify(payload)}`;
 }
