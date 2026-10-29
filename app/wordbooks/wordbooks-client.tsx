@@ -160,6 +160,7 @@ export default function WordbooksClient({
 
     const response = await fetch("/api/me/wordbooks", {
       headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
     });
     const result = await response.json().catch(() => ({}));
 

@@ -61,6 +61,13 @@ export default function MyWordbooksHub() {
       setAuthReady(true);
       if (!data.session) setLoading(false);
     });
+    // ログイン・ログアウト・トークン更新に追従する（ログイン直後でも一覧が出るように）。
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setToken(session?.access_token ?? null);
+      setUserId(session?.user.id ?? null);
+      if (!session) setLoading(false);
+    });
+    return () => listener.subscription.unsubscribe();
   }, [supabase]);
 
   const loadBooks = useCallback(async () => {
@@ -68,14 +75,17 @@ export default function MyWordbooksHub() {
     setLoading(true);
     try {
       const [booksRes, profileRes] = await Promise.all([
-        fetch("/api/me/wordbooks", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/me/wordbooks", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
+        fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
       ]);
       const booksJson = await booksRes.json().catch(() => ({}));
       const profileJson = await profileRes.json().catch(() => ({}));
-      const list: MyBook[] = Array.isArray(booksJson.wordbooks)
-        ? booksJson.wordbooks.map((book: MyBook) => ({ ...book, coverImage: book.coverImage ?? null, words: book.words ?? [] }))
-        : [];
+      if (!booksRes.ok || !Array.isArray(booksJson.wordbooks)) {
+        // 読み込みに失敗したときは、空に見せず今の表示を保ってエラーを知らせる。
+        setNotice(booksJson.error ?? "マイ単語帳を読み込めませんでした。少し待ってから開き直してください。");
+        return;
+      }
+      const list: MyBook[] = booksJson.wordbooks.map((book: MyBook) => ({ ...book, coverImage: book.coverImage ?? null, words: book.words ?? [] }));
       setBooks(list);
       setSelectedId((current) => (list.some((book) => book.id === current) ? current : list[0]?.id ?? ""));
       const plan = profileJson?.profile?.plan;
@@ -191,6 +201,8 @@ export default function MyWordbooksHub() {
           <Link href="/wordbooks?tab=my" className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">編集・公開</Link>
         </div>
       </div>
+
+      {notice && !book ? <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">{notice}</p> : null}
 
       {/* 本棚 */}
       <section className="mt-4" aria-label="自分の単語帳">

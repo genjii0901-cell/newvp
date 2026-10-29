@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
+export const dynamic = "force-dynamic";
+
 type IncomingWord = {
   no?: number | string;
   number?: number | string;
@@ -99,7 +101,7 @@ export async function GET(request: Request) {
     if (auth.response) return auth.response;
 
     const wordbooks = await loadWordbooksForUser(auth.user.id);
-    return NextResponse.json({ ok: true, wordbooks });
+    return NextResponse.json({ ok: true, wordbooks }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: readableError(error) }, { status: 500 });
   }

@@ -1024,7 +1024,9 @@ export default function WordbookDetailPage({
         window.alert(result.error ?? "マイ単語帳への追加に失敗しました。");
         return;
       }
-      window.alert("マイ単語帳に追加しました。");
+      if (window.confirm("マイ単語帳に追加しました。マイ単語帳を開きますか？")) {
+        window.location.href = "/my-wordbooks";
+      }
     } finally {
       setSavingToMyBook(false);
     }
