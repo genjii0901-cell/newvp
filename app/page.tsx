@@ -818,7 +818,7 @@ export default function Home() {
                   : "Official",
             premium: book.requiredPlan === "personal" || book.requiredPlan === "teacher",
             requiredPlan: normalizePlan(book.requiredPlan),
-            creator: "Vocab Print Pro",
+            creator: "非公開",
             wordCount: typeof book.wordCount === "number" ? book.wordCount : book.words?.length ?? 0,
             words: (book.words ?? [])
               .filter((word) => word.english && word.japanese)
@@ -2677,7 +2677,7 @@ export default function Home() {
                     <span className="text-[11px] font-bold text-slate-400 sm:hidden">{getBookWordCount(book)}語</span>
                   </div>
                   <p className="mt-1 truncate text-xs font-bold text-slate-400">
-                    作成者: {book.creator ?? "Vocab Print Pro"}
+                    作成者: {book.creator ?? "非公開"}
                   </p>
                   <div className="mt-1 hidden sm:mt-2 sm:block sm:min-h-12">
                     <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedBookDescriptionId === book.id ? "" : "line-clamp-2"}`}>
@@ -2925,7 +2925,7 @@ export default function Home() {
                           <span className="block truncate text-sm font-black text-slate-800">
                             {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
                           </span>
-                          <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "Vocab Print Pro"}</span>
+                          <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "非公開"}</span>
                         </span>
                       </button>
                     ))}
