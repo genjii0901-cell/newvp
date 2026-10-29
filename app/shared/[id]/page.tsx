@@ -6,7 +6,7 @@ import WordbookDetailClient from "@/app/wordbooks/[id]/wordbook-detail-client";
 type Props = { params: Promise<{ id: string }> };
 
 async function getBook(id: string) {
-  if (!/^\d+$/.test(id) && !/^[0-9a-f-]{36}$/i.test(id) && !/^sample-(english|japanese|spanish)$/.test(id)) return null;
+  if (!/^\d+$/.test(id) && !/^[0-9a-f-]{36}$/i.test(id) && !/^sample-[a-z-]+$/.test(id)) return null;
   try {
     return (await loadCommunityWordbooks({ id }))[0] ?? null;
   } catch {

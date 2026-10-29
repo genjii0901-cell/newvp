@@ -77,7 +77,7 @@ export default function WordbooksClient({
   const [editorDescription, setEditorDescription] = useState("");
   const [editorSubject, setEditorSubject] = useState<CommunitySubject>("英語");
   const [editorCreatorName, setEditorCreatorName] = useState("");
-  const [editorAnonymous, setEditorAnonymous] = useState(false);
+  const [editorAnonymous, setEditorAnonymous] = useState(true);
   const [editorCoverImage, setEditorCoverImage] = useState("");
   const [editorPublished, setEditorPublished] = useState(false);
   const [rightsConfirmed, setRightsConfirmed] = useState(false);
@@ -179,7 +179,7 @@ export default function WordbooksClient({
       setEditorRows(emptyRows());
       setEditorSubject("英語");
       setEditorCreatorName("");
-      setEditorAnonymous(false);
+      setEditorAnonymous(true);
       setEditorCoverImage("");
       setEditorPublished(false);
       setRightsConfirmed(false);
@@ -190,7 +190,7 @@ export default function WordbooksClient({
     setEditorDescription(selected.description ?? "");
     setEditorSubject(selected.subject ?? "英語");
     setEditorCreatorName(selected.creatorName ?? "");
-    setEditorAnonymous(selected.anonymous === true);
+    setEditorAnonymous(selected.anonymous === true || selected.creatorName?.trim() === "Vocab Print Pro");
     setEditorCoverImage(selected.coverImage ?? "");
     setEditorPublished(selected.published === true);
     setRightsConfirmed(false);
@@ -241,7 +241,7 @@ export default function WordbooksClient({
     setEditorRows(emptyRows());
     setEditorSubject("英語");
     setEditorCreatorName("");
-    setEditorAnonymous(false);
+    setEditorAnonymous(true);
     setEditorCoverImage("");
     setEditorPublished(false);
     setRightsConfirmed(false);

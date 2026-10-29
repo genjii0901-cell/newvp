@@ -4,14 +4,16 @@ import { communitySamples } from "../data/community-samples.ts";
 import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "../lib/wordbook-meta.ts";
 
 test("community samples cover English, Japanese and another language", () => {
-  assert.deepEqual(communitySamples.map((book) => book.subject), ["英語", "国語", "多言語"]);
-  assert.equal(communitySamples.reduce((sum, book) => sum + book.wordCount, 0), 300);
+  assert.deepEqual(new Set(communitySamples.map((book) => book.subject)), new Set(["英語", "国語", "多言語"]));
+  assert.equal(communitySamples.length, 6);
+  assert.equal(communitySamples.reduce((sum, book) => sum + book.wordCount, 0), 420);
+  assert.ok(communitySamples.every((book) => !book.title.includes("見本") && book.creator !== "Vocab Print Pro"));
 });
 
 test("sample word counts, numbering and meanings stay consistent", () => {
   for (const book of communitySamples) {
     assert.equal(book.wordCount, book.words.length);
-    assert.equal(book.words.length, 100);
+    assert.equal(book.words.length, book.wordCount);
     assert.equal(new Set(book.words.map((word) => word.english.toLocaleLowerCase())).size, book.words.length);
     for (const [index, word] of book.words.entries()) {
       assert.equal(word.no, index + 1);

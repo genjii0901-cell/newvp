@@ -317,14 +317,152 @@ no entiendo|分かりません
 mucho gusto|はじめまして`],
 ]);
 
+const french = wordsFromGroups([
+  ["あいさつ", `bonjour|こんにちは
+bonsoir|こんばんは
+salut|やあ
+merci|ありがとう
+au revoir|さようなら
+s'il vous plaît|お願いします
+pardon|すみません
+oui|はい
+non|いいえ
+bienvenue|ようこそ`],
+  ["旅先", `la gare|駅
+l'aéroport|空港
+le billet|切符
+le train|電車
+le bus|バス
+la rue|通り
+la ville|町
+la carte|地図
+la chambre|部屋
+l'hôtel|ホテル`],
+  ["食事", `l'eau|水
+le café|コーヒー
+le thé|お茶
+le pain|パン
+le fromage|チーズ
+le menu|メニュー
+le déjeuner|昼食
+le dîner|夕食
+la table|テーブル
+l'addition|会計`],
+  ["基本表現", `je suis|私は〜です
+j'ai|私は持っています
+je voudrais|〜をお願いします
+où|どこ
+quand|いつ
+combien|いくら
+aujourd'hui|今日
+demain|明日
+gauche|左
+droite|右`],
+]);
+
+const chinese = wordsFromGroups([
+  ["あいさつ", `你好|こんにちは
+您好|こんにちは（丁寧）
+早上好|おはようございます
+晚上好|こんばんは
+再见|さようなら
+谢谢|ありがとう
+不客气|どういたしまして
+对不起|ごめんなさい
+没关系|大丈夫です
+请|どうぞ・お願いします`],
+  ["人と場所", `我|私
+你|あなた
+他|彼
+她|彼女
+我们|私たち
+朋友|友達
+老师|先生
+学生|学生
+家|家
+学校|学校`],
+  ["日常", `今天|今日
+明天|明日
+现在|今
+这里|ここ
+那里|そこ・あそこ
+什么|何
+谁|誰
+哪里|どこ
+为什么|なぜ
+怎么样|どうですか`],
+  ["食事と買い物", `水|水
+茶|お茶
+米饭|ご飯
+面条|麺
+水果|果物
+多少钱|いくら
+买|買う
+吃|食べる
+喝|飲む
+喜欢|好き`],
+]);
+
+const phrasalVerbs = wordsFromGroups([
+  ["日常の句動詞", `wake up|目を覚ます
+get up|起きる
+sit down|座る
+stand up|立ち上がる
+come in|入ってくる
+go out|外出する
+come back|戻ってくる
+go away|立ち去る
+put on|身につける
+take off|脱ぐ`],
+  ["学習と仕事", `look up|調べる
+write down|書き留める
+hand in|提出する
+find out|見つけ出す
+carry out|実行する
+work on|取り組む
+go over|復習する
+point out|指摘する
+set up|設置する
+fill in|記入する`],
+  ["移動と変化", `get on|乗る
+get off|降りる
+pick up|拾う・迎えに行く
+drop off|送り届ける
+turn on|つける
+turn off|消す
+slow down|速度を落とす
+grow up|成長する
+move on|次に進む
+run away|逃げる`],
+  ["会話と関係", `call back|折り返し電話する
+hang up|電話を切る
+talk over|話し合う
+ask for|求める
+get along|仲良くやっていく
+break up|別れる
+look after|世話をする
+cheer up|元気づける
+join in|参加する
+leave out|省く`],
+]);
+
 export const communitySamples = [
   {
-    id: "sample-english", title: "毎日の英語100語（見本）", description: "日常・学校・社会でよく使う英語を、独自に選んだ学習用サンプルです。", coverImage: "/community-english.png", creator: "Vocab Print Pro", subject: "英語", requiredPlan: "free" as const, community: true as const, wordCount: english.length, words: english,
+    id: "sample-english", title: "毎日の英語 基本語", description: "日常・学校・社会でよく使う英語を、学習用にまとめました。", coverImage: "/community-english.png", creator: "ことば好き", subject: "英語", requiredPlan: "free" as const, community: true as const, wordCount: english.length, words: english,
   },
   {
-    id: "sample-japanese", title: "国語の語彙100語（見本）", description: "読解や作文に役立つ国語の語彙を、短い説明とともにまとめた学習用サンプルです。", coverImage: "/community-japanese.png", creator: "Vocab Print Pro", subject: "国語", requiredPlan: "free" as const, community: true as const, wordCount: japanese.length, words: japanese,
+    id: "sample-japanese", title: "読解に役立つ国語語彙", description: "読解や作文で使える語彙を、短い意味とともにまとめました。", coverImage: "/community-japanese.png", creator: "語彙を学ぶ人", subject: "国語", requiredPlan: "free" as const, community: true as const, wordCount: japanese.length, words: japanese,
   },
   {
-    id: "sample-spanish", title: "はじめてのスペイン語100語（見本）", description: "あいさつから日常表現までのスペイン語を、日本語の意味と一緒に確認できるサンプルです。", coverImage: "/community-languages.png", creator: "Vocab Print Pro", subject: "多言語", languageCode: "es-ES", requiredPlan: "free" as const, community: true as const, wordCount: spanish.length, words: spanish,
+    id: "sample-spanish", title: "はじめてのスペイン語", description: "あいさつから日常表現までを、日本語の意味と一緒に確認できます。", coverImage: "/community-languages.png", creator: "語学を楽しむ人", subject: "多言語", languageCode: "es-ES", requiredPlan: "free" as const, community: true as const, wordCount: spanish.length, words: spanish,
+  },
+  {
+    id: "sample-french", title: "旅で使うフランス語", description: "あいさつ、移動、食事で役立つフランス語をまとめました。", coverImage: "/community-languages.png", creator: "旅する学習者", subject: "多言語", languageCode: "fr-FR", requiredPlan: "free" as const, community: true as const, wordCount: french.length, words: french,
+  },
+  {
+    id: "sample-chinese", title: "中国語の日常フレーズ", description: "あいさつや買い物など、毎日の会話で使う中国語です。", coverImage: "/community-languages.png", creator: "ことばを集める人", subject: "多言語", languageCode: "zh-CN", requiredPlan: "free" as const, community: true as const, wordCount: chinese.length, words: chinese,
+  },
+  {
+    id: "sample-phrasal-verbs", title: "日常で使う英語の句動詞", description: "生活、学習、会話でよく使う句動詞を場面別にまとめました。", coverImage: "/community-english.png", creator: "英語を学ぶ人", subject: "英語", languageCode: "en-US", requiredPlan: "free" as const, community: true as const, wordCount: phrasalVerbs.length, words: phrasalVerbs,
   },
 ];

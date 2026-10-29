@@ -1032,7 +1032,7 @@ export default function WordbookDetailPage({
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
     setShowMeaning(listeningMode === "en-ja" || listeningMode === "ja-en");
-    const japanesePair = isJapaneseOnlyText(word.english);
+    const japanesePair = !book?.languageCode && isJapaneseOnlyText(word.english);
     const speakEnglish = () => speakText(word.english, {
       preferred: japanesePair ? "japanese" : "english",
       lang: source === "community" ? book?.languageCode : undefined,
