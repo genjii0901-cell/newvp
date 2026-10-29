@@ -54,6 +54,9 @@ async function hmacSha256Hex(secret: string, value: string) {
 async function verifyStripeWebhook(body: string, signatureHeader: string, secret: string) {
   const parsed = parseStripeSignature(signatureHeader);
   if (!parsed.timestamp || !parsed.signature) return false;
+  // 古い通知の使い回し（リプレイ）を防ぐ。Stripe推奨の許容時間は5分。
+  const sentAt = Number(parsed.timestamp);
+  if (!Number.isFinite(sentAt) || Math.abs(Date.now() / 1000 - sentAt) > 300) return false;
 
   const expected = await hmacSha256Hex(secret, `${parsed.timestamp}.${body}`);
   return timingSafeEqual(expected, parsed.signature);
@@ -96,6 +99,8 @@ function planFromSubscriptionObject(object: Record<string, unknown>) {
     if (!price || typeof price !== "object") continue;
     const plan = planFromPriceId(getString((price as { id?: unknown }).id));
     if (plan) return plan;
+    // 自動作成したPersonalの料金は lookup_key（vpp_personal_...）で見分ける。
+    if (getString((price as { lookup_key?: unknown }).lookup_key)?.startsWith("vpp_personal_")) return "personal";
   }
 
   return null;
