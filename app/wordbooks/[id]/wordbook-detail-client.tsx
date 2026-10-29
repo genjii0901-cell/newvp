@@ -1190,7 +1190,7 @@ export default function WordbookDetailPage({
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "Vocab Print Pro"}</span>
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap">
               <button
