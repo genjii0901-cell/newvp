@@ -52,15 +52,27 @@ export async function loadCommunityWordbooks(options: { id?: string; includeWord
   if (options.id?.startsWith("sample-")) return [];
   const supabase = getSupabaseAdmin();
   const page = Math.max(0, Math.min(100, options.page ?? 0));
-  let query = supabase.from("wordbooks")
-    .select("id,title,description,cover_image,words(count)")
-    .eq("is_official", false).eq("visibility", "public")
-    .order("id", { ascending: false });
-  if (options.id) query = query.eq("id", options.id).limit(1);
-  else query = query.range(page * 60, page * 60 + 59);
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = (data ?? []) as unknown as CommunityRow[];
+  const selects = [
+    "id,title,description,cover_image,words(count)",
+    "id,title,description,words(count)",
+  ];
+  let rows: CommunityRow[] | null = null;
+  let lastError: unknown;
+  for (const select of selects) {
+    let query = supabase.from("wordbooks")
+      .select(select)
+      .eq("is_official", false).eq("visibility", "public")
+      .order("id", { ascending: false });
+    if (options.id) query = query.eq("id", options.id).limit(1);
+    else query = query.range(page * 60, page * 60 + 59);
+    const result = await query;
+    if (!result.error) {
+      rows = (result.data ?? []) as unknown as CommunityRow[];
+      break;
+    }
+    lastError = result.error;
+  }
+  if (!rows) throw lastError;
   if (!options.id || !options.includeWords || rows.length === 0) {
     const books = rows.map((row) => toPublicBook(row));
     return !options.id && page === 0 ? [...communitySamples.map((item) => ({ ...item, words: [] })), ...books] : books;
