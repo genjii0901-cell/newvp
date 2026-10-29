@@ -6,8 +6,7 @@ import {
   tryEnsureProfile,
 } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
-import { appendPersonalCheckoutPrices, PERSONAL_MONTHLY_PRICE, PERSONAL_INTRO_PRICE } from "@/lib/personal-pricing";
-import { ensureStripeCatalogPrice } from "@/lib/stripe-price-catalog";
+import { appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
 
 type CheckoutPlan = "personal" | "teacher";
 // 新規はPersonalと都度購入のみ。Teacherの新規申込は停止（既存契約は継続）。
@@ -192,17 +191,8 @@ export async function POST(request: Request) {
 
     body.append("payment_method_types[]", "card");
     if (plan === "personal") {
-      // 料金の自動作成に失敗しても申込を止めない（決済ページ側で金額を直接指定して続行する）。
-      const tryCatalogPrice = (spec: typeof PERSONAL_MONTHLY_PRICE | typeof PERSONAL_INTRO_PRICE) =>
-        ensureStripeCatalogPrice(stripeSecretKey, spec).catch((error) => {
-          console.error("Stripe catalog price unavailable; using inline price", spec.lookupKey, error instanceof Error ? error.message : error);
-          return null;
-        });
-      const [monthly, intro] = await Promise.all([
-        tryCatalogPrice(PERSONAL_MONTHLY_PRICE),
-        introductoryWeek ? tryCatalogPrice(PERSONAL_INTRO_PRICE) : Promise.resolve(undefined),
-      ]);
-      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly, intro: introductoryWeek ? intro ?? null : undefined });
+      // 料金は固定なので、Stripe側に料金を作らず、決済ページへ金額を直接渡す（IDの設定は不要）。
+      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly: null, intro: introductoryWeek ? null : undefined });
     } else if (priceId) {
       body.append("line_items[0][price]", priceId);
       body.append("line_items[0][quantity]", "1");
