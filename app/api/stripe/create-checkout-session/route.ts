@@ -192,11 +192,17 @@ export async function POST(request: Request) {
 
     body.append("payment_method_types[]", "card");
     if (plan === "personal") {
+      // 料金の自動作成に失敗しても申込を止めない（決済ページ側で金額を直接指定して続行する）。
+      const tryCatalogPrice = (spec: typeof PERSONAL_MONTHLY_PRICE | typeof PERSONAL_INTRO_PRICE) =>
+        ensureStripeCatalogPrice(stripeSecretKey, spec).catch((error) => {
+          console.error("Stripe catalog price unavailable; using inline price", spec.lookupKey, error instanceof Error ? error.message : error);
+          return null;
+        });
       const [monthly, intro] = await Promise.all([
-        ensureStripeCatalogPrice(stripeSecretKey, PERSONAL_MONTHLY_PRICE),
-        introductoryWeek ? ensureStripeCatalogPrice(stripeSecretKey, PERSONAL_INTRO_PRICE) : undefined,
+        tryCatalogPrice(PERSONAL_MONTHLY_PRICE),
+        introductoryWeek ? tryCatalogPrice(PERSONAL_INTRO_PRICE) : Promise.resolve(undefined),
       ]);
-      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly, intro });
+      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly, intro: introductoryWeek ? intro ?? null : undefined });
     } else if (priceId) {
       body.append("line_items[0][price]", priceId);
       body.append("line_items[0][quantity]", "1");

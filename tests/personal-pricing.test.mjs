@@ -38,3 +38,19 @@ test("unresolved price IDs are never sent to Checkout", () => {
   assert.equal(PERSONAL_INTRO_JPY, 380);
   assert.equal(PERSONAL_MONTHLY_JPY, 1580);
 });
+
+test("Personal checkout falls back to inline prices when catalog prices are unavailable", () => {
+  const first = new URLSearchParams();
+  appendPersonalCheckoutPrices(first, true, { monthly: null, intro: null });
+  assert.equal(first.get("line_items[0][price]"), null);
+  assert.equal(first.get("line_items[0][price_data][unit_amount]"), "1580");
+  assert.equal(first.get("line_items[0][price_data][recurring][interval]"), "month");
+  assert.equal(first.get("line_items[1][price_data][unit_amount]"), "380");
+  assert.equal(first.get("line_items[1][price_data][recurring][interval]"), null);
+  assert.equal(first.get("subscription_data[trial_period_days]"), "7");
+
+  const returning = new URLSearchParams();
+  appendPersonalCheckoutPrices(returning, false, { monthly: null });
+  assert.equal(returning.get("line_items[0][price_data][unit_amount]"), "1580");
+  assert.equal(returning.get("line_items[1][price_data][unit_amount]"), null);
+});

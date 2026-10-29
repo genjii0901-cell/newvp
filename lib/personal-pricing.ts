@@ -29,15 +29,26 @@ export function personalOfferLabel(eligibleForIntro: boolean) {
     : `月${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円`;
 }
 
+// prices.monthly / prices.intro が null のときは、Stripeの料金オブジェクトを使わず、
+// 決済ページ側で金額を直接指定する（料金の作成権限がなくても決済ページを作れる）。
 export function appendPersonalCheckoutPrices(
   body: URLSearchParams,
   introductoryWeek: boolean,
-  prices: { monthly: string; intro?: string },
+  prices: { monthly: string | null; intro?: string | null },
 ) {
-  if (!prices.monthly.startsWith("price_") || (introductoryWeek && !prices.intro?.startsWith("price_"))) {
+  const invalid = (id: string | null | undefined) => typeof id === "string" && !id.startsWith("price_");
+  if (invalid(prices.monthly) || invalid(prices.intro) ||
+      (introductoryWeek && prices.intro === undefined) || prices.monthly === undefined) {
     throw new Error("Personalの料金設定を確認できませんでした。");
   }
-  body.set("line_items[0][price]", prices.monthly);
+  if (prices.monthly) {
+    body.set("line_items[0][price]", prices.monthly);
+  } else {
+    body.set("line_items[0][price_data][currency]", "jpy");
+    body.set("line_items[0][price_data][unit_amount]", String(PERSONAL_MONTHLY_PRICE.amount));
+    body.set("line_items[0][price_data][recurring][interval]", "month");
+    body.set("line_items[0][price_data][product_data][name]", PERSONAL_MONTHLY_PRICE.name);
+  }
   body.set("line_items[0][quantity]", "1");
   body.set("payment_method_collection", "always");
   body.set("locale", "ja");
@@ -45,7 +56,13 @@ export function appendPersonalCheckoutPrices(
   body.set("subscription_data[metadata][billing_version]", "personal-380-1580-v1");
 
   if (introductoryWeek) {
-    body.set("line_items[1][price]", prices.intro!);
+    if (prices.intro) {
+      body.set("line_items[1][price]", prices.intro);
+    } else {
+      body.set("line_items[1][price_data][currency]", "jpy");
+      body.set("line_items[1][price_data][unit_amount]", String(PERSONAL_INTRO_PRICE.amount));
+      body.set("line_items[1][price_data][product_data][name]", PERSONAL_INTRO_PRICE.name);
+    }
     body.set("line_items[1][quantity]", "1");
     body.set("subscription_data[trial_period_days]", String(PERSONAL_INTRO_DAYS));
     body.set("metadata[intro_paid_week]", "1");
