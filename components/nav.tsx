@@ -47,8 +47,8 @@ export default function Nav() {
     { href: "/pricing", label: "料金", always: true },
     { href: "/account", label: "アカウント", always: false },
   ].filter((link) => link.always || !!user);
-  // パソコンの上部は主要4つだけ。残りは「その他」にまとめる（スマホは下タブとメニューで全て辿れる）。
-  const mainHrefs = ["/", "/wordbooks", "/my-wordbooks", "/pricing"];
+  // パソコンの上部は主要5つだけ。残りは「その他」にまとめる（スマホは下タブとメニューで全て辿れる）。
+  const mainHrefs = ["/", "/wordbooks", "/my-wordbooks", "/materials", "/pricing"];
   const mainLinks = links.filter((link) => mainHrefs.includes(link.href));
   const moreLinks = links.filter((link) => !mainHrefs.includes(link.href) && link.href !== "/account");
   const [moreOpen, setMoreOpen] = useState(false);
