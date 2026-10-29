@@ -6,6 +6,8 @@ import { loadCachedPublicWordbookSummary } from "@/lib/cached-wordbooks";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import WordbookDetailClient from "./wordbook-detail-client";
 
+export const revalidate = 300;
+
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 
 const label = {

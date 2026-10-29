@@ -19,7 +19,7 @@ export const loadCachedPublicCatalog = unstable_cache(
       })
     ),
   ["official-wordbooks-catalog-v1"],
-  { revalidate: 86_400, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export const loadCachedPublicWordbookSummary = unstable_cache(
@@ -32,7 +32,7 @@ export const loadCachedPublicWordbookSummary = unstable_cache(
       })
     ),
   ["official-wordbook-summary-v1"],
-  { revalidate: 86_400, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export const loadCachedPublicWordbookWords = unstable_cache(
@@ -44,7 +44,7 @@ export const loadCachedPublicWordbookWords = unstable_cache(
       })
     ),
   ["official-wordbook-words-v1"],
-  { revalidate: 86_400, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export function revalidateOfficialWordbookCaches() {

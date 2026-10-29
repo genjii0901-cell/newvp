@@ -27,7 +27,7 @@ function fallbackResponse(message?: string, filterIds?: string[], includeWords =
     ok: true,
     wordbooks: filteredWordbooks,
     ...(message ? { message } : {}),
-  }, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400" } });
+  }, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
 }
 
 export async function GET(request: Request) {
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       wordbooks: result.wordbooks,
-    }, { headers: { "Cache-Control": includeWords ? "public, s-maxage=120, stale-while-revalidate=3600" : "public, s-maxage=300, stale-while-revalidate=86400" } });
+    }, { headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" } });
   } catch (error) {
     return fallbackResponse(error instanceof Error ? error.message : "Unknown error", filterIds, includeWords, deferDataCoverImages);
   }

@@ -3,6 +3,9 @@ import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
 import { loadCachedPublicCatalog } from "@/lib/cached-wordbooks";
 import WordbooksClient, { type OfficialWordbook } from "./wordbooks-client";
 
+// 管理画面を通さずDBを直接変えた場合でも、5分以内に一覧へ反映する。
+export const revalidate = 300;
+
 export const metadata: Metadata = {
   title: "みんなの単語帳・単語テスト印刷",
   description:
