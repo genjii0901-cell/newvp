@@ -3513,26 +3513,17 @@ export default function Home() {
         </section>
         )}
 
-        <div className={`mt-6 grid gap-4 ${pricingVariant === "choice" ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
-          {pricingVariant === "choice" && <PlanCard title="都度購入" price="¥50/ページ" text="アカウント作成は無料。印刷の無料枠はなく、印刷する分だけ都度決済。月額料金なし。" />}
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {<PlanCard title="都度購入" price="¥50/ページ" text="アカウント作成は無料。印刷の無料枠はなく、印刷する分だけ都度決済。月額料金なし。" />}
           <PlanCard
             title="Personal"
             price={trialOffer === "first" ? "最初の7日間 ¥380" : "¥1,580/月"}
             text={trialOffer === "first"
-              ? "初回7日間380円、8日目から月1,580円で自動更新。印刷回数無制限、透かしなし・1回20ページまで。"
-              : "月1,580円で自動更新。印刷回数無制限、透かしなし・1回20ページまで。初回割引は利用済みです。"}
+              ? "初回7日間380円、8日目から月1,580円で自動更新。印刷回数無制限・透かしなし（1回20ページまで）。聞き流し・単語チェックの全設定、忘却曲線の復習も使えます。"
+              : "月1,580円で自動更新。印刷回数無制限・透かしなし（1回20ページまで）。聞き流し・単語チェックの全設定、忘却曲線の復習も使えます。初回割引は利用済みです。"}
             onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
             disabled={plan !== "personal" && !configuredPlans.personal}
             current={plan === "personal"}
-          />
-          <PlanCard
-            title="Teacher"
-            price="¥2,980/月"
-            text="先生・塾向け。印刷回数無制限。タイトル変更、クラス別教材管理に対応。"
-            onClick={plan === "teacher" ? undefined : () => startCheckout("teacher")}
-            disabled={plan !== "teacher" && !configuredPlans.teacher}
-            disabledLabel="Stripe設定を確認中"
-            current={plan === "teacher"}
           />
         </div>
       </section>

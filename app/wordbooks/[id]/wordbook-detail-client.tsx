@@ -9,6 +9,7 @@ import { buildPrintHtml as buildSharedPrintHtml, makeQuestion as makeSharedQuest
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
+import { popularizeText } from "@/lib/display-text";
 import QuizPanel from "./quiz-panel";
 import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
@@ -1127,7 +1128,7 @@ export default function WordbookDetailPage({
             <p className="text-xs font-black text-blue-700">{planCopy(book.requiredPlan)}</p>
             <h1 className="mt-1.5 line-clamp-3 text-xl font-black leading-tight text-slate-950 sm:mt-2 sm:text-4xl">{book.title}</h1>
             <p className={`mt-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
-              {book.description || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
+              {popularizeText(book.description) || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>
             {(book.description?.length ?? 0) > 90 ? (
               <button type="button" onClick={() => setShowFullDescription((value) => !value)} className="mt-1 text-xs font-black text-blue-700 hover:underline">

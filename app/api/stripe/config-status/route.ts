@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findStripeCatalogPrice } from "@/lib/stripe-price-catalog";
 import { PERSONAL_MONTHLY_PRICE, PERSONAL_INTRO_PRICE, PERSONAL_INTRO_DAYS } from "@/lib/personal-pricing";
 
-const TEACHER_PUBLIC_ENABLED = true;
+const TEACHER_PUBLIC_ENABLED = false;
 let catalogCache: { key: string; expires: number; ready: boolean; verified: boolean } | undefined;
 
 async function checkPersonalCatalog(key: string) {

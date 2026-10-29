@@ -11,7 +11,7 @@ type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
 type TrialOffer = "first" | "winback" | null;
 
-const TEACHER_PUBLIC_ENABLED = true;
+const TEACHER_PUBLIC_ENABLED = false;
 
 const plans = [
   {

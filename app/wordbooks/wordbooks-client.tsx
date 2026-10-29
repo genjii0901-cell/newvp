@@ -1,5 +1,7 @@
 "use client";
 
+import { popularizeText } from "@/lib/display-text";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -588,7 +590,7 @@ export default function WordbooksClient({
                         作成者: {displayCreatorName(book.creator)}
                       </p>
                       <div className="mt-1 hidden sm:mt-2 sm:block">
-                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{book.description || (book.community ? "みんなが作成した単語帳です。" : "人気の単語帳です。")}</p>
+                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{popularizeText(book.description) || (book.community ? "みんなが作成した単語帳です。" : "人気の単語帳です。")}</p>
                         {(book.description?.length ?? 0) > 90 ? <button type="button" onClick={(event) => { event.stopPropagation(); setExpandedDescriptionId((value) => value === book.id ? "" : book.id); }} className="mt-1 text-xs font-black text-blue-700 hover:underline">{expandedDescriptionId === book.id ? "閉じる" : "続きを読む"}</button> : null}
                       </div>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">

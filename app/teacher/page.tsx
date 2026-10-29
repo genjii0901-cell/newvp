@@ -24,7 +24,7 @@ export default function TeacherPage() {
           <h1 className="mt-2 text-3xl font-black sm:text-4xl">Teacherプラン</h1>
           <p className="mt-4 max-w-2xl text-sm font-bold leading-7 text-blue-50">単語帳の範囲を選ぶだけで、授業用の問題・解答・一覧プリントを短時間で作成。学校名やテスト名を入れた教材作成にも対応します。</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link href="/pricing" className="rounded-xl bg-white px-5 py-3 text-sm font-black text-blue-700">月額2,980円で始める</Link>
+            <Link href="/pricing" className="rounded-xl bg-white px-5 py-3 text-sm font-black text-blue-700">料金プランを見る（Teacherの新規受付は終了しました）</Link>
             <Link href="/wordbooks" className="rounded-xl border border-blue-300 px-5 py-3 text-sm font-black text-white">対応単語帳を見る</Link>
           </div>
         </section>

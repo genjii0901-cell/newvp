@@ -22,21 +22,21 @@ const cancellationReasons: Array<{ value: CancellationReason; label: string }> =
 
 const planInfo: Record<Plan, { label: string; color: string; limit: string; price: string }> = {
   free: {
-    label: "都度購入",
+    label: "無料会員（都度購入）",
     color: "bg-slate-100 text-slate-700",
-    limit: "印刷の無料枠はありません。印刷時に1ページ50円で購入できます。",
+    limit: "聞き流し・単語チェックは基本機能が無料。印刷は1ページ50円の都度購入です。全設定はPersonalで解放されます。",
     price: "アカウント作成は無料",
   },
   personal: {
     label: "Personal",
     color: "bg-blue-100 text-blue-700",
-    limit: "語数制限なし。履歴保存、自作単語帳、透かしなし印刷に対応します。",
+    limit: "印刷回数無制限（1回20ページまで）。聞き流し・単語チェックの全設定、忘却曲線の復習、履歴保存、マイ単語帳、透かしなし印刷に対応します。",
     price: "契約料金は請求情報で確認できます",
   },
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "教材管理、公式単語帳管理などを拡張予定です。",
+    limit: "既存のご契約を継続中です（新規のお申し込みは終了しました）。タイトル変更などの機能が使えます。",
     price: "¥2,980 / 月",
   },
 };
