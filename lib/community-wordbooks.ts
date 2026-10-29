@@ -27,7 +27,7 @@ function toPublicBook(row: CommunityRow, words: WordRow[] = []) {
     title: row.title || "共有単語帳",
     description: stripEmbeddedWordbookMeta(row.description),
     coverImage: row.cover_image || meta.coverImage || defaultCommunityCover(subject),
-    creator: meta.anonymous || meta.creatorName?.trim() === "Vocab Print Pro" ? "匿名" : meta.creatorName || "学習者",
+    creator: meta.anonymous || meta.creatorName?.trim().toLowerCase() === "vocab print pro" ? "非公開" : meta.creatorName || "非公開",
     subject,
     requiredPlan: "free" as const,
     wordCount: Number.isSafeInteger(embeddedCount) ? embeddedCount : words.length,

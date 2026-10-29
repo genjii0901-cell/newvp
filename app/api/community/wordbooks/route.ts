@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 
     const subject = normalizeCommunitySubject(body.subject);
     const anonymous = body.anonymous === true;
-    const creatorName = anonymous ? "匿名" : typeof body.creatorName === "string" && body.creatorName.trim()
+    const creatorName = anonymous ? "非公開" : typeof body.creatorName === "string" && body.creatorName.trim()
       ? body.creatorName.trim().slice(0, 30) : defaultCreatorName(auth.user.id);
     const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "") || "";
     const allowedCoverPrefix = `${baseUrl}/storage/v1/object/public/wordbook-images/community/${auth.user.id}/`;

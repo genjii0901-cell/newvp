@@ -43,6 +43,11 @@ function planLabel(plan: Plan) {
   return "Free";
 }
 
+function displayCreatorName(creator?: string | null) {
+  const value = creator?.trim();
+  return !value || value.toLowerCase() === "vocab print pro" ? "非公開" : value;
+}
+
 function emptyRows() {
   return Array.from({ length: 8 }, (_, index) => ({
     no: index + 1,
@@ -59,7 +64,7 @@ export default function WordbooksClient({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>("official");
-  const [officialBooks, setOfficialBooks] = useState<OfficialWordbook[]>(initialOfficialBooks);
+  const [officialBooks, setOfficialBooks] = useState<OfficialWordbook[]>(initialOfficialBooks.map((book) => ({ ...book, creator: displayCreatorName(book.creator) })));
   const [communityBooks, setCommunityBooks] = useState<OfficialWordbook[]>([]);
   const [communityPage, setCommunityPage] = useState(0);
   const [hasMoreCommunity, setHasMoreCommunity] = useState(false);
@@ -107,7 +112,7 @@ export default function WordbooksClient({
       }
 
       const books = Array.isArray(result.wordbooks) ? result.wordbooks : [];
-      setOfficialBooks(books.map((book: OfficialWordbook) => ({ ...book, creator: book.creator ?? "Vocab Print Pro" })));
+      setOfficialBooks(books.map((book: OfficialWordbook) => ({ ...book, creator: displayCreatorName(book.creator) })));
       setLoadingOfficial(false);
     }
 
@@ -583,7 +588,7 @@ export default function WordbooksClient({
                       </div>
                       <h2 className="mt-1 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-[3.5rem] sm:text-xl">{book.title}</h2>
                       <p className="mt-1 hidden truncate text-xs font-bold text-slate-400 sm:block">
-                        作成者: {book.creator ?? "Vocab Print Pro"}
+                        作成者: {displayCreatorName(book.creator)}
                       </p>
                       <div className="mt-1 hidden sm:mt-2 sm:block">
                         <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{book.description || (book.community ? "みんなが作成した単語帳です。" : "公式単語帳です。")}</p>
@@ -832,7 +837,7 @@ export default function WordbooksClient({
                   <input value={editorCreatorName} onChange={(event) => setEditorCreatorName(event.target.value)} maxLength={30} disabled={editorAnonymous} placeholder="例: ことば好き" className="mt-1 block w-full rounded-lg border bg-white px-3 py-2 disabled:bg-slate-100" />
                 </label>
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={editorAnonymous} onChange={(event) => setEditorAnonymous(event.target.checked)} />匿名で公開する</label>
+              <label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={editorAnonymous} onChange={(event) => setEditorAnonymous(event.target.checked)} />作成者名を非公開にする</label>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <img src={editorCoverImage || defaultCommunityCover(editorSubject)} alt="公開用の表紙プレビュー" className="h-20 w-28 rounded-lg border object-cover" />
                 <label className={`rounded-lg border bg-white px-3 py-2 text-sm font-bold ${selectedMyBookId ? "cursor-pointer text-blue-700" : "cursor-not-allowed text-slate-400"}`}>{uploadingCover ? "画像を登録中..." : "表紙画像を選ぶ"}
