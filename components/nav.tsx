@@ -99,19 +99,16 @@ export default function Nav() {
                     {link.label}
                   </Link>
                 ))}
+                <button
+                  type="button"
+                  onClick={() => { setMoreOpen(false); void logout(); }}
+                  className="block w-full border-t px-4 py-2.5 text-left text-sm font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  ログアウト
+                </button>
               </div>
             ) : null}
           </div>
-          ) : null}
-          {user ? (
-            <>
-              <button
-                onClick={logout}
-                className="rounded-lg border px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100"
-              >
-                ログアウト
-              </button>
-            </>
           ) : (
             <button
               type="button"
