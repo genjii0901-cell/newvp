@@ -47,10 +47,17 @@ export default function Nav() {
     { href: "/pricing", label: "料金", always: true },
     { href: "/account", label: "アカウント", always: false },
   ].filter((link) => link.always || !!user);
-  // パソコンの上部は主要5つだけ。残りは「その他」にまとめる（スマホは下タブとメニューで全て辿れる）。
-  const mainHrefs = ["/", "/wordbooks", "/my-wordbooks", "/materials", "/pricing"];
+  // パソコンの上部は主要5つ。ログイン中は「料金」「履歴」を「アカウント」メニューにまとめる
+  // （未ログインの間は「料金」を上部に出す。スマホは下タブとメニューで全て辿れる）。
+  const mainHrefs = user
+    ? ["/", "/wordbooks", "/my-wordbooks", "/materials", "/overlap"]
+    : ["/", "/wordbooks", "/my-wordbooks", "/materials", "/overlap", "/pricing"];
   const mainLinks = links.filter((link) => mainHrefs.includes(link.href));
-  const moreLinks = links.filter((link) => !mainHrefs.includes(link.href) && link.href !== "/account");
+  const moreLinks = [
+    { href: "/account", label: "アカウント設定" },
+    { href: "/history", label: "履歴" },
+    { href: "/pricing", label: "料金" },
+  ];
   const [moreOpen, setMoreOpen] = useState(false);
 
   return (
@@ -75,6 +82,7 @@ export default function Nav() {
               {link.label}
             </Link>
           ))}
+          {user ? (
           <div className="relative" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setMoreOpen(false); }}>
             <button
               type="button"
@@ -82,7 +90,7 @@ export default function Nav() {
               onClick={() => setMoreOpen((value) => !value)}
               className={`rounded-lg px-3 py-2 text-sm font-bold transition-colors ${moreOpen || moreLinks.some((link) => link.href === pathname) ? "bg-slate-100 text-slate-900" : "text-slate-600 hover:bg-slate-100"}`}
             >
-              その他 ▾
+              アカウント ▾
             </button>
             {moreOpen ? (
               <div className="absolute right-0 top-full z-50 mt-1 w-44 overflow-hidden rounded-xl border bg-white py-1 shadow-lg">
@@ -94,9 +102,9 @@ export default function Nav() {
               </div>
             ) : null}
           </div>
+          ) : null}
           {user ? (
             <>
-              <Link href="/account" className={`ml-1 rounded-lg px-3 py-2 text-sm font-bold ${pathname === "/account" ? "bg-blue-600 text-white" : "text-slate-600 hover:bg-slate-100"}`}>アカウント</Link>
               <button
                 onClick={logout}
                 className="rounded-lg border px-3 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100"

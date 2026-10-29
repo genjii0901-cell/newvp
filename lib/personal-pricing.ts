@@ -1,17 +1,25 @@
-export const PERSONAL_INTRO_DAYS = 7;
-export const PERSONAL_INTRO_JPY = 380;
-export const PERSONAL_MONTHLY_JPY = 1580;
+// 料金は Vercel の環境変数で変更できる（変更後に再デプロイ）。
+// 画面（ブラウザ）でも使うため NEXT_PUBLIC_ 付き。未設定・不正な値は既定値に戻す。
+function envInt(raw: string | undefined, fallback: number, min: number, max: number) {
+  const value = Number(raw);
+  return Number.isInteger(value) && value >= min && value <= max ? value : fallback;
+}
+
+export const PERSONAL_INTRO_DAYS = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_DAYS, 7, 1, 30);
+export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_JPY, 380, 50, 100_000);
+export const PERSONAL_MONTHLY_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_MONTHLY_JPY, 1580, 50, 100_000);
 export const PRINT_PAGE_JPY = 50;
 
+// Stripeの料金は作成後に金額を変えられないため、金額ごとに別の名前（lookup key）で自動作成する。
 export const PERSONAL_MONTHLY_PRICE = {
-  lookupKey: "vpp_personal_monthly_1580_v1",
+  lookupKey: `vpp_personal_monthly_${PERSONAL_MONTHLY_JPY}_v1`,
   name: "Vocab Print Pro Personal 月額",
   amount: PERSONAL_MONTHLY_JPY,
   interval: "month" as const,
 };
 export const PERSONAL_INTRO_PRICE = {
-  lookupKey: "vpp_personal_intro_7days_380_v1",
-  name: "Vocab Print Pro Personal 初回7日間",
+  lookupKey: `vpp_personal_intro_${PERSONAL_INTRO_DAYS}days_${PERSONAL_INTRO_JPY}_v1`,
+  name: `Vocab Print Pro Personal 初回${PERSONAL_INTRO_DAYS}日間`,
   amount: PERSONAL_INTRO_JPY,
 };
 
