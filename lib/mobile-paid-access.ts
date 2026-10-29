@@ -1,5 +1,5 @@
 import { ensureProfile } from "@/lib/supabase/admin";
-import { hasActiveRevenueCatEntitlement, hasActiveWebSubscription, type WebSubscription } from "@/lib/mobile-entitlement-core";
+import { hasActiveRevenueCatEntitlement, hasActiveWebSubscription, type RevenueCatEntitlement, type WebSubscription } from "@/lib/mobile-entitlement-core";
 import type { User } from "@supabase/supabase-js";
 
 export async function hasMobilePurchase(userId: string) {

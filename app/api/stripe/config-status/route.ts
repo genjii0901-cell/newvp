@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
+import { findStripeCatalogPrice } from "@/lib/stripe-price-catalog";
+import { PERSONAL_MONTHLY_PRICE, PERSONAL_INTRO_PRICE, PERSONAL_INTRO_DAYS } from "@/lib/personal-pricing";
 
 const TEACHER_PUBLIC_ENABLED = true;
+let catalogCache: { key: string; expires: number; ready: boolean; verified: boolean } | undefined;
+
+async function checkPersonalCatalog(key: string) {
+  if (catalogCache?.key === key && catalogCache.expires > Date.now()) return catalogCache;
+  try {
+    const [monthly, intro] = await Promise.all([
+      findStripeCatalogPrice(key, PERSONAL_MONTHLY_PRICE),
+      findStripeCatalogPrice(key, PERSONAL_INTRO_PRICE),
+    ]);
+    catalogCache = { key, expires: Date.now() + 30_000, ready: Boolean(monthly && intro), verified: true };
+  } catch {
+    catalogCache = { key, expires: Date.now() + 5_000, ready: false, verified: false };
+  }
+  return catalogCache;
+}
 
 function isLiveStripeKey(value: string | undefined) {
   return Boolean(value && value.startsWith("sk_live_"));
@@ -22,12 +39,14 @@ export async function GET() {
 
   const missing = [
     ["STRIPE_SECRET_KEY", stripeSecretKey],
+    ["STRIPE_WEBHOOK_SECRET", process.env.STRIPE_WEBHOOK_SECRET],
   ]
     .filter(([, value]) => !value)
     .map(([name]) => name);
 
   const liveMode = isLiveStripeKey(stripeSecretKey);
-  const personalConfigured = liveMode;
+  const catalog = liveMode && stripeSecretKey ? await checkPersonalCatalog(stripeSecretKey) : null;
+  const personalConfigured = Boolean(liveMode && catalog?.verified && process.env.STRIPE_WEBHOOK_SECRET);
   const teacherConfigured = Boolean(
     TEACHER_PUBLIC_ENABLED &&
       liveMode &&
@@ -40,10 +59,17 @@ export async function GET() {
     stripeConfigured: personalConfigured,
     stripeSecretConfigured: Boolean(stripeSecretKey),
     personalConfigured,
+    personalCatalogReady: Boolean(catalog?.ready),
+    personalCatalogAutoProvision: personalConfigured && !catalog?.ready,
+    personalOffer: {
+      introductoryDays: PERSONAL_INTRO_DAYS,
+      introductoryJpy: PERSONAL_INTRO_PRICE.amount,
+      monthlyJpy: PERSONAL_MONTHLY_PRICE.amount,
+    },
     teacherConfigured,
     teacherAutoProvisioned: teacherConfigured && !teacherPrice,
     teacherPublicEnabled: TEACHER_PUBLIC_ENABLED,
     missing,
     invalid,
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

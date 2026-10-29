@@ -14,8 +14,9 @@ export async function GET(request: Request) {
 
   const profile = await ensureProfile(auth.user);
   const adminAccess = hasAdminFeatureAccess(profile?.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
-  if (profile?.plan !== "teacher" && !adminAccess) {
-    return NextResponse.json({ ok: false, message: "CSV出力はTeacherプランの機能です。" }, { status: 403 });
+  // 単語帳データの一括出力は管理者のみ（会員には渡さない）
+  if (!adminAccess) {
+    return NextResponse.json({ ok: false, message: "CSV出力は管理者のみ利用できます。" }, { status: 403 });
   }
 
   const id = new URL(request.url).searchParams.get("id")?.trim();

@@ -137,7 +137,7 @@ export default function PrintScreen() {
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text style={styles.title}>{book?.title || "単語帳"}</Text>
-    <Text style={styles.caption}>印刷・CSV出力</Text>
+    <Text style={styles.caption}>印刷</Text>
     {book ? <Text style={styles.body}>全{words.length}語 · 選択範囲{range.words.length}語 · 約{pages}ページ</Text> : null}
     <View style={styles.panel}>
       <Text style={styles.heading}>印刷形式</Text>
@@ -152,9 +152,8 @@ export default function PrintScreen() {
       <Text style={styles.heading}>有料プラン利用中</Text>
       <Pressable disabled={busy || !range.valid || pages > 20} onPress={() => { void perform("print"); }} style={styles.primary}><Text style={styles.white}>印刷する</Text></Pressable>
       {pages > 20 ? <Text style={styles.note}>1回20ページまでです。印刷範囲を狭めてください。</Text> : null}
-      <Pressable disabled={busy} onPress={() => { void perform("csv"); }} style={styles.secondary}><Text style={styles.blue}>CSVを出力</Text></Pressable>
     </View> : <View style={styles.panel}>
-      <Text style={styles.heading}>印刷とCSV出力は有料プラン</Text>
+      <Text style={styles.heading}>印刷は有料プラン</Text>
       <Text style={styles.body}>カード・4択・聞き流し・共有は無料で使えます。</Text>
       {!signedIn ? <Pressable onPress={() => router.push("/account")} style={styles.primary}><Text style={styles.white}>ログイン・新規登録</Text></Pressable> : storeReady ? <><Pressable disabled={busy} onPress={() => { void purchase(); }} style={styles.primary}><Text style={styles.white}>ストアでプランを見る{price ? ` (${price})` : ""}</Text></Pressable><Pressable disabled={busy} onPress={() => { void purchase(true); }} style={styles.secondary}><Text style={styles.blue}>購入を復元</Text></Pressable></> : <Text style={styles.note}>アプリ内課金のストア設定は準備中です。</Text>}
       {signedIn ? <Pressable disabled={busy} onPress={() => { void refreshAccess(); }} style={styles.secondary}><Text style={styles.blue}>購入状態を再確認</Text></Pressable> : null}

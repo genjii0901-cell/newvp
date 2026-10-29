@@ -12,7 +12,6 @@ type PaidPlan = "personal" | "teacher";
 type TrialOffer = "first" | "winback" | null;
 
 const TEACHER_PUBLIC_ENABLED = true;
-const PERSONAL_PUBLIC_CONFIGURED = false;
 
 const plans = [
   {
@@ -28,8 +27,9 @@ const plans = [
       "透かしなし・記入名を設定可能",
       "マイ単語帳の保存",
       "PDF生成履歴の保存",
+      "聞き流しの全設定（表示切替・画面なし・ランダム・ループ・回数と間隔）",
+      "単語チェックの全設定（日→英・制限時間・★だけ出題・自動発音）",
       "みんなの単語帳をまとめて利用可能",
-      "タイトル変更・CSV出力はTeacher限定",
     ],
   },
   {
@@ -39,7 +39,6 @@ const plans = [
     description: "先生・塾・教材作成者向け。授業で繰り返し使う教材作成を効率化します。",
     features: [
       "単語テストのタイトルを自由に変更",
-      "単語リストをCSVで出力",
       "印刷回数は無制限",
       "クラス名・番号・氏名欄を設定",
       "複数教材・クラス別教材の管理",
@@ -60,11 +59,12 @@ export default function PricingPage() {
   const [message, setMessage] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
-    personal: PERSONAL_PUBLIC_CONFIGURED,
+    personal: false,
     teacher: false,
   });
-  const [stripeLiveMode, setStripeLiveMode] = useState(PERSONAL_PUBLIC_CONFIGURED);
-  const [missingStripeVars, setMissingStripeVars] = useState<string[]>([]);
+  const [stripeLiveMode, setStripeLiveMode] = useState(false);
+  const [configState, setConfigState] = useState<"loading" | "ready" | "error">("loading");
+  const [configAttempt, setConfigAttempt] = useState(0);
 
   useEffect(() => {
     const variant = getPricingVariant();
@@ -114,22 +114,37 @@ export default function PricingPage() {
   }, [supabase]);
 
   useEffect(() => {
-    fetch("/api/stripe/config-status")
-      .then((response) => response.json())
+    const controller = new AbortController();
+    let active = true;
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
+    fetch("/api/stripe/config-status", { cache: "no-store", signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Configuration unavailable");
+        return response.json();
+      })
       .then((result) => {
+        if (!active) return;
+        if (!result.ok) throw new Error("Configuration unavailable");
         setStripeLiveMode(Boolean(result.liveMode));
         setConfiguredPlans({
           personal: Boolean(result.personalConfigured),
           teacher: Boolean(result.teacherConfigured && result.teacherPublicEnabled),
         });
-        setMissingStripeVars(Array.isArray(result.missing) ? result.missing : []);
+        setConfigState("ready");
       })
       .catch(() => {
+        if (!active) return;
         setStripeLiveMode(false);
         setConfiguredPlans({ personal: false, teacher: false });
-        setMissingStripeVars(["STRIPE_SECRET_KEY"]);
-      });
-  }, []);
+        setConfigState("error");
+      })
+      .finally(() => window.clearTimeout(timeout));
+    return () => {
+      active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [configAttempt]);
 
   async function startCheckout(plan: PaidPlan) {
     if (checkoutBusy) return;
@@ -148,7 +163,7 @@ export default function PricingPage() {
         setMessage("現在は本番Stripeの設定確認中です。");
         return;
       }
-      setMessage(`Stripe設定が未完了です: ${missingStripeVars.join(" / ")}`);
+      setMessage("現在、決済の設定を確認しています。しばらくしてから再度お試しください。");
       return;
     }
 
@@ -225,9 +240,7 @@ export default function PricingPage() {
             <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
             <h1 className="mt-1 text-3xl font-black">料金プラン</h1>
             <p className="mt-2 text-sm text-slate-500">
-              {pricingVariant === "choice"
-                ? `印刷は1ページ${PRINT_PAGE_JPY}円の都度購入、またはPersonal。授業向けにはTeacherも選べます。`
-                : "印刷回数を気にせず使うならPersonal。授業向けにはTeacherも選べます。"}
+              {`印刷は1ページ${PRINT_PAGE_JPY}円の都度購入、または印刷無制限＋聞き流し・単語チェック全機能のPersonal。`}
             </p>
           </div>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
@@ -235,7 +248,14 @@ export default function PricingPage() {
           </Link>
         </div>
 
-        {!stripeLiveMode && (
+        {configState === "loading" ? (
+          <p className="mt-5 text-sm text-slate-500" role="status">お申し込みの準備状況を確認しています…</p>
+        ) : configState === "error" ? (
+          <div className="mt-5 flex flex-wrap items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="status">
+            <p>決済情報を読み込めませんでした。接続を確認して再度お試しください。</p>
+            <button type="button" onClick={() => { setConfigState("loading"); setConfigAttempt((value) => value + 1); }} className="rounded-lg border border-amber-300 bg-white px-3 py-2 font-bold">再確認</button>
+          </div>
+        ) : (!stripeLiveMode || !configuredPlans.personal) && (
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <p className="font-bold">本番Stripeの確認中です。</p>
             <p className="mt-1">
@@ -246,8 +266,8 @@ export default function PricingPage() {
 
         {message && <p className="mt-5 rounded-2xl bg-white p-4 text-sm shadow-sm">{message}</p>}
 
-        <div className={`mt-6 grid gap-4 ${pricingVariant === "choice" ? "md:grid-cols-3" : "md:max-w-4xl md:grid-cols-2"}`}>
-          {pricingVariant === "choice" && (
+        <div className="mt-6 grid gap-4 md:max-w-4xl md:grid-cols-2">
+          {(
             <div className="rounded-lg border bg-white p-5 shadow-sm">
               <h2 className="text-xl font-black">都度購入</h2>
               <p className="mt-2 text-3xl font-black text-slate-900">1ページ ¥{PRINT_PAGE_JPY}</p>
@@ -260,9 +280,9 @@ export default function PricingPage() {
               <Link href="/?print_auth=purchase" className="mt-5 block rounded-lg bg-slate-100 px-4 py-2 text-center text-sm font-bold">都度購入で始める</Link>
             </div>
           )}
-          {plans.map((plan) => {
+          {plans.filter((plan) => plan.id === "personal").map((plan) => {
             const isCurrent = currentPlan === plan.id;
-            const isTeacher = plan.id === "teacher";
+            const isTeacher = false as boolean; // Teacherは新規募集を終了（既存契約のみ継続）
             const canCheckout = plan.id === "personal" ? configuredPlans.personal : configuredPlans.teacher;
 
             return (
@@ -293,8 +313,8 @@ export default function PricingPage() {
                     className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500"
                     disabled={!canCheckout || checkoutBusy}
                   >
-                    {checkoutBusy ? "決済画面を準備中..." : !canCheckout
-                      ? "Stripe設定確認中"
+                    {checkoutBusy ? "決済画面を準備中..." : configState === "loading" ? "確認中..." : !canCheckout
+                      ? "現在お申し込みできません"
                       : isTeacher
                         ? "Teacherに申し込む"
                         : trialOffer === "first"
@@ -330,9 +350,9 @@ export default function PricingPage() {
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-sm font-black text-slate-900">授業用の教材を効率化</p>
+              <p className="text-sm font-black text-slate-900">聞き流し・単語チェック</p>
               <p className="mt-2 text-sm text-slate-600">
-                Teacherではタイトル変更、CSV出力、クラス別教材管理など授業向けの機能を利用できます。
+                無料会員登録で基本機能（聞き流し先頭20語、4択・カード最大20問）を使えます。表示の出し分け、画面なし再生、ランダム・ループ、制限時間、★だけ出題などの全設定はPersonalで解放されます。
               </p>
             </div>
           </div>

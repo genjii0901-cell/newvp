@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import "./globals.css";
 import Nav from "@/components/nav";
+import BottomTabs from "@/components/bottom-tabs";
 import VisitTracker from "@/app/visit-tracker";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
@@ -107,7 +108,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-slate-50">
+      <body className="min-h-full flex flex-col bg-slate-50 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -117,6 +118,7 @@ export default function RootLayout({
         </Suspense>
         <Nav />
         <div className="flex-1">{children}</div>
+        <BottomTabs />
         <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-5">
             <Link href="/pricing" className="hover:text-slate-600">

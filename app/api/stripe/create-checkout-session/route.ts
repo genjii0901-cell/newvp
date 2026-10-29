@@ -6,11 +6,14 @@ import {
   tryEnsureProfile,
 } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
-import { appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
+import { appendPersonalCheckoutPrices, PERSONAL_MONTHLY_PRICE, PERSONAL_INTRO_PRICE } from "@/lib/personal-pricing";
+import { ensureStripeCatalogPrice } from "@/lib/stripe-price-catalog";
 
 type CheckoutPlan = "personal" | "teacher";
-const TEACHER_PUBLIC_ENABLED = true;
+// 新規はPersonalと都度購入のみ。Teacherの新規申込は停止（既存契約は継続）。
+const TEACHER_PUBLIC_ENABLED = false;
 const TEACHER_LOOKUP_KEY = "vocab_print_pro_teacher_monthly_2980";
+export const maxDuration = 60;
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
   return value === "personal" || value === "teacher";
@@ -29,16 +32,12 @@ function isProductionHost(appUrl: string) {
   }
 }
 
-function getPriceId(plan: CheckoutPlan) {
-  if (plan === "personal") {
-    return process.env.STRIPE_PRICE_PERSONAL ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_PERSONAL;
-  }
-
+function getTeacherPriceId() {
   return process.env.STRIPE_PRICE_TEACHER ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_TEACHER;
 }
 
 async function resolveTeacherPriceId(stripeSecretKey: string) {
-  const configured = getPriceId("teacher");
+  const configured = getTeacherPriceId();
   if (configured?.startsWith("price_")) return configured;
 
   const pricesResponse = await fetch(
@@ -108,7 +107,7 @@ export async function POST(request: Request) {
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
-    let priceId = plan === "teacher" ? getPriceId("teacher") : undefined;
+    let priceId = plan === "teacher" ? getTeacherPriceId() : undefined;
 
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
       return NextResponse.json(
@@ -193,7 +192,11 @@ export async function POST(request: Request) {
 
     body.append("payment_method_types[]", "card");
     if (plan === "personal") {
-      appendPersonalCheckoutPrices(body, introductoryWeek);
+      const [monthly, intro] = await Promise.all([
+        ensureStripeCatalogPrice(stripeSecretKey, PERSONAL_MONTHLY_PRICE),
+        introductoryWeek ? ensureStripeCatalogPrice(stripeSecretKey, PERSONAL_INTRO_PRICE) : undefined,
+      ]);
+      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly, intro });
     } else if (priceId) {
       body.append("line_items[0][price]", priceId);
       body.append("line_items[0][quantity]", "1");

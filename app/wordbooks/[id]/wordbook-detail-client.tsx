@@ -10,6 +10,7 @@ import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import QuizPanel from "./quiz-panel";
+import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
 import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
 
@@ -19,9 +20,12 @@ type TestType = "list" | "test" | "answer";
 type TestDirection = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
 type MeaningMode = "main" | "all";
-type ListeningMode = "en-ja" | "ja-en" | "en-only" | "test";
+type ListeningMode = "en-ja" | "ja-en" | "en-only";
+type MeaningReveal = "with-audio" | "after-prompt" | "manual";
 type DragTarget = "title" | "date" | "info" | "grid" | "pageNo";
 
+// 単語一覧の無料表示語数。これ以降はPersonalで表示。
+const OVERVIEW_FREE_LIMIT = 200;
 const PREVIEW_SCALE = 0.48;
 const PREVIEW_WIDTH = 794;
 const PREVIEW_HEIGHT = 1123;
@@ -416,17 +420,35 @@ export default function WordbookDetailPage({
   const [pageNoOffsetY, setPageNoOffsetY] = useState(0);
   const [dragging, setDragging] = useState<DragTarget | null>(null);
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
-  const [listenIndex, setListenIndex] = useState(0);
-  const [showMeaning, setShowMeaning] = useState(false);
-  const [meaningMode, setMeaningMode] = useState<MeaningMode>("main");
-  const [listeningMode, setListeningMode] = useState<ListeningMode>("en-ja");
-  const [listeningSpeed, setListeningSpeed] = useState(1);
-  const [listeningGapMs, setListeningGapMs] = useState(650);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const [savingToMyBook, setSavingToMyBook] = useState(false);
-  const speechRunRef = useRef({ stopped: false, id: 0 });
+  const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
+  const [shareMessage, setShareMessage] = useState("");
   const markStorageKey = book && authUserId ? `vpp-word-marks:${authUserId}:${book.id}` : "";
+
+  // 聞き流し・単語チェックは無料会員登録が必須。詳細設定はPersonal限定。
+  function showUpgrade(reason: string) {
+    setUpgradePrompt(reason);
+  }
+
+  async function shareWordbook() {
+    if (typeof window === "undefined" || !book) return;
+    const path = source === "community" ? `/shared/${encodeURIComponent(String(lookupId))}` : window.location.pathname;
+    const url = `${window.location.origin}${path}`;
+    const text = `${book.title}（${book.wordCount ?? book.words.length}語）を Vocab Print Pro で学習しよう`;
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ title: book.title, text, url });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      setShareMessage("リンクをコピーしました");
+    } catch (reason) {
+      if (reason instanceof DOMException && reason.name === "AbortError") return;
+      setShareMessage(url);
+    }
+    window.setTimeout(() => setShareMessage(""), 3500);
+  }
 
   useEffect(() => {
     if (temporaryLicensed) setIncludeWatermark(false);
@@ -601,10 +623,6 @@ export default function WordbookDetailPage({
   const freePrintBlocked = false;
   const effectiveCount = Math.max(1, Math.min(requestedCount, maxWords, testWords.length || 1));
 
-  const listenWord = visibleWords[listenIndex] ?? null;
-  const listenWordKey = listenWord ? `${listenWord.no}-${listenWord.english}` : "";
-  const markedCount = markedKeys.size;
-  const displayMeaning = listenWord ? formatMeaning(listenWord.japanese, meaningMode) : "";
   const automaticPrintTitle = selectedUnit === "all" ? book?.title ?? "" : `${book?.title ?? ""} - ${selectedUnit}`;
   const printTitle = accessPlan === "teacher" && customTitle.trim() ? customTitle.trim() : automaticPrintTitle;
   const printHtml = useMemo(() => {
@@ -681,12 +699,6 @@ export default function WordbookDetailPage({
   }, [printHtml]);
   const printedWordCount = effectiveCount;
   const previewPageCount = Math.max(1, printHtml.match(/<section class=["']print-page/g)?.length ?? 1);
-
-  useEffect(() => {
-    stopListening();
-    setListenIndex(0);
-    setShowMeaning(false);
-  }, [rangeStart, rangeEnd, selectedUnit]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -974,11 +986,6 @@ export default function WordbookDetailPage({
     window.location.href = "/?print_auth=personal";
   }
 
-  function openInListening() {
-    if (!storeSelectedRange()) return;
-    window.location.href = "/listening?import=1";
-  }
-
   async function saveOfficialToMyWordbooks() {
     if (!book || book.words.length === 0) return;
     if (!supabase) {
@@ -1020,66 +1027,6 @@ export default function WordbookDetailPage({
     } finally {
       setSavingToMyBook(false);
     }
-  }
-
-  function stopListening() {
-    speechRunRef.current.stopped = true;
-    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
-    setIsPlaying(false);
-  }
-
-  async function speakWord(word: Word, signal = speechRunRef.current) {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    setShowMeaning(listeningMode === "en-ja" || listeningMode === "ja-en");
-    const japanesePair = !book?.languageCode && isJapaneseOnlyText(word.english);
-    const speakEnglish = () => speakText(word.english, {
-      preferred: japanesePair ? "japanese" : "english",
-      lang: source === "community" ? book?.languageCode : undefined,
-      rate: rateValue(listeningSpeed, japanesePair ? 0.95 : 0.9),
-      voiceHint: japanesePair ? "male" : undefined,
-      signal,
-    });
-    const speakJapanese = () => speakText(formatMeaning(word.japanese, meaningMode), {
-      preferred: "japanese",
-      rate: rateValue(listeningSpeed, 0.95),
-      voiceHint: japanesePair ? "female" : undefined,
-      signal,
-    });
-    if (listeningMode === "ja-en") {
-      setShowMeaning(true);
-      await speakJapanese();
-      if (signal.stopped) return;
-      await speakEnglish();
-      return;
-    }
-    await speakEnglish();
-    if (signal.stopped || listeningMode === "en-only") return;
-    setShowMeaning(true);
-    await speakJapanese();
-  }
-
-  async function startAutoListening() {
-    if (!visibleWords.length) return;
-    const run = { stopped: false, id: speechRunRef.current.id + 1 };
-    speechRunRef.current = run;
-    setIsPlaying(true);
-
-    for (let index = listenIndex; index < visibleWords.length; index += 1) {
-      if (run.stopped || speechRunRef.current.id !== run.id) return;
-      setListenIndex(index);
-      setShowMeaning(listeningMode === "en-ja" || listeningMode === "ja-en");
-      await speakWord(visibleWords[index], run);
-      await new Promise((resolve) => window.setTimeout(resolve, Math.max(200, listeningGapMs)));
-    }
-
-    if (!run.stopped && speechRunRef.current.id === run.id) stopListening();
-  }
-
-  function goListen(delta: number) {
-    stopListening();
-    setShowMeaning(false);
-    setListenIndex((current) => Math.min(Math.max(current + delta, 0), Math.max(visibleWords.length - 1, 0)));
   }
 
   function toggleMarked(word: Pick<Word, "no" | "english">) {
@@ -1204,6 +1151,14 @@ export default function WordbookDetailPage({
               <Link href="/my-wordbooks" className="rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm">
                 マイ単語帳を見る
               </Link>
+              <button
+                type="button"
+                onClick={() => void shareWordbook()}
+                className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm"
+              >
+                🔗 共有する
+              </button>
+              {shareMessage ? <span role="status" className="col-span-2 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
             </div>
           </div>
         </div>
@@ -1212,7 +1167,7 @@ export default function WordbookDetailPage({
       <section className="sticky top-0 z-10 mt-3 border-y bg-slate-50/95 py-1.5 backdrop-blur sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:py-0">
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
           {tabs.map((tab) => {
-            const tabLocked = controlsLocked && (tab.key === "quiz" || tab.key === "listen");
+            const tabLocked = !isLoggedIn && (tab.key === "quiz" || tab.key === "listen");
             return (
             <button
               key={tab.key}
@@ -1330,7 +1285,7 @@ export default function WordbookDetailPage({
                 </tr>
               </thead>
               <tbody>
-                {visibleWords.slice(0, 500).map((word) => {
+                {visibleWords.slice(0, isPaid ? 500 : OVERVIEW_FREE_LIMIT).map((word) => {
                   const key = `${word.no}-${word.english}`;
                   const marked = markedKeys.has(key);
                   return (
@@ -1354,7 +1309,15 @@ export default function WordbookDetailPage({
                 })}
               </tbody>
             </table>
-            {visibleWords.length > 500 ? (
+            {!isPaid && visibleWords.length > OVERVIEW_FREE_LIMIT ? (
+              <button
+                type="button"
+                onClick={() => showUpgrade(`単語一覧は先頭${OVERVIEW_FREE_LIMIT}語まで無料で見られます。残り${visibleWords.length - OVERVIEW_FREE_LIMIT}語はPersonalで表示できます。`)}
+                className="block w-full border-t border-amber-200 bg-amber-50 p-4 text-center text-sm font-black text-amber-800 hover:bg-amber-100"
+              >
+                🔒 残り{visibleWords.length - OVERVIEW_FREE_LIMIT}語はPersonalで表示できます ›
+              </button>
+            ) : visibleWords.length > 500 ? (
               <p className="p-4 text-center text-xs font-bold text-slate-400">
                 表示は先頭500語までです。テスト作成・聞き流しには選択範囲全体を使えます。
               </p>
@@ -1952,239 +1915,67 @@ export default function WordbookDetailPage({
         </section>
       )}
 
-      {activeTab === "quiz" && (
-        <section className="mt-4 grid gap-4 lg:grid-cols-[320px_1fr]">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">単語チェック</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">選んだ範囲で解く</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              上の「使う範囲」で選んだ{visibleWords.length}語をそのまま使います。印刷用の設定は変えずに、画面上だけで練習できます。
+      {(activeTab === "quiz" || activeTab === "listen") && !isLoggedIn && (
+        <section className="mt-3">
+          <div className="sticky top-2 z-20 rounded-2xl border border-blue-200 bg-white/95 p-4 text-center shadow-lg backdrop-blur">
+            <p className="text-sm font-black text-slate-950">
+              🔒 「{activeTab === "quiz" ? "単語チェック" : "聞き流し"}」は無料会員登録で使えます（下は画面の見本です）
             </p>
-            <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-600">
-              <p>対象: {selectedUnit === "all" ? "すべて" : selectedUnit}</p>
-              <p className="mt-1">番号: {rangeStart || "-"} - {rangeEnd || "-"}</p>
-              <p className="mt-1">語数: {visibleWords.length}語</p>
-            </div>
+            <p className="mt-1 text-xs font-bold text-slate-500">登録は無料。★の復習マークや設定も保存されます。全設定の解放はPersonalです。</p>
+            <button
+              type="button"
+              onClick={() => {
+                const next = window.location.pathname + `?tab=${activeTab}`;
+                window.location.href = `/?print_auth=free&next=${encodeURIComponent(next)}`;
+              }}
+              className="mt-3 min-h-12 rounded-2xl bg-blue-600 px-6 py-3 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
+            >
+              無料で会員登録 / ログイン
+            </button>
           </div>
-          <div className="min-w-0">
-            <QuizPanel
-              bookTitle={book.title}
-              words={visibleWords.map((word) => ({
-                no: word.no,
-                english: word.english,
-                japanese: word.japanese,
-              }))}
-              markedKeys={markedKeys}
-              onToggleMark={toggleMarked}
-            />
+          <div className="pointer-events-none mt-3 select-none opacity-80" aria-hidden inert>
+            {activeTab === "listen" ? (
+              <ListenPanel words={visibleWords.slice(0, 20)} isPaid={false} markedKeys={markedKeys} onToggleMark={() => {}} onLocked={() => {}} preview />
+            ) : (
+              <div className="mx-auto max-w-2xl">
+                <QuizPanel
+                  bookTitle={book.title}
+                  words={visibleWords.slice(0, 50).map((word) => ({ no: word.no, english: word.english, japanese: word.japanese }))}
+                  isPaid={false}
+                />
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {activeTab === "listen" && (
-        <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">聞き流し</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">再生設定</h2>
-            <div className="mt-5 space-y-3">
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">聞き流しパターン</span>
-                <select value={listeningMode} onChange={(event) => setListeningMode(event.target.value as ListeningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="en-ja">英語 → 日本語</option>
-                  <option value="ja-en">日本語 → 英語</option>
-                  <option value="en-only">英語のみ</option>
-                  <option value="test">単語チェック風: 英語 → 少し待って答え</option>
-                </select>
-              </label>
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">意味の表示</span>
-                <select value={meaningMode} onChange={(event) => setMeaningMode(event.target.value as MeaningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="main">メインの意味だけ</option>
-                  <option value="all">意味を全部表示</option>
-                </select>
-              </label>
-              <label className="block rounded-xl border bg-white p-3">
-                <span className="flex items-center justify-between gap-2 text-xs font-black text-slate-500">
-                  読み上げ速度
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">x{listeningSpeed.toFixed(2)}</span>
-                </span>
-                <input
-                  type="range"
-                  min={0.7}
-                  max={1.35}
-                  step={0.05}
-                  value={listeningSpeed}
-                  onChange={(event) => setListeningSpeed(Number(event.target.value))}
-                  className="mt-2 w-full accent-blue-600"
-                />
-                <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
-                  <span>ゆっくり</span>
-                  <span>速い</span>
-                </div>
-              </label>
-              <label className="block rounded-xl border bg-white p-3">
-                <span className="flex items-center justify-between gap-2 text-xs font-black text-slate-500">
-                  単語の間隔
-                  <span className="rounded-full bg-blue-50 px-2 py-1 text-blue-700">{(listeningGapMs / 1000).toFixed(1)}秒</span>
-                </span>
-                <input
-                  type="range"
-                  min={200}
-                  max={2000}
-                  step={100}
-                  value={listeningGapMs}
-                  onChange={(event) => setListeningGapMs(Number(event.target.value))}
-                  className="mt-2 w-full accent-blue-600"
-                />
-                <div className="mt-1 flex justify-between text-[11px] font-bold text-slate-400">
-                  <span>短い</span>
-                  <span>ゆっくり</span>
-                </div>
-              </label>
-              <button
-                onClick={openInListening}
-                disabled={visibleWords.length === 0}
-                className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-300"
-              >
-                聞き流し専用ページで開く
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <div className="rounded-3xl border bg-gradient-to-br from-blue-50 to-white p-5 text-center">
-              {listenWord ? (
-                <>
-                  <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-black text-slate-400">
-                    <span>{listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}</span>
-                    {markedCount > 0 ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">復習 {markedCount}語</span> : null}
-                  </div>
-                  <div className="relative mt-5 min-h-[220px] rounded-3xl bg-white p-5 shadow-sm">
-                    <button
-                      type="button"
-                      onClick={() => toggleMarked(listenWord)}
-                      className={`absolute right-4 top-4 rounded-full px-3 py-2 text-2xl leading-none transition ${
-                        markedKeys.has(listenWordKey) ? "bg-amber-100 text-amber-500" : "bg-slate-100 text-slate-300 hover:text-amber-400"
-                      }`}
-                      aria-label={markedKeys.has(listenWordKey) ? "復習マークを外す" : "復習マークを付ける"}
-                    >
-                      {markedKeys.has(listenWordKey) ? "★" : "☆"}
-                    </button>
-                    <p className="break-words text-[clamp(2.2rem,9vw,4.5rem)] font-black leading-tight text-slate-950">{listenWord.english}</p>
-                    <p className={`mt-5 min-h-[72px] text-2xl font-black text-blue-700 transition ${showMeaning ? "opacity-100" : "opacity-0"}`}>
-                      {displayMeaning}
-                    </p>
-                  </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-5">
-                    <button onClick={() => goListen(-1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">前へ</button>
-                    <button onClick={() => setShowMeaning((value) => !value)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">答え表示</button>
-                    <button onClick={() => speakWord(listenWord)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">1語再生</button>
-                    {isPlaying ? (
-                      <button onClick={stopListening} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">停止</button>
-                    ) : (
-                      <button onClick={startAutoListening} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">連続再生</button>
-                    )}
-                    <button onClick={() => goListen(1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">次へ</button>
-                  </div>
-                </>
-              ) : (
-                <p className="py-12 text-sm font-bold text-slate-400">範囲に単語がありません。</p>
-              )}
-            </div>
-          </div>
+      {activeTab === "quiz" && isLoggedIn && (
+        <section className="mt-3 mx-auto max-w-2xl">
+          <QuizPanel
+            bookTitle={book.title}
+            words={visibleWords.map((word) => ({
+              no: word.no,
+              english: word.english,
+              japanese: word.japanese,
+            }))}
+            markedKeys={markedKeys}
+            onToggleMark={toggleMarked}
+            isPaid={isPaid}
+            onLocked={showUpgrade}
+            languageCode={source === "community" ? book.languageCode : undefined}
+          />
         </section>
       )}
 
-      {false && activeTab === "listen" && (
-        <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">聞き流し</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">再生設定</h2>
-            <div className="mt-5 space-y-3">
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">モード</span>
-                <select value={listeningMode} onChange={(event) => setListeningMode(event.target.value as ListeningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="listen">聞き流し: 英語 → 日本語</option>
-                  <option value="test">テスト: 英語 → 答え表示</option>
-                </select>
-              </label>
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">意味の表示</span>
-                <select value={meaningMode} onChange={(event) => setMeaningMode(event.target.value as MeaningMode)} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value="main">メインの意味だけ</option>
-                  <option value="all">意味を全部表示</option>
-                </select>
-              </label>
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">読み上げ速度</span>
-                <select value={listeningSpeed} onChange={(event) => setListeningSpeed(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value={0.82}>ゆっくり</option>
-                  <option value={1}>ふつう</option>
-                  <option value={1.14}>少し速い</option>
-                  <option value={1.28}>速い</option>
-                </select>
-              </label>
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">単語の間隔</span>
-                <select value={listeningGapMs} onChange={(event) => setListeningGapMs(Number(event.target.value))} className="mt-1 w-full bg-transparent text-sm font-bold">
-                  <option value={350}>短め</option>
-                  <option value={650}>標準</option>
-                  <option value={1100}>ゆっくり</option>
-                </select>
-              </label>
-              <button
-                onClick={openInListening}
-                disabled={visibleWords.length === 0}
-                className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-300"
-              >
-                聞き流し専用ページで開く
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border bg-white p-5 shadow-sm">
-            <div className="rounded-3xl border bg-gradient-to-br from-blue-50 to-white p-5 text-center">
-              {listenWord ? (
-                <>
-                  <p className="text-xs font-black text-slate-400">
-                    {listenIndex + 1} / {visibleWords.length} ・ No.{listenWord.no}
-                  </p>
-                  <div className="mt-5 min-h-[190px] rounded-3xl bg-white p-5 shadow-sm">
-                    <p className="break-words text-4xl font-black leading-tight text-slate-950 sm:text-6xl">{listenWord.english}</p>
-                    <p className={`mt-5 min-h-[64px] text-2xl font-black text-blue-700 transition ${showMeaning ? "opacity-100" : "opacity-0"}`}>
-                      {displayMeaning}
-                    </p>
-                  </div>
-                  <div className="mt-5 grid gap-2 sm:grid-cols-5">
-                    <button onClick={() => goListen(-1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">
-                      前へ
-                    </button>
-                    <button onClick={() => setShowMeaning((value) => !value)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">
-                      答え表示
-                    </button>
-                    <button onClick={() => speakWord(listenWord)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">
-                      1語再生
-                    </button>
-                    {isPlaying ? (
-                      <button onClick={stopListening} className="rounded-2xl bg-slate-900 px-4 py-3 text-sm font-black text-white">
-                        停止
-                      </button>
-                    ) : (
-                      <button onClick={startAutoListening} className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white">
-                        連続再生
-                      </button>
-                    )}
-                    <button onClick={() => goListen(1)} className="rounded-2xl border bg-white px-4 py-3 text-sm font-black text-slate-700">
-                      次へ
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <p className="py-12 text-sm font-bold text-slate-400">範囲に単語がありません。</p>
-              )}
-            </div>
-          </div>
-        </section>
+      {activeTab === "listen" && isLoggedIn && (
+        <ListenPanel
+          words={visibleWords}
+          isPaid={isPaid}
+          languageCode={source === "community" ? book?.languageCode : undefined}
+          markedKeys={markedKeys}
+          onToggleMark={toggleMarked}
+          onLocked={showUpgrade}
+        />
       )}
 
       {printConfirmOpen ? (
@@ -2220,6 +2011,28 @@ export default function WordbookDetailPage({
         onPersonal={handlePersonalFromGate}
         onClose={() => setPrintGateOpen(false)}
       />
+
+      {upgradePrompt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={() => setUpgradePrompt(null)}>
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <p className="text-xs font-black text-amber-600">Personalで解放</p>
+            <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{upgradePrompt}</h3>
+            <ul className="mt-3 space-y-1 text-xs font-bold text-slate-600">
+              <li>・聞き流し：表示の出し分け・画面なし・ランダム/ループ・回数と間隔の調整</li>
+              <li>・単語チェック：日→英/ミックス・制限時間・★だけ出題・自動発音</li>
+              <li>・印刷回数は無制限（1回20ページまで）</li>
+            </ul>
+            <div className="mt-5 space-y-2">
+              <Link href="/pricing" className="block w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-center text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700">
+                Personalの内容を見る
+              </Link>
+              <button type="button" onClick={() => setUpgradePrompt(null)} className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50">
+                今は無料のまま使う
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {registerPrompt && (
         <div

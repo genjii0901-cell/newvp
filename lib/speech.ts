@@ -47,7 +47,8 @@ export function speakText(
   }
 
   const value = text.trim();
-  if (!value || options.signal?.stopped) return Promise.resolve(true);
+  if (options.signal?.stopped) return Promise.resolve(false);
+  if (!value) return Promise.resolve(true);
 
   const lang = options.lang ?? guessSpeechLang(value, options.preferred ?? "japanese");
   const utterance = new SpeechSynthesisUtterance(value);
@@ -58,16 +59,31 @@ export function speakText(
 
   return new Promise<boolean>((resolve) => {
     let done = false;
+    let cancellationPoll: number | undefined;
     const finish = (ok: boolean) => {
       if (done) return;
       done = true;
+      window.clearTimeout(watchdog);
+      window.clearInterval(cancellationPoll);
       resolve(ok);
     };
 
     utterance.onend = () => finish(true);
     utterance.onerror = () => finish(false);
-    window.speechSynthesis.speak(utterance);
-
-    window.setTimeout(() => finish(true), Math.max(1200, value.length * (lang === "en-US" ? 120 : 170)));
+    // Only onend confirms completion; an estimated duration must not skip live audio.
+    const watchdog = window.setTimeout(() => {
+      window.speechSynthesis.cancel();
+      finish(false);
+    }, Math.max(30_000, value.length * 800 / Math.max(utterance.rate, 0.1)));
+    if (options.signal) {
+      cancellationPoll = window.setInterval(() => {
+        if (options.signal?.stopped) finish(false);
+      }, 100);
+    }
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      finish(false);
+    }
   });
 }

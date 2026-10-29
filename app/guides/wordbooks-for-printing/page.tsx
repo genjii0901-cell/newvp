@@ -103,7 +103,7 @@ export default async function WordbooksForPrintingGuidePage() {
       <section className="mx-auto max-w-5xl px-5 py-14">
         <h2 className="text-2xl font-black text-slate-950 sm:text-3xl">対応しやすい単語帳・教材</h2>
         <p className="mt-2 text-sm font-bold text-slate-500">
-          公式に登録した単語帳だけでなく、自作単語帳や貼り付けデータにも対応します。
+          人気教材として登録した単語帳だけでなく、自作単語帳や貼り付けデータにも対応します。
         </p>
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {examples.map(([name, text]) => (

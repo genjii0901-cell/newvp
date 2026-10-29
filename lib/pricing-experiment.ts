@@ -1,23 +1,10 @@
 export type PricingVariant = "choice" | "personal";
 
-const VARIANT_KEY = "vpp-pricing-v1-variant";
 const VISITOR_KEY = "vpp-pricing-v1-visitor";
 
+// 料金は「都度購入」と「Personal」の2択で固定（A/Bテストは終了）。旧実装は legacy-backup-20261030 に保存。
 export function getPricingVariant(): PricingVariant {
-  try {
-    const override = new URLSearchParams(window.location.search).get("offer");
-    if (override === "choice" || override === "personal") {
-      window.localStorage.setItem(VARIANT_KEY, override);
-      return override;
-    }
-    const saved = window.localStorage.getItem(VARIANT_KEY);
-    if (saved === "choice" || saved === "personal") return saved;
-    const variant: PricingVariant = crypto.getRandomValues(new Uint8Array(1))[0] < 128 ? "choice" : "personal";
-    window.localStorage.setItem(VARIANT_KEY, variant);
-    return variant;
-  } catch {
-    return "choice";
-  }
+  return "choice";
 }
 
 export function trackPricingEvent(event: "view" | "checkout", variant: PricingVariant) {

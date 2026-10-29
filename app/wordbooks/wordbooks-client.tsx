@@ -490,9 +490,6 @@ export default function WordbooksClient({
           </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/listening" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-            聞き流し
-          </Link>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
             自由作成
           </Link>
@@ -523,7 +520,7 @@ export default function WordbooksClient({
       {tab === "official" ? (
         <>
           <div className="mt-5 flex flex-wrap gap-2" aria-label="単語帳の種類">
-            {([["all", "すべて"], ["official", "公式教材"], ["community", "みんなの投稿"]] as const).map(([value, text]) => (
+            {([["all", "すべて"], ["official", "人気教材"], ["community", "みんなの投稿"]] as const).map(([value, text]) => (
               <button key={value} type="button" onClick={() => setCommunityFilter(value)} className={`rounded-lg px-3 py-2 text-sm font-bold ${communityFilter === value ? "bg-slate-900 text-white" : "border bg-white text-slate-700"}`}>{text}</button>
             ))}
           </div>
@@ -591,7 +588,7 @@ export default function WordbooksClient({
                         作成者: {displayCreatorName(book.creator)}
                       </p>
                       <div className="mt-1 hidden sm:mt-2 sm:block">
-                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{book.description || (book.community ? "みんなが作成した単語帳です。" : "公式単語帳です。")}</p>
+                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{book.description || (book.community ? "みんなが作成した単語帳です。" : "人気の単語帳です。")}</p>
                         {(book.description?.length ?? 0) > 90 ? <button type="button" onClick={(event) => { event.stopPropagation(); setExpandedDescriptionId((value) => value === book.id ? "" : book.id); }} className="mt-1 text-xs font-black text-blue-700 hover:underline">{expandedDescriptionId === book.id ? "閉じる" : "続きを読む"}</button> : null}
                       </div>
                       <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
@@ -689,13 +686,6 @@ export default function WordbooksClient({
                           >
                             印刷作成
                           </Link>
-                          <Link
-                            href={`/listening?source=my&id=${encodeURIComponent(book.id)}`}
-                            onClick={(event) => event.stopPropagation()}
-                            className="rounded-lg border px-2 py-1.5 text-center text-[11px] font-black text-slate-700 hover:bg-slate-50 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
-                          >
-                            聞き流し
-                          </Link>
                           {book.published ? <Link href={`/shared/${encodeURIComponent(book.id)}`} onClick={(event) => event.stopPropagation()} className="rounded-lg border px-2 py-1.5 text-center text-[11px] font-black text-blue-700 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs">公開ページ</Link> : null}
                         </div>
                       </div>
@@ -713,12 +703,6 @@ export default function WordbooksClient({
               <div className="flex flex-wrap gap-2">
                 {selectedMyBookId && (
                   <>
-                    <Link
-                      href={`/listening?source=my&id=${encodeURIComponent(selectedMyBookId)}`}
-                      className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-                    >
-                      聞き流し
-                    </Link>
                     <Link
                       href={`/?book=${encodeURIComponent(selectedMyBookId)}`}
                       className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"

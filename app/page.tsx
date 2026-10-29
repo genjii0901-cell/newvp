@@ -2508,10 +2508,7 @@ export default function Home() {
 
   async function exportSelectedBookCsv() {
     if (!selectedBook || !supabase || !user) return;
-    if (plan !== "teacher" && role !== "admin") {
-      window.location.href = "/pricing";
-      return;
-    }
+    if (role !== "admin") return;
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     if (!token) return;
     const response = await fetch(`/api/wordbooks/export?id=${encodeURIComponent(String(selectedBook.id))}`, {
@@ -2936,13 +2933,15 @@ export default function Home() {
             {bookSearch && (
               <p className="mt-1 text-xs font-bold text-slate-400">{searchableBooks.length}件見つかりました</p>
             )}
-            <button
-              type="button"
-              onClick={() => void exportSelectedBookCsv()}
-              className={`mt-2 w-full rounded-xl border px-3 py-2 text-xs font-black ${plan === "teacher" || role === "admin" ? "bg-white text-blue-700 hover:bg-blue-50" : "border-amber-200 bg-amber-50 text-amber-700"}`}
-            >
-              {plan === "teacher" || role === "admin" ? "選択中の単語帳をCSV出力" : "CSV出力（Teacher）"}
-            </button>
+            {role === "admin" ? (
+              <button
+                type="button"
+                onClick={() => void exportSelectedBookCsv()}
+                className="mt-2 w-full rounded-xl border bg-white px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-50"
+              >
+                選択中の単語帳をCSV出力（管理者）
+              </button>
+            ) : null}
 
             <div className="mt-4 grid gap-2 sm:grid-cols-4">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
@@ -3529,7 +3528,7 @@ export default function Home() {
           <PlanCard
             title="Teacher"
             price="¥2,980/月"
-            text="先生・塾向け。印刷回数無制限。タイトル変更、CSV出力、クラス別教材管理に対応。"
+            text="先生・塾向け。印刷回数無制限。タイトル変更、クラス別教材管理に対応。"
             onClick={plan === "teacher" ? undefined : () => startCheckout("teacher")}
             disabled={plan !== "teacher" && !configuredPlans.teacher}
             disabledLabel="Stripe設定を確認中"

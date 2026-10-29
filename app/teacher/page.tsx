@@ -3,13 +3,12 @@ import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Teacherプラン | 学校・塾向け英単語テスト作成",
-  description: "単語テストのタイトル変更、CSV出力、クラス・番号・氏名欄、教材管理に対応した学校・塾向けTeacherプランです。",
+  description: "単語テストのタイトル変更、クラス・番号・氏名欄、教材管理に対応した学校・塾向けTeacherプランです。",
   alternates: { canonical: "/teacher" },
 };
 
 const features = [
   ["教材名を自由に設定", "学校名、講座名、定期テスト名など、配布目的に合わせて印刷タイトルを変更できます。"],
-  ["単語リストをCSV出力", "選択した単語帳をCSVで取り出し、表計算ソフトや校内教材の編集に利用できます。"],
   ["クラス配布向けの記入欄", "クラス・番号・氏名欄、日付、ページ番号を設定して、学校の小テストに近い形で印刷できます。"],
   ["印刷回数は無制限", "複数クラスや講座で、必要なだけ教材を繰り返し作成できます。"],
   ["20ページを超える教材にも対応", "Personalの1回20ページ上限を超える、大きな範囲の教材も作成できます。"],
@@ -23,7 +22,7 @@ export default function TeacherPage() {
         <section className="rounded-3xl bg-blue-700 px-6 py-10 text-white sm:px-10">
           <p className="text-xs font-black text-blue-100">FOR SCHOOL &amp; CRAM SCHOOL</p>
           <h1 className="mt-2 text-3xl font-black sm:text-4xl">Teacherプラン</h1>
-          <p className="mt-4 max-w-2xl text-sm font-bold leading-7 text-blue-50">単語帳の範囲を選ぶだけで、授業用の問題・解答・一覧プリントを短時間で作成。学校名やテスト名を入れた教材作成、CSV出力にも対応します。</p>
+          <p className="mt-4 max-w-2xl text-sm font-bold leading-7 text-blue-50">単語帳の範囲を選ぶだけで、授業用の問題・解答・一覧プリントを短時間で作成。学校名やテスト名を入れた教材作成にも対応します。</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/pricing" className="rounded-xl bg-white px-5 py-3 text-sm font-black text-blue-700">月額2,980円で始める</Link>
             <Link href="/wordbooks" className="rounded-xl border border-blue-300 px-5 py-3 text-sm font-black text-white">対応単語帳を見る</Link>

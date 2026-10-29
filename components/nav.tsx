@@ -40,6 +40,7 @@ export default function Nav() {
   const links = [
     { href: "/", label: "単語テスト印刷", always: true },
     { href: "/wordbooks", label: "みんなの単語帳", always: true },
+    { href: "/my-wordbooks", label: "マイ単語帳", always: true },
     { href: "/materials", label: "PDF教材", always: true },
     { href: "/overlap", label: "かぶり調査", always: true },
     { href: "/history", label: "履歴", always: false },

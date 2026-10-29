@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { hasPaidMobileAccess } from "@/lib/mobile-paid-access";
 import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
-import { requireSupabaseUser } from "@/lib/supabase/admin";
+import { ensureProfile, requireSupabaseUser } from "@/lib/supabase/admin";
 
 function cell(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -13,8 +12,10 @@ export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id")?.trim();
   if (!id) return NextResponse.json({ ok: false, message: "単語帳を選択してください。" }, { status: 400 });
   try {
-    if (!(await hasPaidMobileAccess(auth.user))) {
-      return NextResponse.json({ ok: false, message: "CSV出力には有料プランが必要です。" }, { status: 403 });
+    // 単語帳データの一括出力は管理者のみ（会員には渡さない）
+    const profile = await ensureProfile(auth.user);
+    if (profile?.role !== "admin") {
+      return NextResponse.json({ ok: false, message: "CSV出力は管理者のみ利用できます。" }, { status: 403 });
     }
     const result = await loadOfficialWordbooks({ includeAdmin: false, includeFallback: true, includeWords: true, includeWordStats: false, filterIds: [id] });
     const book = result.wordbooks.find((item) => String(item.id) === id);

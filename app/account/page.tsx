@@ -36,7 +36,7 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "教材管理、公式単語帳管理、CSV出力などを拡張予定です。",
+    limit: "教材管理、公式単語帳管理などを拡張予定です。",
     price: "¥2,980 / 月",
   },
 };
