@@ -39,7 +39,8 @@ async function loadWordbooksForUser(userId: string) {
   const supabase = getSupabaseAdmin();
   const { data: books, error } = await supabase
     .from("wordbooks")
-    .select("id,title,description,visibility,cover_image")
+    // cover_image 列は無い環境がある。表紙は説明文に埋め込んだ情報（meta）から読む。
+    .select("id,title,description,visibility")
     .eq("owner_id", userId);
 
   if (error) throw error;
@@ -88,7 +89,7 @@ async function loadWordbooksForUser(userId: string) {
       creatorName: meta.creatorName ?? "",
       anonymous: meta.anonymous === true,
       subject: meta.subject ?? "その他",
-      coverImage: book.cover_image ?? meta.coverImage ?? null,
+      coverImage: meta.coverImage ?? null,
       requiredPlan: "free" as const,
       level: "自作",
     };

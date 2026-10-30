@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseAdmin();
     const { data: book, error } = await supabase.from("wordbooks")
-      .select("id,title,description,cover_image,visibility")
+      .select("id,title,description,visibility")
       .eq("id", id).eq("owner_id", auth.user.id).eq("is_official", false).maybeSingle();
     if (error) throw error;
     if (!book) return NextResponse.json({ ok: false, message: "自分の単語帳が見つかりません。" }, { status: 404 });
@@ -79,9 +79,12 @@ export async function POST(request: Request) {
     const description = embedWordbookMeta(cleanDescription.slice(0, 500), {
       visibility: "public", subject, creatorName, anonymous, coverImage,
     });
-    const updated = await supabase.from("wordbooks")
-      .update({ visibility: "public", description, cover_image: coverImage || null })
+    const publish = (values: Record<string, unknown>) => supabase.from("wordbooks")
+      .update(values)
       .eq("id", id).eq("owner_id", auth.user.id).eq("is_official", false).select("id").single();
+    let updated = await publish({ visibility: "public", description, cover_image: coverImage || null });
+    // cover_image 列が無い環境では、説明文に埋め込んだ表紙情報だけで公開する。
+    if (updated.error) updated = await publish({ visibility: "public", description });
     if (updated.error) throw updated.error;
     return NextResponse.json({ ok: true, id: String(id) });
   } catch {
