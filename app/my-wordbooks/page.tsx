@@ -185,6 +185,38 @@ export default function MyWordbooksHub() {
     setProgressByBook(next);
   }, [userId, books]);
 
+  // 同じ単語帳（同じタイトル）は1冊だけ。学習記録がある本、なければ語数の多い本を残す。
+  const duplicateIds = useMemo(() => {
+    const groups = new Map<string, MyBook[]>();
+    for (const item of books) groups.set(item.title, [...(groups.get(item.title) ?? []), item]);
+    const extras = new Set<string>();
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      const rank = (item: MyBook) => (Object.keys(progressByBook[item.id] ?? {}).length > 0 ? 1_000_000 : 0) + item.wordCount;
+      [...group].sort((a, b) => rank(b) - rank(a)).slice(1).forEach((item) => extras.add(item.id));
+    }
+    return extras;
+  }, [books, progressByBook]);
+  const shelfBooks = useMemo(() => books.filter((item) => !duplicateIds.has(item.id)), [books, duplicateIds]);
+  const [cleaning, setCleaning] = useState(false);
+  async function removeDuplicates() {
+    if (!token || duplicateIds.size === 0) return;
+    if (!window.confirm(`同じ単語帳が重複しています。重複している${duplicateIds.size}冊を削除して、1冊ずつにします。よろしいですか？`)) return;
+    setCleaning(true);
+    try {
+      for (const id of duplicateIds) {
+        await fetch("/api/me/wordbooks", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ id }),
+        });
+      }
+      await loadBooks();
+    } finally {
+      setCleaning(false);
+    }
+  }
+
   const book = books.find((item) => item.id === selectedId) ?? null;
   const progress = (book && progressByBook[book.id]) || {};
   const now = Date.now();
@@ -283,6 +315,15 @@ export default function MyWordbooksHub() {
 
       {notice && !book ? <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">{notice}</p> : null}
 
+      {duplicateIds.size > 0 ? (
+        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">
+          <span>同じ単語帳が{duplicateIds.size}冊重複しています（本棚には1冊だけ表示しています）。</span>
+          <button type="button" disabled={cleaning} onClick={() => void removeDuplicates()} className="min-h-10 rounded-lg bg-amber-500 px-3 text-xs font-black text-white disabled:opacity-60">
+            {cleaning ? "整理中…" : "重複を整理する"}
+          </button>
+        </div>
+      ) : null}
+
       {/* 本棚 */}
       <section className="mt-4" aria-label="自分の単語帳">
         {loading ? (
@@ -296,7 +337,7 @@ export default function MyWordbooksHub() {
           </div>
         ) : (
           <div className="-mx-2.5 flex snap-x gap-3 overflow-x-auto px-2.5 pb-2 sm:mx-0 sm:px-0">
-            {books.map((item) => {
+            {shelfBooks.map((item) => {
               const itemProgress = progressByBook[item.id] ?? {};
               const s = summarize(item.words, itemProgress, now);
               const active = item.id === selectedId;
