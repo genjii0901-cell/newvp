@@ -40,7 +40,7 @@ const DEFAULTS: Settings = {
 };
 
 // 無料会員が使える範囲。ここに無い項目は Personal 限定。
-const FREE_WORD_LIMIT = 20;
+const FREE_WORD_LIMIT = 100;
 function clampForFree(s: Settings): Settings {
   return {
     ...DEFAULTS,
@@ -132,10 +132,15 @@ export default function ListenPanel({
     }
   }, [saved]);
 
+  // ★の付け外しでは再生リストを作り直さない（再生が止まる・単語が消えるのを防ぐ）。
+  // ★だけ再生は、設定を切り替えた時点の★で並べ直す。
+  const markedRef = useRef(markedKeys);
+  markedRef.current = markedKeys;
+
   const playlist = useMemo(() => {
     let list = words;
     if (settings.markedOnly) {
-      const marked = words.filter((word) => markedKeys.has(`${word.no}-${word.english}`));
+      const marked = words.filter((word) => markedRef.current.has(`${word.no}-${word.english}`));
       if (marked.length > 0) list = marked;
     }
     if (settings.shuffle) list = shuffled(list);
@@ -143,7 +148,7 @@ export default function ListenPanel({
     return list;
     // shuffleSeed で並べ直しを明示的に起こす
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words, settings.markedOnly, settings.shuffle, isPaid, shuffleSeed, markedKeys.size]);
+  }, [words, settings.markedOnly, settings.shuffle, isPaid, shuffleSeed]);
   const listRef = useRef(playlist);
   listRef.current = playlist;
 

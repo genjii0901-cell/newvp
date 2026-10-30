@@ -437,6 +437,7 @@ export default function WordbooksClient({
           title: book.title,
           description: `${book.title}をみんなの単語帳から追加しました。`,
           words,
+          dedupe: true,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -447,7 +448,7 @@ export default function WordbooksClient({
 
       setTab("my");
       setSelectedMyBookId(String(result.wordbook.id));
-      setMyMessage("マイ単語帳に追加しました。");
+      setMyMessage(result.duplicate ? "すでにマイ単語帳に入っています。" : "マイ単語帳に追加しました。");
       await loadMyBooks();
     } finally {
       setSavingOfficialId("");

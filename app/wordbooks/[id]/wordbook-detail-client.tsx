@@ -1017,6 +1017,7 @@ export default function WordbookDetailPage({
             japanese: word.japanese,
             unit: word.unit,
           })),
+          dedupe: true,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -1024,7 +1025,7 @@ export default function WordbookDetailPage({
         window.alert(result.error ?? "マイ単語帳への追加に失敗しました。");
         return;
       }
-      if (window.confirm("マイ単語帳に追加しました。マイ単語帳を開きますか？")) {
+      if (window.confirm(`${result.duplicate ? "すでにマイ単語帳に入っています。" : "マイ単語帳に追加しました。"}マイ単語帳を開きますか？`)) {
         window.location.href = "/my-wordbooks";
       }
     } finally {

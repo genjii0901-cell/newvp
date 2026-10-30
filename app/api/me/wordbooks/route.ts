@@ -126,6 +126,33 @@ export async function POST(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+    // みんなの単語帳から追加する場合（dedupe）は、同じ単語帳を二重に登録しない。
+    if (body.dedupe === true) {
+      const { data: same, error: sameError } = await supabase
+        .from("wordbooks")
+        .select("id,title,description")
+        .eq("owner_id", auth.user.id)
+        .eq("title", title)
+        .eq("is_official", false)
+        .limit(1);
+      if (sameError) throw sameError;
+      if (same && same.length > 0) {
+        return NextResponse.json({
+          ok: true,
+          duplicate: true,
+          wordbook: {
+            id: String(same[0].id),
+            title: same[0].title ?? title,
+            description: stripEmbeddedWordbookMeta(same[0].description),
+            wordCount: clean.length,
+            words: [],
+            requiredPlan: "free",
+            level: "自作",
+          },
+        });
+      }
+    }
+
     const { data: wordbook, error: insertBookError } = await supabase
       .from("wordbooks")
       .insert({

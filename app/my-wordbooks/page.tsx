@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
   applyAnswer,
@@ -27,8 +27,40 @@ type Tab = "study" | "listen" | "memory";
 
 
 
-function coverFor(book: { title: string; coverImage: string | null }) {
-  return book.coverImage || `https://dummyimage.com/320x200/dbeafe/1d4ed8&text=${encodeURIComponent(book.title.slice(0, 14))}`;
+// 画像がない単語帳は、タイトルから色を決めた表紙を自分で描く（外部サービスに頼らない）。
+function coverFor(book: { title: string; coverImage: string | null }, covers?: Record<string, string>) {
+  const image = book.coverImage || covers?.[book.title];
+  if (image) return image;
+  const label = book.title.slice(0, 14).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  let hue = 0;
+  for (const char of book.title) hue = (hue * 31 + char.charCodeAt(0)) % 360;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='320' height='200'><rect width='320' height='200' fill='hsl(${hue},70%,92%)'/><text x='160' y='108' font-size='26' font-weight='700' text-anchor='middle' fill='hsl(${hue},60%,32%)' font-family='sans-serif'>${label}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+// 初めての人に機能を知ってもらうため、最初に1冊だけ自動で入れる単語帳の候補（上から優先）。
+const STARTER_TITLES = ["システム英単語", "ターゲット1900", "ターゲット1400", "LEAP", "英検"];
+
+/** みんなの単語帳の1冊を、単語ごと取得してマイ単語帳に追加する（同じ単語帳は二重に入れない）。 */
+async function addOfficialBook(token: string, book: { id: string; title: string }) {
+  const wordsRes = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(book.id)}&includeWords=1`);
+  const wordsJson = await wordsRes.json().catch(() => ({}));
+  const raw = Array.isArray(wordsJson.wordbooks) ? wordsJson.wordbooks.find((item: { id: string | number }) => String(item.id) === book.id) : null;
+  const words = Array.isArray(raw?.words) ? raw.words : [];
+  if (words.length === 0) throw new Error("単語を読み込めませんでした。");
+  const response = await fetch("/api/me/wordbooks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      title: book.title,
+      description: `${book.title}をマイ単語帳に追加しました。`,
+      dedupe: true,
+      words: words.map((word: { no?: number; english: string; japanese: string; unit?: string | null }) => ({ no: word.no, english: word.english, japanese: word.japanese, unit: word.unit })),
+    }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(result.error ?? "追加できませんでした。");
+  return { duplicate: result.duplicate === true };
 }
 
 export default function MyWordbooksHub() {
@@ -48,6 +80,9 @@ export default function MyWordbooksHub() {
   const [notice, setNotice] = useState("");
   const [upgrade, setUpgrade] = useState<string | null>(null);
   const [adderOpen, setAdderOpen] = useState(false);
+  const [catalog, setCatalog] = useState<CatalogBook[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const seedTried = useRef(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -87,6 +122,7 @@ export default function MyWordbooksHub() {
       }
       const list: MyBook[] = booksJson.wordbooks.map((book: MyBook) => ({ ...book, coverImage: book.coverImage ?? null, words: book.words ?? [] }));
       setBooks(list);
+      setLoaded(true);
       setSelectedId((current) => (list.some((book) => book.id === current) ? current : list[0]?.id ?? ""));
       const plan = profileJson?.profile?.plan;
       setIsPaid(plan === "personal" || plan === "teacher");
@@ -97,6 +133,49 @@ export default function MyWordbooksHub() {
   useEffect(() => {
     void loadBooks();
   }, [loadBooks]);
+
+  // みんなの単語帳の一覧（表紙の補完と、最初の1冊の自動追加に使う）
+  useEffect(() => {
+    void fetch("/api/wordbooks/official")
+      .then((response) => response.json())
+      .then((json) => {
+        const list = Array.isArray(json.wordbooks) ? json.wordbooks : [];
+        setCatalog(
+          list.map((item: { id: string | number; title?: string; wordCount?: number; words?: unknown[]; coverImage?: string | null; description?: string }) => ({
+            id: String(item.id),
+            title: item.title ?? "単語帳",
+            wordCount: typeof item.wordCount === "number" ? item.wordCount : item.words?.length ?? 0,
+            coverImage: item.coverImage ?? null,
+            description: item.description ?? "",
+          })),
+        );
+      })
+      .catch(() => undefined);
+  }, []);
+  const covers = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const item of catalog) if (item.coverImage) map[item.title] = item.coverImage;
+    return map;
+  }, [catalog]);
+
+  // 初めて使う人には、機能が伝わるよう単語帳を1冊だけ自動で入れる（1人1回だけ。消しても入れ直さない）。
+  useEffect(() => {
+    if (!loaded || books.length > 0 || !token || !userId || catalog.length === 0 || seedTried.current) return;
+    seedTried.current = true;
+    const flag = `vpp-my-starter:${userId}`;
+    try {
+      if (window.localStorage.getItem(flag)) return;
+      window.localStorage.setItem(flag, "1");
+    } catch {
+      return;
+    }
+    const starter = STARTER_TITLES.map((key) => catalog.find((item) => item.title.includes(key))).find(Boolean) ?? catalog[0];
+    if (!starter) return;
+    void addOfficialBook(token, starter)
+      .then(() => loadBooks())
+      .then(() => setNotice(`まず「${starter.title}」を入れておきました。単語チェックや聞き流しを試してみましょう。別の単語帳は「＋ 単語帳を追加」から選べます。`))
+      .catch(() => undefined);
+  }, [loaded, books.length, token, userId, catalog, loadBooks]);
 
   // 学習記録の読み込み（端末に保存）
   useEffect(() => {
@@ -232,7 +311,7 @@ export default function MyWordbooksHub() {
                   }}
                   className={`w-44 flex-none snap-start overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:w-52 ${active ? "border-blue-500 ring-2 ring-blue-100" : "hover:-translate-y-0.5 hover:shadow-md"}`}
                 >
-                  <img src={coverFor(item)} alt="" className="h-20 w-full object-cover" />
+                  <img src={coverFor(item, covers)} alt="" className="h-20 w-full object-cover" />
                   <div className="p-3">
                     <p className="line-clamp-2 min-h-[2.4rem] text-sm font-black leading-snug text-slate-900">{item.title}</p>
                     <div className="mt-2 flex items-center justify-between text-[11px] font-black">
@@ -277,12 +356,10 @@ export default function MyWordbooksHub() {
             <div className="mt-4">
               <StatusBar summary={summary} />
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-[1.4fr_1fr_1fr]">
-              <button type="button" onClick={startDue} className={`col-span-2 min-h-14 rounded-2xl px-4 sm:col-span-1 text-base font-black shadow-lg ${summary.dueCount > 0 ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600" : "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-700"}`}>
+            <div className="mt-4">
+              <button type="button" onClick={startDue} className={`min-h-14 w-full rounded-2xl px-4 text-base font-black shadow-lg ${summary.dueCount > 0 ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600" : "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-700"}`}>
                 {isPaid ? "" : "🔒 "}今日の復習を始める（{summary.dueCount}語）
               </button>
-              <button type="button" onClick={() => openTab("study")} className="min-h-14 rounded-2xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">単語チェック</button>
-              <button type="button" onClick={() => openTab("listen")} className="min-h-14 rounded-2xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">聞き流し</button>
             </div>
             {notice ? <p role="status" className="mt-3 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-600">{notice}</p> : null}
           </section>
@@ -438,23 +515,8 @@ function BookAdder({ token, ownedTitles, onClose, onAdded }: { token: string; ow
     setBusyId(book.id);
     setMessage("");
     try {
-      const wordsRes = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(book.id)}&includeWords=1`);
-      const wordsJson = await wordsRes.json().catch(() => ({}));
-      const raw = Array.isArray(wordsJson.wordbooks) ? wordsJson.wordbooks.find((item: { id: string | number }) => String(item.id) === book.id) : null;
-      const words = Array.isArray(raw?.words) ? raw.words : [];
-      if (words.length === 0) throw new Error("単語を読み込めませんでした。");
-      const response = await fetch("/api/me/wordbooks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          title: book.title,
-          description: `${book.title}をマイ単語帳に追加しました。`,
-          words: words.map((word: { no?: number; english: string; japanese: string; unit?: string | null }) => ({ no: word.no, english: word.english, japanese: word.japanese, unit: word.unit })),
-        }),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error ?? "追加できませんでした。");
-      setMessage(`「${book.title}」を追加しました。`);
+      const { duplicate } = await addOfficialBook(token, book);
+      setMessage(duplicate ? `「${book.title}」はすでに入っています。` : `「${book.title}」を追加しました。`);
       await onAdded();
     } catch (reason) {
       setMessage(reason instanceof Error ? reason.message : "追加できませんでした。");

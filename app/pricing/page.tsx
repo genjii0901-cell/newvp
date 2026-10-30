@@ -352,7 +352,7 @@ export default function PricingPage() {
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">聞き流し・単語チェック</p>
               <p className="mt-2 text-sm text-slate-600">
-                無料会員登録で基本機能（聞き流し先頭20語、4択・カード最大20問）を使えます。表示の出し分け、画面なし再生、ランダム・ループ、制限時間、★だけ出題などの全設定はPersonalで解放されます。
+                無料会員登録で基本機能（聞き流し先頭100語、4択・カード最大20問）を使えます。表示の出し分け、画面なし再生、ランダム・ループ、制限時間、★だけ出題などの全設定はPersonalで解放されます。
               </p>
             </div>
           </div>
