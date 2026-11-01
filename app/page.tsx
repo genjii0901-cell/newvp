@@ -15,7 +15,10 @@ import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-build
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
-import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
+import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
+import RegistrationPlanPicker from "@/components/registration-plan-picker";
+import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION, registrationIntentForPlan, type SignupPlan, type RegistrationIntent } from "@/lib/registration-plans";
+import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
 
 type Word = {
   no: number;
@@ -165,7 +168,7 @@ function getAuthConfirmUrl(next = "/") {
 function getRequestedAuthReturnPath() {
   if (typeof window === "undefined") return "/";
   const requested = new URLSearchParams(window.location.search).get("next") ?? "/";
-  return requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
+  return normalizeLocalRedirectPath(requested);
 }
 
 function isLineLoginEnabled() {
@@ -488,7 +491,7 @@ export default function Home() {
 
   const [plan, setPlan] = useState<Plan>("free");
   const [trialOffer, setTrialOffer] = useState<"first" | "winback" | null>("first");
-  const [pricingVariant, setPricingVariant] = useState<PricingVariant | null>(null);
+  const pricingVariant = getPricingVariant();
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [books, setBooks] = useState<WordBook[]>([]);
@@ -507,8 +510,7 @@ export default function Home() {
   const [type, setType] = useState<PdfType>("list");
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
-  // Registration is free; paid offers are chosen after registration or on /pricing.
-  const [signupPlan, setSignupPlan] = useState<"free" | "personal">("free");
+  const [signupPlan, setSignupPlan] = useState<SignupPlan>("free");
   // Personalを選んで登録した人に、ログイン後トライアル開始を促すためのフラグ
   const [pendingTrial, setPendingTrial] = useState(false);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
@@ -517,7 +519,7 @@ export default function Home() {
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const [printAuthIntent, setPrintAuthIntent] = useState<"login" | "free" | "personal" | "purchase" | null>(null);
+  const [printAuthIntent, setPrintAuthIntent] = useState<RegistrationIntent>(null);
   const [printAuthReason, setPrintAuthReason] = useState("");
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
@@ -572,7 +574,6 @@ export default function Home() {
 
   useEffect(() => {
     const variant = getPricingVariant();
-    setPricingVariant(variant);
     trackPricingEvent("view", variant);
   }, []);
 
@@ -735,6 +736,18 @@ export default function Home() {
       setPrintAuthIntent("personal");
       setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、初回7日間380円の決済画面へ進みます。");
       rememberPostAuthAction("personal");
+    } else if (printAuth === "free") {
+      setAuthMode("signup");
+      setSignupPlan("free");
+      setPrintAuthIntent("free");
+      setPrintAuthReason("聞き流し・四択は無料会員登録で全語を学習できます。印刷は1ページ50円の都度課金です。");
+      clearPostAuthAction();
+      try {
+        window.localStorage.removeItem("vpp-signup-intent");
+        window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
+      } catch {
+        // Continue without local storage.
+      }
     } else if (printAuth === "purchase") {
       setAuthMode("signup");
       setSignupPlan("free");
@@ -1462,7 +1475,7 @@ export default function Home() {
             email,
             password,
             options: {
-              emailRedirectTo: getAuthConfirmUrl(authReturnPath),
+              emailRedirectTo: getAuthConfirmUrl(signupPlan === "personal" ? "/" : authReturnPath),
             },
           })
         );
@@ -1504,14 +1517,14 @@ export default function Home() {
           setMessage(
             signupPlan === "personal"
               ? "登録が完了しました。続けてPersonalの決済へ進んでください。"
-              : "登録が完了しました。印刷内容を確認してから料金プランを選べます。"
+              : "無料会員登録が完了しました。聞き流し・四択は全語を無料で学習できます。印刷は1ページ50円の都度課金です。"
           );
           if (signupPlan === "free" && printAuthIntent === "free") {
             setPrintAuthIntent(null);
             setAuthPanelOpen(false);
-            setMessage("アカウント登録が完了しました。印刷内容を確認して続けてください。");
+            setMessage("無料会員登録が完了しました。聞き流し・四択を無料で始められます。");
           }
-          if (authReturnPath !== "/") window.location.assign(authReturnPath);
+          if (authReturnPath !== "/" && signupPlan === "free") window.location.assign(authReturnPath);
           return;
         }
 
@@ -1534,7 +1547,7 @@ export default function Home() {
 
       setMessageTone("success");
       setMessage("ログインしました。");
-      if (authReturnPath !== "/") window.location.assign(authReturnPath);
+      if (authReturnPath !== "/" && printAuthIntent !== "personal") window.location.assign(authReturnPath);
     } catch (error) {
       if (authMode === "signup" && signupPlan === "personal") clearPostAuthAction();
       setMessageTone("error");
@@ -1577,7 +1590,7 @@ export default function Home() {
         supabase.auth.signInWithOAuth({
           provider: supabaseProvider,
           options: {
-            redirectTo: getAuthConfirmUrl(authReturnPath),
+            redirectTo: getAuthConfirmUrl(signupPlan === "personal" ? "/" : authReturnPath),
           },
         })
       );
@@ -1946,13 +1959,41 @@ export default function Home() {
   function closePrintAuthModal() {
     setPrintAuthIntent(null);
     setPrintAuthReason("");
+    setPendingTrial(false);
+    setTrialModalOpen(false);
     try {
       window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
       window.localStorage.removeItem(POST_AUTH_ACTION_KEY);
+      window.localStorage.removeItem("vpp-signup-intent");
       window.localStorage.removeItem(RESUME_PRINT_KEY);
     } catch {
       // 保存済み意図を消せなくても、画面操作は続けられる
     }
+  }
+
+  function selectSignupPlan(next: SignupPlan) {
+    setSignupPlan(next);
+    setPrintAuthIntent(registrationIntentForPlan(next, printAuthIntent));
+    setPendingTrial(false);
+    setTrialModalOpen(false);
+    clearPostAuthAction();
+    try {
+      window.localStorage.removeItem("vpp-signup-intent");
+      if (next === "personal") {
+        window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
+        window.localStorage.setItem("vpp-signup-intent", "personal");
+      } else if (printAuthIntent !== "purchase") {
+        window.localStorage.removeItem(PRINT_PURCHASE_INTENT_KEY);
+      }
+    } catch {
+      // The selection remains usable when persistent storage is unavailable.
+    }
+    if (next === "personal") rememberPostAuthAction("personal");
+    setPrintAuthReason(next === "personal"
+      ? "Personalを選択中です。アカウント登録後、Stripeの決済画面で料金と更新条件を確認して申し込みます。"
+      : printAuthIntent === "purchase"
+        ? "無料会員として登録し、今回の印刷分だけ決済します。月額料金はかかりません。"
+        : FREE_STUDY_DESCRIPTION);
   }
 
   // 支払いゲート「②Personal」: 7日間無料トライアルへ。
@@ -2380,6 +2421,7 @@ export default function Home() {
 
   function guideToRegister(reason: string) {
     if (user) return;
+    selectSignupPlan("free");
     setAuthMode("signup");
     setPrintAuthIntent("free");
     setPrintAuthReason(`${reason} 無料会員登録すると、すぐに使えます。`);
@@ -2719,7 +2761,7 @@ export default function Home() {
             <p className="text-xs font-black text-blue-700">無料でアカウント作成</p>
             <h3 className="mt-1 text-2xl font-black text-slate-950">作成したプリントを続ける</h3>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
-              登録だけでは料金はかかりません。印刷は有料です。料金と利用条件は印刷方法を選ぶ画面で確認できます。
+              聞き流し・四択は無料会員登録で全語を学習できます。詳細設定と印刷をよく使う方にはPersonalがおすすめです。
             </p>
             <p className="mt-2 text-xs text-slate-400">
               新規登録後は確認メールが届きます。メール内のリンクを開くと、このサイトに戻って認証が完了します。
@@ -2743,6 +2785,8 @@ export default function Home() {
                 新規登録
               </button>
             </div>
+
+            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} /> : null}
 
             <div className="mt-4 grid gap-2">
               <button
@@ -3514,7 +3558,7 @@ export default function Home() {
         )}
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {<PlanCard title="都度購入" price="¥50/ページ" text="アカウント作成は無料。印刷の無料枠はなく、印刷する分だけ都度決済。月額料金なし。" />}
+          {<PlanCard title={FREE_ACCOUNT_LABEL} price="¥50/ページ（印刷時）" text={FREE_STUDY_DESCRIPTION} />}
           <PlanCard
             title="Personal"
             price={trialOffer === "first" ? "最初の7日間 ¥380" : "¥1,580/月"}
@@ -3851,7 +3895,7 @@ export default function Home() {
               Vocab Print Pro アカウント
             </p>
             <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-              {authMode === "signup" ? "無料でアカウントを作成" : "ログインして続ける"}
+              {authMode === "signup" ? "プランを選んで会員登録" : "ログインして続ける"}
             </h3>
             <p className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-800">
               {printAuthReason || "登録だけでは料金はかかりません。印刷は有料です。"}
@@ -3875,6 +3919,8 @@ export default function Home() {
                 ログイン
               </button>
             </div>
+
+            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} /> : null}
 
             <div className="mt-4 grid gap-2">
               <button

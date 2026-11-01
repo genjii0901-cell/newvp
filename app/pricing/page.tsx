@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { PERSONAL_INTRO_JPY, PERSONAL_MONTHLY_JPY, PRINT_PAGE_JPY } from "@/lib/personal-pricing";
-import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
+import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
+import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION } from "@/lib/registration-plans";
 
 type Plan = "free" | "personal" | "teacher";
 type PaidPlan = "personal" | "teacher";
@@ -55,7 +56,7 @@ export default function PricingPage() {
   const [user, setUser] = useState<User | null>(null);
   const [currentPlan, setCurrentPlan] = useState<Plan>("free");
   const [trialOffer, setTrialOffer] = useState<TrialOffer>("first");
-  const [pricingVariant, setPricingVariant] = useState<PricingVariant | null>(null);
+  const pricingVariant = getPricingVariant();
   const [message, setMessage] = useState("");
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [configuredPlans, setConfiguredPlans] = useState<Record<PaidPlan, boolean>>({
@@ -68,7 +69,6 @@ export default function PricingPage() {
 
   useEffect(() => {
     const variant = getPricingVariant();
-    setPricingVariant(variant);
     trackPricingEvent("view", variant);
   }, []);
 
@@ -269,15 +269,15 @@ export default function PricingPage() {
         <div className="mt-6 grid gap-4 md:max-w-4xl md:grid-cols-2">
           {(
             <div className="rounded-lg border bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-black">都度購入</h2>
+              <h2 className="text-xl font-black">{FREE_ACCOUNT_LABEL}</h2>
               <p className="mt-2 text-3xl font-black text-slate-900">1ページ ¥{PRINT_PAGE_JPY}</p>
-              <p className="mt-3 text-sm text-slate-600">無料でアカウントを作成し、印刷するページ分だけ支払います。月額料金はありません。</p>
+              <p className="mt-3 text-sm text-slate-600">{FREE_STUDY_DESCRIPTION}</p>
               <ul className="mt-4 space-y-2 text-sm text-slate-700">
                 <li>・印刷するたびに決済が必要</li>
                 <li>・まとめて印刷するとPersonalより高くなる場合があります</li>
                 <li>・印刷回数の無料枠はありません</li>
               </ul>
-              <Link href="/?print_auth=purchase" className="mt-5 block rounded-lg bg-slate-100 px-4 py-2 text-center text-sm font-bold">都度購入で始める</Link>
+              <Link href="/?print_auth=free" className="mt-5 block rounded-lg bg-slate-100 px-4 py-2 text-center text-sm font-bold">無料会員で始める（印刷は都度課金）</Link>
             </div>
           )}
           {plans.filter((plan) => plan.id === "personal").map((plan) => {
@@ -339,7 +339,7 @@ export default function PricingPage() {
               <p className="text-sm font-black text-slate-900">{pricingVariant === "choice" ? "まず試せる" : "アカウント作成"}</p>
               <p className="mt-2 text-sm text-slate-600">
                 {pricingVariant === "choice"
-                  ? "アカウント作成は無料ですが、印刷の無料枠はありません。都度購入なら1ページ50円。繰り返し印刷するならPersonalの方が費用を抑えやすくなります。"
+                  ? "聞き流し・四択は無料会員でも全語を学習できます。印刷は1ページ50円。詳細設定や繰り返しの印刷にはPersonalがおすすめです。"
                   : "アカウントは無料で作成できます。印刷の無料枠はありません。まずはPersonalの内容を確認できます。"}
               </p>
             </div>
@@ -352,7 +352,7 @@ export default function PricingPage() {
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-sm font-black text-slate-900">聞き流し・単語チェック</p>
               <p className="mt-2 text-sm text-slate-600">
-                無料会員登録で基本機能（聞き流し先頭100語、4択・カード最大20問）を使えます。表示の出し分け、画面なし再生、ランダム・ループ、制限時間、★だけ出題などの全設定はPersonalで解放されます。
+                無料会員登録で聞き流し・四択・カードの基本機能を全語で使えます。表示の出し分け、画面なし再生、ランダム・ループ、制限時間、★だけ出題などの詳細設定はPersonalで利用できます。
               </p>
             </div>
           </div>

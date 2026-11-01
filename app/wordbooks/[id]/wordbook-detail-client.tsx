@@ -13,7 +13,7 @@ import { popularizeText } from "@/lib/display-text";
 import QuizPanel from "./quiz-panel";
 import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
-import { getPricingVariant, trackPricingEvent, type PricingVariant } from "@/lib/pricing-experiment";
+import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen";
@@ -342,11 +342,10 @@ export default function WordbookDetailPage({
   const [printGateOpen, setPrintGateOpen] = useState(false);
   const [printGatePages, setPrintGatePages] = useState(1);
   const [printGateBusy, setPrintGateBusy] = useState(false);
-  const [pricingVariant, setPricingVariant] = useState<PricingVariant | null>(null);
+  const pricingVariant = getPricingVariant();
   const [introEligible, setIntroEligible] = useState(true);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
 
-  useEffect(() => { setPricingVariant(getPricingVariant()); }, []);
   useEffect(() => {
     if (printGateOpen && pricingVariant) trackPricingEvent("view", pricingVariant);
   }, [printGateOpen, pricingVariant]);
@@ -2050,7 +2049,7 @@ export default function WordbookDetailPage({
             <p className="text-xs font-black text-blue-700">会員登録が必要です</p>
             <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{registerPrompt}</h3>
             <p className="mt-3 text-xs font-bold text-slate-500">
-              印刷は有料です。料金と自動更新などの条件は、登録後、支払い前の画面で確認できます。
+              聞き流し・四択は無料会員登録で全語を学習できます。登録時にPersonalか無料会員（印刷は都度課金）を選べます。支払いが必要な場合は、決済前に料金と更新条件を確認できます。
             </p>
             <div className="mt-5 space-y-2">
               <button

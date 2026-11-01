@@ -5,11 +5,12 @@ import { formatMeaning } from "@/lib/meaning";
 import { speakText } from "@/lib/speech";
 import { buildClozePrintDocument, buildClozeQuestion, isClozeEligibleWord, isClozePilotBook } from "@/lib/cloze-quiz";
 import { Field, Section, Seg, Toggle } from "./study-ui";
+import { getStudyQuestionCount, type StudyQuestionCount } from "@/lib/study-question-count";
 
 type QuizWord = { no: number; english: string; japanese: string };
 type Mode = "card" | "choice" | "cloze";
 type Direction = "en-ja" | "ja-en" | "mixed";
-type QuestionCount = "10" | "20" | "50" | "all";
+type QuestionCount = StudyQuestionCount;
 type QuestionOrder = "random" | "book";
 type Scope = "all" | "marked" | "due";
 
@@ -39,13 +40,12 @@ const DEFAULTS: QuizSettings = {
   autoNext: false,
 };
 
-// 無料会員は 4択/カードの基本設定のみ、最大20問。それ以外は Personal 限定。
-const FREE_MAX_QUESTIONS = 20;
+// 無料会員も全語で学習できる。高度な出題・再生設定は Personal 限定。
 function clampForFree(s: QuizSettings): QuizSettings {
   return {
     ...DEFAULTS,
     mode: s.mode === "cloze" ? "choice" : s.mode,
-    count: s.count === "10" || s.count === "20" ? s.count : "20",
+    count: s.count,
     order: "random",
   };
 }
@@ -144,7 +144,7 @@ export default function QuizPanel({
   const markedWords = useMemo(() => words.filter((word) => markedKeys?.has(`${word.no}-${word.english}`)), [words, markedKeys]);
   const clozeWords = useMemo(() => words.filter(isClozeEligibleWord), [words]);
   const canUseCloze = clozeWords.length >= 4 && isClozePilotBook(bookTitle);
-  const scopeWords = settings.scope === "due" && dueKeys ? dueList : settings.scope === "marked" && markedWords.length > 0 ? markedWords : words;
+  const scopeWords = settings.scope === "due" && dueKeys ? dueList : settings.scope === "marked" ? markedWords : words;
 
   const distinctEnJa = useMemo(() => uniqueChoices(scopeWords.map((word) => compactMeaning(word.japanese))).length, [scopeWords]);
   const distinctJaEn = useMemo(() => uniqueChoices(scopeWords.map((word) => word.english)).length, [scopeWords]);
@@ -199,9 +199,7 @@ export default function QuizPanel({
     const base = sourceWords ?? (nextMode === "cloze" ? clozeWords : scopeWords);
     if (base.length === 0) return;
     const ordered = settings.order === "random" ? shuffle(base) : [...base];
-    const cap = !isPaid ? FREE_MAX_QUESTIONS : Infinity;
-    const wanted = settings.customCount > 0 ? settings.customCount : settings.count === "all" ? ordered.length : Number(settings.count);
-    const limit = retry ? ordered.length : Math.min(wanted, ordered.length, cap);
+    const limit = retry ? ordered.length : getStudyQuestionCount(ordered.length, settings.count, settings.customCount);
     const picked = ordered.slice(0, limit);
     setRunSettings(settings);
     setRunMode(nextMode);
@@ -316,11 +314,7 @@ export default function QuizPanel({
 
   /* ───────── 設定画面 ───────── */
   if (!started) {
-    const questionTotal = Math.min(
-      settings.customCount > 0 ? settings.customCount : settings.count === "all" ? scopeWords.length : Number(settings.count),
-      scopeWords.length,
-      isPaid ? Infinity : FREE_MAX_QUESTIONS,
-    );
+    const questionTotal = getStudyQuestionCount(settings.mode === "cloze" ? clozeWords.length : scopeWords.length, settings.count, settings.customCount);
     const startDisabled = (settings.mode === "choice" && !canUseChoice) || scopeWords.length === 0;
     return (
       <div className="space-y-3">
@@ -372,7 +366,7 @@ export default function QuizPanel({
         </Section>
 
         <Section key={`b${epoch}`} open={openAll} title="出題" summary={`${questionTotal}問・${settings.order === "random" ? "シャッフル" : "単語帳順"}${settings.scope === "marked" ? "・★のみ" : ""}`}>
-          <Field label="出題数" hint={isPaid ? undefined : `無料会員は最大${FREE_MAX_QUESTIONS}問まで`}>
+          <Field label="出題数" hint={isPaid ? undefined : "無料会員でも、選んだ範囲すべてを出題できます"}>
             <Seg
               value={settings.count}
               onChange={(count) => update({ count, customCount: 0 })}
@@ -381,8 +375,8 @@ export default function QuizPanel({
               options={[
                 { value: "10" as QuestionCount, label: "10問" },
                 { value: "20" as QuestionCount, label: "20問" },
-                { value: "50" as QuestionCount, label: "50問", locked: !isPaid },
-                { value: "all" as QuestionCount, label: `全${scopeWords.length}問`, locked: !isPaid },
+                { value: "50" as QuestionCount, label: "50問" },
+                { value: "all" as QuestionCount, label: `全${scopeWords.length}問` },
               ]}
             />
           </Field>
@@ -445,7 +439,7 @@ export default function QuizPanel({
         </button>
         {!isPaid ? (
           <button type="button" onClick={() => onLocked("Personalにすると、日→英・ミックス出題、制限時間、★だけ出題、自動発音など、すべての設定を使えます。")} className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-xs font-black text-amber-800">
-            🔒 無料は基本設定のみ（最大{FREE_MAX_QUESTIONS}問）。Personalで全設定を解放 ›
+            無料会員でも全語で学習できます。Personalで詳細設定を使う ›
           </button>
         ) : null}
       </div>

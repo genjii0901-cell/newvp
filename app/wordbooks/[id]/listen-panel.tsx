@@ -40,7 +40,6 @@ const DEFAULTS: Settings = {
 };
 
 // 無料会員が使える範囲。ここに無い項目は Personal 限定。
-const FREE_WORD_LIMIT = 100;
 function clampForFree(s: Settings): Settings {
   return {
     ...DEFAULTS,
@@ -141,14 +140,13 @@ export default function ListenPanel({
     let list = words;
     if (settings.markedOnly) {
       const marked = words.filter((word) => markedRef.current.has(`${word.no}-${word.english}`));
-      if (marked.length > 0) list = marked;
+      list = marked;
     }
     if (settings.shuffle) list = shuffled(list);
-    if (!isPaid) list = list.slice(0, FREE_WORD_LIMIT);
     return list;
     // shuffleSeed で並べ直しを明示的に起こす
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [words, settings.markedOnly, settings.shuffle, isPaid, shuffleSeed]);
+  }, [words, settings.markedOnly, settings.shuffle, shuffleSeed]);
   const listRef = useRef(playlist);
   listRef.current = playlist;
 
@@ -308,7 +306,6 @@ export default function ListenPanel({
 
   const progress = playlist.length ? ((index + 1) / playlist.length) * 100 : 0;
   const markedInList = words.filter((item) => markedKeys.has(`${item.no}-${item.english}`)).length;
-  const limited = !isPaid && words.length > FREE_WORD_LIMIT;
 
   function applyPreset(preset: (typeof PRESETS)[number]) {
     if (preset.locked && !isPaid) {
@@ -424,11 +421,7 @@ export default function ListenPanel({
           </div>
         </div>
 
-        {limited ? (
-          <button type="button" onClick={() => onLocked(`無料会員は先頭${FREE_WORD_LIMIT}語までの再生です。Personalなら選んだ範囲すべてを再生できます。`)} className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-bold text-amber-800">
-            🔒 無料会員は先頭{FREE_WORD_LIMIT}語まで再生できます（選択範囲は{words.length}語）。<span className="font-black text-amber-700"> Personalで全語を解放 ›</span>
-          </button>
-        ) : null}
+        {!isPaid ? <p className="px-1 text-xs font-bold leading-5 text-slate-500">無料会員でも、選んだ範囲の全語を再生できます。Personalでは詳細設定も使えます。</p> : null}
 
         <div className="max-h-72 overflow-auto rounded-2xl border bg-white">
           {playlist.map((item, i) => (
