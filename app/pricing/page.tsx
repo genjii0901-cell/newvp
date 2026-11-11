@@ -297,12 +297,17 @@ export default function PricingPage() {
             <p>決済情報を読み込めませんでした。接続を確認して再度お試しください。</p>
             <button type="button" onClick={() => { setConfigState("loading"); setConfigAttempt((value) => value + 1); }} className="rounded-lg border border-amber-300 bg-white px-3 py-2 font-bold">再確認</button>
           </div>
-        ) : (!stripeLiveMode || !personalReady) && (
+        ) : !personalReady ? (
           <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 sm:mt-5 sm:p-4 sm:text-sm">
             <p className="font-bold">本番Stripeの確認中です。</p>
             <p className="mt-1">本番 Stripe の設定が整い次第、このページから正式に課金できます。</p>
           </div>
-        )}
+        ) : !stripeLiveMode ? (
+          <div className="mt-3 rounded-2xl border border-violet-300 bg-violet-50 p-3 text-xs text-violet-900 sm:mt-5 sm:p-4 sm:text-sm" role="status">
+            <p className="font-bold">テストモードです（実際の請求は発生しません）</p>
+            <p className="mt-1">決済画面ではテスト用カード 4242 4242 4242 4242（有効期限は未来の日付、セキュリティコードは任意の3桁）で試せます。</p>
+          </div>
+        ) : null}
 
         {message && <p role="status" className="mt-5 rounded-2xl bg-white p-4 text-sm shadow-sm">{message}</p>}
 
