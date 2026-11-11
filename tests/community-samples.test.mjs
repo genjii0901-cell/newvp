@@ -29,5 +29,15 @@ test("community metadata round-trips without leaking into visible description", 
   assert.equal(stripEmbeddedWordbookMeta(description), "自作の単語帳");
   assert.deepEqual(parseEmbeddedWordbookMeta(description), {
     coverImage: null, visibility: "public", creatorName: "学習者", subject: "国語", anonymous: false,
+    copied: false, requiredPlan: null, sourceId: null,
   });
+});
+
+test("imported wordbook marks survive a round-trip", () => {
+  const description = embedWordbookMeta("取り込み", { copied: true, requiredPlan: "personal", sourceId: "abc" });
+  const meta = parseEmbeddedWordbookMeta(description);
+  assert.equal(meta.copied, true);
+  assert.equal(meta.requiredPlan, "personal");
+  assert.equal(meta.sourceId, "abc");
+  assert.equal(stripEmbeddedWordbookMeta(description), "取り込み");
 });

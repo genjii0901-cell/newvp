@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import {
   ensureProfile,
   getSupabaseAdmin,
+  readableError,
   isSupabaseServerConfigured,
   requireSupabaseUser,
   supabaseServerConfigResponse,
 } from "@/lib/supabase/admin";
 import { getPageCount, planLimits, type Plan } from "@/lib/plan-limits";
 import { getLicenseEntitlements, hasPersonalLicense, hasWordbookLicense, isLicenseSchemaError } from "@/lib/licenses";
-import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
-import { hasAdminFeatureAccess } from "@/lib/plan-access";
+import { hasEffectiveAdminAccess } from "@/lib/admin-auth";
 
 function normalizePlan(value: unknown): Plan {
   return value === "personal" || value === "teacher" ? value : "free";
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       if (!isLicenseSchemaError(error)) throw error;
     }
     const plan = licenseKind === "personal" ? "personal" : normalizePlan(profile?.plan);
-    if (hasAdminFeatureAccess(profile?.role, await hasVerifiedAdminBrowserSession(request, auth.user.id))) {
+    if (await hasEffectiveAdminAccess(request, profile?.role, auth.user.id)) {
       return NextResponse.json({ ok: true, plan, adminAccess: true, remaining: null, maxPages: null, maxWords: null, period: "admin" });
     }
     if (licenseKind === "wordbook") {
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     return NextResponse.json(
-      { ok: false, message: error instanceof Error ? error.message : "Unknown error" },
+      { ok: false, message: readableError(error) },
       { status: 500 }
     );
   }

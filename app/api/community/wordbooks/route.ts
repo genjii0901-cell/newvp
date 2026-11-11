@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { defaultCreatorName, loadCommunityWordbooks } from "@/lib/community-wordbooks";
 import { normalizeCommunitySubject } from "@/lib/community-wordbook-types";
 import { getSupabaseAdmin, isSupabaseServerConfigured, requireSupabaseUser } from "@/lib/supabase/admin";
-import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
+import { embedWordbookMeta, isLegacyCopiedDescription, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 import { communitySamples } from "@/data/community-samples";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     if (!book.title?.trim() || book.title.length > 100 || cleanDescription.length > 500) {
       return NextResponse.json({ ok: false, message: "タイトルは100文字以内、説明は500文字以内にしてください。" }, { status: 400 });
     }
-    if (cleanDescription.includes("をみんなの単語帳から追加しました")) {
+    if (parseEmbeddedWordbookMeta(book.description).copied === true || isLegacyCopiedDescription(book.description) || cleanDescription.includes("をみんなの単語帳から追加しました")) {
       return NextResponse.json({ ok: false, message: "既存教材をコピーした単語帳は公開できません。自作の内容を登録してください。" }, { status: 400 });
     }
     if (book.visibility !== "public") {

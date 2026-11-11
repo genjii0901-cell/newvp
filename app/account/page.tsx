@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import { PERSONAL_FEATURES, personalOfferText } from "@/lib/personal-pricing";
 
 type Plan = "free" | "personal" | "teacher";
 type Role = "user" | "admin";
@@ -36,8 +37,8 @@ const planInfo: Record<Plan, { label: string; color: string; limit: string; pric
   teacher: {
     label: "Teacher",
     color: "bg-purple-100 text-purple-700",
-    limit: "既存のご契約を継続中です（新規のお申し込みは終了しました）。タイトル変更などの機能が使えます。",
-    price: "¥2,980 / 月",
+    limit: "Personalの全機能に加え、印刷タイトルの変更、20ページを超える教材の印刷、CSV出力と列名の設定が使えます。",
+    price: "契約料金は請求情報で確認できます",
   },
 };
 
@@ -66,6 +67,7 @@ export default function AccountPage() {
   const [user, setUser] = useState<User | null>(null);
   const [plan, setPlan] = useState<Plan>("free");
   const [role, setRole] = useState<Role>("user");
+  const [trialOffer, setTrialOffer] = useState<"first" | null>("first");
   const [loading, setLoading] = useState(true);
   const [newPassword, setNewPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -79,6 +81,8 @@ export default function AccountPage() {
   const [cancellationReason, setCancellationReason] = useState<CancellationReason | "">("");
   const [cancellationFeedback, setCancellationFeedback] = useState("");
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
+  const [adminCapable, setAdminCapable] = useState(false);
+  const [customerView, setCustomerView] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteAcknowledged, setDeleteAcknowledged] = useState(false);
@@ -136,6 +140,9 @@ export default function AccountPage() {
       if (!cancelled && response.ok) {
         setPlan(normalizePlan(result.profile?.plan));
         setRole(result.profile?.adminAccess === true ? "admin" : "user");
+        setAdminCapable(result.profile?.adminCapable === true);
+        setCustomerView(result.profile?.customerView === true);
+        setTrialOffer(result.profile?.trialOffer === "first" ? "first" : null);
       }
 
       if (!cancelled) setLoading(false);
@@ -241,8 +248,9 @@ export default function AccountPage() {
     setCancelLoading(false);
   }
 
-  async function changeAdminPlan(nextPlan: Plan) {
-    if (!supabase || !user || role !== "admin") return;
+  // 管理者の試用: 購入者と同じ plan / trial_used をDBに書き、購入者ビューのON/OFFも切り替える。
+  async function changeAdminPlan(payload: { plan?: Plan; trialUsed?: boolean; customerView?: boolean }) {
+    if (!supabase || !user || !adminCapable) return;
     setAdminPlanSaving(true);
     setMsg("");
     const { data: session } = await supabase.auth.getSession();
@@ -253,16 +261,19 @@ export default function AccountPage() {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ plan: nextPlan }),
+      body: JSON.stringify(payload),
     });
     const result = await response.json().catch(() => ({}));
     if (response.ok && result.profile?.plan) {
       const updatedPlan = normalizePlan(result.profile.plan);
       setPlan(updatedPlan);
+      setRole(result.profile.adminAccess === true ? "admin" : "user");
+      setCustomerView(result.profile.customerView === true);
+      setTrialOffer(result.profile.trialOffer === "first" ? "first" : null);
       try {
         window.localStorage.setItem(`vpp-profile-plan:${user.id}`, updatedPlan);
       } catch {}
-      setMsg(`管理者プレビューを ${planInfo[updatedPlan].label} に切り替えました。`);
+      setMsg(`試用状態を更新しました（${planInfo[updatedPlan].label}${result.profile.customerView ? "・購入者ビュー" : "・管理者ビュー"}）。`);
     } else {
       setMsg(result.error ?? "プラン変更に失敗しました。");
     }
@@ -323,6 +334,7 @@ export default function AccountPage() {
   }
 
   const info = planInfo[plan];
+  const offerText = personalOfferText(trialOffer === "first");
   const isError = isErrorMessage(msg);
 
   return (
@@ -348,14 +360,23 @@ export default function AccountPage() {
           <p className="mt-4 text-sm font-bold text-blue-700">管理者認証中: Personal・Teacherの機能を利用できます。請求プランは変更されません。</p>
         ) : null}
         {plan === "free" && role !== "admin" && (
-          <>
+          <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 className="font-black text-slate-900">Personalプラン</h3>
+              <p className="text-lg font-black text-blue-700">{offerText?.price ?? "料金を読み込み中…"}</p>
+            </div>
+            {offerText && <p className="mt-1 text-xs font-bold text-slate-600">{offerText.summary}</p>}
+            <p className="mt-2 text-sm text-slate-600">個人学習向けのプランです。印刷回数を気にせず使えて、聞き流し・単語チェックの詳細設定もすべて使えます。</p>
+            <ul className="mt-2 space-y-1 text-sm text-slate-700">
+              {PERSONAL_FEATURES.map((feature) => <li key={feature}>・{feature}</li>)}
+            </ul>
             <Link href="/pricing" className="mt-4 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-              有料プランを見る
+              料金プランを見る・申し込む
             </Link>
             <p className="mt-2 text-xs text-slate-500">
-              印刷は1ページ50円の都度購入、またはPersonalでご利用いただけます。
+              無料会員のままでも、印刷は1ページ50円の都度購入でご利用いただけます。
             </p>
-          </>
+          </div>
         )}
       </section>
 
@@ -495,7 +516,7 @@ export default function AccountPage() {
               <>
                 <h3 className="font-black text-red-700">契約を終了しますか？</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-700">
-                  初回7日間を含むトライアル状態の契約は、解約時点でPersonal機能が終了し、都度購入のアカウントに戻ります。
+                  最初の7日間（無料期間・初回料金の期間）に解約すると、その時点でPersonal機能が終了し、都度購入のアカウントに戻ります。
                   すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
                 </p>
                 <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">
@@ -567,11 +588,30 @@ export default function AccountPage() {
         )}
       </section>
 
-      {role === "admin" && (
+      {adminCapable && (
         <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
-          <h2 className="text-lg font-black text-amber-900">管理者プレビュー</h2>
+          <h2 className="text-lg font-black text-amber-900">管理者の試用（購入者と同じ状態で確認）</h2>
           <p className="mt-2 text-sm text-amber-800">
-            管理者アカウントは、表示確認用にFree / Personal / Teacherを切り替えられます。
+            自分のアカウントを Free / Personal / Teacher に切り替えて、購入者と同じ画面・同じ制限で試せます。専用の特別処理はなく、購入者と同じ「プラン」の値を書き換えるだけなので、聞き流し・単語チェック・忘却曲線の記録も通常どおり同期されます。
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => changeAdminPlan({ customerView: !customerView })}
+              disabled={adminPlanSaving}
+              className={`rounded-2xl border px-4 py-3 text-sm font-black ${customerView ? "border-emerald-400 bg-emerald-100 text-emerald-900" : "border-amber-300 bg-white text-amber-900 hover:bg-amber-100"} disabled:opacity-60`}
+            >
+              {customerView ? "購入者ビュー：ON（管理者の全機能開放を外しています）" : "購入者ビューにする（管理者の全機能開放を外す）"}
+            </button>
+            <button
+              onClick={() => changeAdminPlan({ trialUsed: trialOffer === "first" })}
+              disabled={adminPlanSaving}
+              className="rounded-2xl border border-amber-300 bg-white px-4 py-3 text-sm font-black text-amber-900 hover:bg-amber-100 disabled:opacity-60"
+            >
+              {trialOffer === "first" ? "初回の7日間アクセス：対象（押すと体験済みにする）" : "7日間アクセス：体験済み（押すと対象に戻す）"}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-amber-700">
+            購入者ビューがOFFのときは、管理者として全機能が開放されるため、プランを変えても見え方は変わりません。試すときはONにしてください。
           </p>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
             {(["free", "personal", "teacher"] as Plan[]).map((nextPlan) => {
@@ -579,7 +619,7 @@ export default function AccountPage() {
               return (
                 <button
                   key={nextPlan}
-                  onClick={() => changeAdminPlan(nextPlan)}
+                  onClick={() => changeAdminPlan({ plan: nextPlan })}
                   disabled={adminPlanSaving || current}
                   className={`rounded-2xl border px-4 py-3 text-sm font-black ${
                     current

@@ -6,12 +6,11 @@ import {
   tryEnsureProfile,
 } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
-import { appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
+import { appendInlinePlanPrice, appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
 
 type CheckoutPlan = "personal" | "teacher";
-// 新規はPersonalと都度購入のみ。Teacherの新規申込は停止（既存契約は継続）。
-const TEACHER_PUBLIC_ENABLED = false;
-const TEACHER_LOOKUP_KEY = "vocab_print_pro_teacher_monthly_2980";
+// 2026-11-10 Teacher（塾プラン）の新規申込を再開。新料金は決済ページへ金額を直接渡す（Stripe側のPrice作成は不要）。
+const TEACHER_PUBLIC_ENABLED = true;
 export const maxDuration = 60;
 
 function isCheckoutPlan(value: unknown): value is CheckoutPlan {
@@ -31,65 +30,6 @@ function isProductionHost(appUrl: string) {
   }
 }
 
-function getTeacherPriceId() {
-  return process.env.STRIPE_PRICE_TEACHER ?? process.env.NEXT_PUBLIC_STRIPE_PRICE_TEACHER;
-}
-
-async function resolveTeacherPriceId(stripeSecretKey: string) {
-  const configured = getTeacherPriceId();
-  if (configured?.startsWith("price_")) return configured;
-
-  const pricesResponse = await fetch(
-    `https://api.stripe.com/v1/prices?active=true&limit=1&lookup_keys[]=${encodeURIComponent(TEACHER_LOOKUP_KEY)}`,
-    { headers: { Authorization: `Bearer ${stripeSecretKey}` }, cache: "no-store" },
-  );
-  const prices = await pricesResponse.json();
-  const existingPrice = Array.isArray(prices?.data) ? prices.data[0]?.id : null;
-  if (typeof existingPrice === "string" && existingPrice.startsWith("price_")) return existingPrice;
-
-  const productBody = new URLSearchParams({
-    name: "Vocab Print Pro Teacher",
-    description: "学校・塾・教材作成者向けプラン",
-    "metadata[plan]": "teacher",
-  });
-  const productResponse = await fetch("https://api.stripe.com/v1/products", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${stripeSecretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Idempotency-Key": "vpp-teacher-product-v1",
-    },
-    body: productBody,
-  });
-  const product = await productResponse.json();
-  if (!productResponse.ok || typeof product?.id !== "string") {
-    throw new Error(product?.error?.message ?? "Teacher商品の作成に失敗しました。");
-  }
-
-  const priceBody = new URLSearchParams({
-    currency: "jpy",
-    unit_amount: "2980",
-    product: product.id,
-    lookup_key: TEACHER_LOOKUP_KEY,
-    "recurring[interval]": "month",
-    "metadata[plan]": "teacher",
-  });
-  const priceResponse = await fetch("https://api.stripe.com/v1/prices", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${stripeSecretKey}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Idempotency-Key": "vpp-teacher-price-2980-v1",
-    },
-    body: priceBody,
-  });
-  const price = await priceResponse.json();
-  if (!priceResponse.ok || typeof price?.id !== "string") {
-    throw new Error(price?.error?.message ?? "Teacher価格の作成に失敗しました。");
-  }
-  return price.id as string;
-}
-
 function isNoSuchCustomerError(value: unknown) {
   return typeof value === "string" && value.includes("No such customer");
 }
@@ -99,14 +39,14 @@ export async function POST(request: Request) {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
 
-    const { plan, pricingVariant } = (await request.json()) as { plan?: unknown; pricingVariant?: unknown };
+    const { plan, pricingVariant, interval: rawInterval } = (await request.json()) as { plan?: unknown; pricingVariant?: unknown; interval?: unknown };
+    const interval = rawInterval === "year" ? "year" : "month";
     if (!isCheckoutPlan(plan)) {
       return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
     }
 
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(request.url).origin;
-    let priceId = plan === "teacher" ? getTeacherPriceId() : undefined;
 
     if (plan === "teacher" && !TEACHER_PUBLIC_ENABLED) {
       return NextResponse.json(
@@ -136,27 +76,6 @@ export async function POST(request: Request) {
       );
     }
 
-    if (plan === "teacher" && !priceId) {
-      priceId = await resolveTeacherPriceId(stripeSecretKey);
-    }
-
-    if (plan === "teacher" && !priceId) {
-      return NextResponse.json(
-        { ok: false, error: "Stripeの価格設定が見つかりません。" },
-        { status: 500 },
-      );
-    }
-
-    if (plan === "teacher" && !priceId?.startsWith("price_")) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error: "Stripeの価格IDが正しくありません。商品IDではなく price_ で始まる価格IDを設定してください。",
-        },
-        { status: 400 }
-      );
-    }
-
     const profile = await tryEnsureProfile(auth.user);
     if (!profile) {
       return NextResponse.json(
@@ -180,7 +99,7 @@ export async function POST(request: Request) {
     }
 
     // Introductory pricing is once per account. Existing subscriptions keep their old Stripe price.
-    const introductoryWeek = plan === "personal" && Boolean(profile && getTrialOffer(profile) === "first");
+    const introductoryWeek = plan === "personal" && interval === "month" && Boolean(profile && getTrialOffer(profile) === "first");
 
     const body = new URLSearchParams({
       mode: "subscription",
@@ -190,12 +109,11 @@ export async function POST(request: Request) {
     });
 
     body.append("payment_method_types[]", "card");
-    if (plan === "personal") {
+    if (plan === "teacher" || interval === "year") {
+      appendInlinePlanPrice(body, plan, interval);
+    } else if (plan === "personal") {
       // 料金は固定なので、Stripe側に料金を作らず、決済ページへ金額を直接渡す（IDの設定は不要）。
       appendPersonalCheckoutPrices(body, introductoryWeek, { monthly: null, intro: introductoryWeek ? null : undefined });
-    } else if (priceId) {
-      body.append("line_items[0][price]", priceId);
-      body.append("line_items[0][quantity]", "1");
     }
     body.append("metadata[user_id]", auth.user.id);
     body.append("metadata[plan]", plan);

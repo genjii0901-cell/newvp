@@ -129,3 +129,23 @@
     @apply font-sans;
   }
 }
+
+/* 日本語の不自然な改行を減らす（見出しは行の長さをそろえ、文は文節の区切りで折り返す）。
+   word-break: auto-phrase は対応ブラウザ（Chrome系）のみ有効。未対応のSafariは通常の折り返しになる。 */
+@layer base {
+  html {
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+  :where(h1, h2, h3, h4) {
+    text-wrap: balance;
+  }
+  :where(p, li, dd, dt, label, button, a, summary):not(#print-root *, [class*="preview"] *) {
+    text-wrap: pretty;
+  }
+  @supports (word-break: auto-phrase) {
+    :where(h1, h2, h3, h4, p, li, dd, dt, label, button, a, span):not(#print-root *, [class*="preview"] *) {
+      word-break: auto-phrase;
+    }
+  }
+}

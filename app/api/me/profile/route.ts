@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
-import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
+import { CUSTOMER_VIEW_COOKIE, hasVerifiedAdminBrowserSession, isCustomerViewRequest } from "@/lib/admin-auth";
 import { hasAdminFeatureAccess } from "@/lib/plan-access";
 
 type Plan = "free" | "personal" | "teacher";
@@ -110,7 +110,9 @@ export async function GET(request: Request) {
 
   try {
     const profile = await ensureProfile(auth.user);
-    const adminAccess = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
+    const adminCapable = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
+    const customerView = adminCapable && isCustomerViewRequest(request);
+    const adminAccess = adminCapable && !customerView;
     let plan = normalizePlan(profile.plan);
     const stripeCustomerId = profile.stripe_customer_id ?? null;
 
@@ -138,7 +140,8 @@ export async function GET(request: Request) {
           { onConflict: "stripe_subscription_id" }
         );
       }
-    } else if (activeSubscription === null && plan !== "free") {
+    } else if (activeSubscription === null && plan !== "free" && !adminCapable) {
+      // 管理者の試用プランは、Stripe契約がなくてもfreeへ戻さない。
       plan = "free";
       await supabase
         .from("profiles")
@@ -154,6 +157,8 @@ export async function GET(request: Request) {
         plan,
         role: profile.role ?? "user",
         adminAccess,
+        adminCapable,
+        customerView,
         stripe_customer_id: stripeCustomerId,
         trialOffer: getTrialOffer(profile),
       },
@@ -171,9 +176,9 @@ export async function PATCH(request: Request) {
   if (auth.response) return auth.response;
 
   try {
-    const body = (await request.json().catch(() => ({}))) as { plan?: unknown };
-    const nextPlan = normalizePlan(body.plan);
+    const body = (await request.json().catch(() => ({}))) as { plan?: unknown; trialUsed?: unknown; customerView?: unknown };
     const profile = await ensureProfile(auth.user);
+    const nextPlan = body.plan === undefined ? normalizePlan(profile.plan) : normalizePlan(body.plan);
 
     if (!hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id))) {
       return NextResponse.json(
@@ -183,29 +188,46 @@ export async function PATCH(request: Request) {
     }
 
     const supabase = getSupabaseAdmin();
-    const { error } = await supabase
-      .from("profiles")
-      .update({ plan: nextPlan })
-      .eq("id", auth.user.id);
-
-    if (error) {
-      return NextResponse.json(
-        { ok: false, error: readableError(error) },
-        { status: 500 }
-      );
+    // 購入者と同じDB項目（plan / trial_used）だけを書き換える。専用の特別処理は持たない。
+    const update: Record<string, unknown> = {};
+    if (body.plan !== undefined) update.plan = nextPlan;
+    if (typeof body.trialUsed === "boolean") update.trial_used = body.trialUsed;
+    if (Object.keys(update).length > 0) {
+      const { error } = await supabase.from("profiles").update(update).eq("id", auth.user.id);
+      if (error) {
+        return NextResponse.json(
+          { ok: false, error: readableError(error) },
+          { status: 500 }
+        );
+      }
     }
 
-    return NextResponse.json({
+    const customerView = typeof body.customerView === "boolean" ? body.customerView : isCustomerViewRequest(request);
+    const trialUsed = typeof body.trialUsed === "boolean" ? body.trialUsed : profile.trial_used === true;
+    const response = NextResponse.json({
       ok: true,
       profile: {
         id: profile.id,
         email: profile.email ?? auth.user.email ?? null,
         plan: nextPlan,
         role: profile.role ?? "user",
-        adminAccess: true,
+        adminAccess: !customerView,
+        adminCapable: true,
+        customerView,
+        trialOffer: getTrialOffer({ ...profile, trial_used: trialUsed }),
         stripe_customer_id: profile.stripe_customer_id ?? null,
       },
     });
+    if (typeof body.customerView === "boolean") {
+      response.cookies.set(CUSTOMER_VIEW_COOKIE, body.customerView ? "1" : "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: body.customerView ? 7 * 24 * 60 * 60 : 0,
+      });
+    }
+    return response;
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: readableError(error) },

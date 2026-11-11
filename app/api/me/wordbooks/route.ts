@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
-import { embedWordbookMeta, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
+import { embedWordbookMeta, isLegacyCopiedDescription, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +79,8 @@ async function loadWordbooksForUser(userId: string) {
     const words = wordsByBookId.get(String(book.id)) ?? [];
     words.sort((a, b) => a.no - b.no);
     const meta = parseEmbeddedWordbookMeta(book.description);
+    const copied = meta.copied === true || isLegacyCopiedDescription(book.description);
+    const copiedPlan = meta.requiredPlan === "personal" || meta.requiredPlan === "teacher" ? meta.requiredPlan : "free";
     return {
       id: String(book.id),
       title: book.title ?? "マイ単語帳",
@@ -90,8 +92,10 @@ async function loadWordbooksForUser(userId: string) {
       anonymous: meta.anonymous === true,
       subject: meta.subject ?? "その他",
       coverImage: meta.coverImage ?? null,
-      requiredPlan: "free" as const,
-      level: "自作",
+      requiredPlan: (copied ? copiedPlan : "free") as "free" | "personal" | "teacher",
+      level: copied ? "取り込み" : "自作",
+      copied,
+      sourceId: meta.sourceId ?? null,
     };
   }).sort((a, b) => a.title.localeCompare(b.title, "ja"));
 }
@@ -153,12 +157,24 @@ export async function POST(request: Request) {
       }
     }
 
+    // みんなの単語帳から取り込んだものは印を付け、元の必要プランと表紙を引き継ぐ。
+    const isCopy = body.dedupe === true;
+    const sourcePlan = body.requiredPlan === "personal" || body.requiredPlan === "teacher" ? body.requiredPlan : "free";
+    const storedDescription = isCopy
+      ? embedWordbookMeta(description, {
+          copied: true,
+          requiredPlan: sourcePlan,
+          sourceId: typeof body.sourceId === "string" ? body.sourceId.slice(0, 80) : null,
+          coverImage: typeof body.coverImage === "string" && body.coverImage.length < 500 && /^(https?:\/\/|\/api\/wordbooks\/cover)/.test(body.coverImage) ? body.coverImage : null,
+          subject: typeof body.subject === "string" ? body.subject : null,
+        })
+      : description;
     const { data: wordbook, error: insertBookError } = await supabase
       .from("wordbooks")
       .insert({
         owner_id: auth.user.id,
         title,
-        description,
+        description: storedDescription,
         is_official: false,
         visibility: "private",
       })
@@ -240,6 +256,9 @@ export async function PATCH(request: Request) {
     }
     if (!existing) {
       return NextResponse.json({ ok: false, error: "編集対象の単語帳が見つかりません。" }, { status: 404 });
+    }
+    if (parseEmbeddedWordbookMeta(existing.description).copied === true || isLegacyCopiedDescription(existing.description)) {
+      return NextResponse.json({ ok: false, error: "みんなの単語帳から取り込んだ単語帳は編集できません。編集したい場合は、新しく自分の単語帳を作ってください。" }, { status: 403 });
     }
 
     const preservedDescription = embedWordbookMeta(description, parseEmbeddedWordbookMeta(existing.description));

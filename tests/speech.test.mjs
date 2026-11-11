@@ -12,7 +12,8 @@ function setup(t) {
   let canceled = 0;
   globalThis.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; } };
   globalThis.window = {
-    speechSynthesis: { getVoices: () => [], speak: (utterance) => spoken.push(utterance), cancel: () => { canceled += 1; } },
+    // 声の一覧が空だと、読み込み待ち（voiceschanged）に入るため、声が1つある状態を用意する。
+    speechSynthesis: { getVoices: () => [{ name: "Test", lang: "xx-XX" }], addEventListener: () => {}, removeEventListener: () => {}, speak: (utterance) => spoken.push(utterance), cancel: () => { canceled += 1; } },
     setTimeout: (fn, delay) => { timers.set(++id, { fn, delay }); return id; },
     clearTimeout: (key) => timers.delete(key),
     setInterval: (fn) => { intervals.set(++id, fn); return id; },

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import LockedFeatureButton from "@/components/locked-feature-button";
 import {
   applyAnswer,
   dueWords,
@@ -21,8 +22,8 @@ import ListenPanel from "../wordbooks/[id]/listen-panel";
 import { ForecastChart, MemoryRing, StatusBar } from "./progress-ui";
 
 type MyWord = { no: number; english: string; japanese: string; unit: string | null };
-type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null };
-type CatalogBook = { id: string; title: string; wordCount: number; coverImage: string | null; description: string };
+type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null };
+type CatalogBook = { id: string; title: string; wordCount: number; coverImage: string | null; description: string; requiredPlan?: string };
 type Tab = "study" | "listen" | "memory";
 
 
@@ -42,7 +43,7 @@ function coverFor(book: { title: string; coverImage: string | null }, covers?: R
 const STARTER_TITLES = ["システム英単語", "ターゲット1900", "ターゲット1400", "LEAP", "英検"];
 
 /** みんなの単語帳の1冊を、単語ごと取得してマイ単語帳に追加する（同じ単語帳は二重に入れない）。 */
-async function addOfficialBook(token: string, book: { id: string; title: string }) {
+async function addOfficialBook(token: string, book: { id: string; title: string; coverImage?: string | null; requiredPlan?: string }) {
   const wordsRes = await fetch(`/api/wordbooks/official?id=${encodeURIComponent(book.id)}&includeWords=1`);
   const wordsJson = await wordsRes.json().catch(() => ({}));
   const raw = Array.isArray(wordsJson.wordbooks) ? wordsJson.wordbooks.find((item: { id: string | number }) => String(item.id) === book.id) : null;
@@ -55,6 +56,9 @@ async function addOfficialBook(token: string, book: { id: string; title: string 
       title: book.title,
       description: `${book.title}をマイ単語帳に追加しました。`,
       dedupe: true,
+      requiredPlan: book.requiredPlan,
+      sourceId: book.id,
+      coverImage: book.coverImage,
       words: words.map((word: { no?: number; english: string; japanese: string; unit?: string | null }) => ({ no: word.no, english: word.english, japanese: word.japanese, unit: word.unit })),
     }),
   });
@@ -141,8 +145,9 @@ export default function MyWordbooksHub() {
       .then((json) => {
         const list = Array.isArray(json.wordbooks) ? json.wordbooks : [];
         setCatalog(
-          list.map((item: { id: string | number; title?: string; wordCount?: number; words?: unknown[]; coverImage?: string | null; description?: string }) => ({
+          list.map((item: { id: string | number; title?: string; wordCount?: number; words?: unknown[]; coverImage?: string | null; description?: string; requiredPlan?: string }) => ({
             id: String(item.id),
+            requiredPlan: item.requiredPlan,
             title: item.title ?? "単語帳",
             wordCount: typeof item.wordCount === "number" ? item.wordCount : item.words?.length ?? 0,
             coverImage: item.coverImage ?? null,
@@ -177,13 +182,21 @@ export default function MyWordbooksHub() {
       .catch(() => undefined);
   }, [loaded, books.length, token, userId, catalog, loadBooks]);
 
+  // ★や学習記録は、取り込み元の単語帳と同じ記録を使う（単語帳ページと同期する）。
+  // 古い取り込みで元IDが無いものは、タイトルが同じ人気教材を元とみなす。
+  const syncId = useCallback(
+    (item: { id: string; title: string; copied?: boolean; sourceId?: string | null }) =>
+      item.sourceId || (item.copied ? catalog.find((entry) => entry.title === item.title)?.id : undefined) || item.id,
+    [catalog],
+  );
+
   // 学習記録の読み込み（端末に保存）
   useEffect(() => {
     if (!userId || books.length === 0) return;
     const next: Record<string, BookProgress> = {};
-    for (const book of books) next[book.id] = loadProgress(userId, book.id);
+    for (const book of books) next[book.id] = loadProgress(userId, syncId(book));
     setProgressByBook(next);
-  }, [userId, books]);
+  }, [userId, books, syncId]);
 
   // 同じ単語帳（同じタイトル）は1冊だけ。学習記録がある本、なければ語数の多い本を残す。
   const duplicateIds = useMemo(() => {
@@ -217,6 +230,23 @@ export default function MyWordbooksHub() {
     }
   }
 
+  async function deleteBook(target: MyBook) {
+    if (!token) return;
+    if (!window.confirm(`「${target.title}」をマイ単語帳から削除しますか？（学習記録はこの端末に残ります）`)) return;
+    const response = await fetch("/api/me/wordbooks", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: target.id }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setNotice(result.error ?? "削除できませんでした。");
+      return;
+    }
+    setNotice(`「${target.title}」を削除しました。`);
+    await loadBooks();
+  }
+
   const book = books.find((item) => item.id === selectedId) ?? null;
   const progress = (book && progressByBook[book.id]) || {};
   const now = Date.now();
@@ -227,7 +257,7 @@ export default function MyWordbooksHub() {
   const nextDue = book ? nextDueInDays(book.words, progress, now) : null;
 
   // ★の保存（聞き流し・単語チェックと共通のキー）
-  const markKey = userId && book ? `vpp-word-marks:${userId}:${book.id}` : "";
+  const markKey = userId && book ? `vpp-word-marks:${userId}:${syncId(book)}` : "";
   useEffect(() => {
     if (!markKey) return;
     try {
@@ -259,7 +289,7 @@ export default function MyWordbooksHub() {
       const current = all[bookId] ?? {};
       const key = wordKey(word);
       const nextBook = { ...current, [key]: applyAnswer(current[key], correct) };
-      saveProgress(userId, bookId, nextBook);
+      saveProgress(userId, syncId(book), nextBook);
       return { ...all, [bookId]: nextBook };
     });
   }
@@ -309,7 +339,8 @@ export default function MyWordbooksHub() {
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={() => setAdderOpen(true)} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700">＋ 単語帳を追加</button>
-          <Link href="/wordbooks?tab=my" className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">編集・公開</Link>
+          <Link href="/wordbooks?tab=my" className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">自作・公開</Link>
+          <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" />
         </div>
       </div>
 
@@ -396,6 +427,9 @@ export default function MyWordbooksHub() {
             </div>
             <div className="mt-4">
               <StatusBar summary={summary} />
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button type="button" onClick={() => void deleteBook(book)} className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100">この単語帳を削除</button>
             </div>
             <div className="mt-4">
               <button type="button" onClick={startDue} className={`min-h-14 w-full rounded-2xl px-4 text-base font-black shadow-lg ${summary.dueCount > 0 ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600" : "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-700"}`}>
@@ -539,8 +573,9 @@ function BookAdder({ token, ownedTitles, onClose, onAdded }: { token: string; ow
       .then((json) => {
         const list = Array.isArray(json.wordbooks) ? json.wordbooks : [];
         setCatalog(
-          list.map((book: { id: string | number; title?: string; wordCount?: number; words?: unknown[]; coverImage?: string | null; description?: string }) => ({
+          list.map((book: { id: string | number; title?: string; wordCount?: number; words?: unknown[]; coverImage?: string | null; description?: string; requiredPlan?: string }) => ({
             id: String(book.id),
+            requiredPlan: book.requiredPlan,
             title: book.title ?? "単語帳",
             wordCount: typeof book.wordCount === "number" ? book.wordCount : book.words?.length ?? 0,
             coverImage: book.coverImage ?? null,

@@ -35,6 +35,7 @@ type MyWordbook = {
   anonymous?: boolean;
   subject?: CommunitySubject;
   coverImage?: string | null;
+  copied?: boolean;
 };
 type Tab = "official" | "my";
 type EditableRow = { no: number; english: string; japanese: string; unit: string };
@@ -213,6 +214,8 @@ export default function WordbooksClient({
         : emptyRows(),
     );
   }, [myBooks, selectedMyBookId]);
+
+  const selectedCopied = myBooks.find((book) => book.id === selectedMyBookId)?.copied === true;
 
   const filteredOfficialBooks = useMemo(() => {
     const query = officialSearch.trim().toLowerCase();
@@ -438,6 +441,10 @@ export default function WordbooksClient({
           description: `${book.title}をみんなの単語帳から追加しました。`,
           words,
           dedupe: true,
+          requiredPlan: book.community ? "free" : book.requiredPlan,
+          coverImage: book.coverImage,
+          sourceId: book.community ? undefined : book.id,
+          subject: book.subject,
         }),
       });
       const result = await response.json().catch(() => ({}));
@@ -665,12 +672,12 @@ export default function WordbooksClient({
                       <img src={book.coverImage || defaultCommunityCover(book.subject ?? "英語")} alt={`${book.title}の表紙`} className="h-20 w-full object-cover sm:h-28" />
                       <div className="p-2 sm:p-4">
                         <div className="flex items-center justify-between gap-1.5">
-                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 sm:px-3 sm:py-1 sm:text-xs">{book.published ? "公開中" : "非公開"}</span>
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700 sm:px-3 sm:py-1 sm:text-xs">{book.copied ? "取り込み（編集不可）" : book.published ? "公開中" : "非公開"}</span>
                           <span className="text-[10px] font-bold text-slate-400 sm:text-xs">{book.wordCount}語</span>
                         </div>
                         <h2 className="mt-1.5 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-0 sm:text-lg">{book.title}</h2>
                         <p className="mt-2 hidden line-clamp-2 min-h-10 text-sm leading-5 text-slate-500 sm:block">
-                          {book.description || "自分で保存した単語帳です。"}
+                          {book.copied ? "みんなの単語帳から取り込んだ単語帳です。" : book.description || "自分で保存した単語帳です。"}
                         </p>
                         <div className="mt-2 grid gap-1.5 sm:mt-4 sm:flex sm:flex-wrap sm:gap-2">
                           <button
@@ -681,7 +688,7 @@ export default function WordbooksClient({
                             }}
                             className="rounded-lg bg-blue-600 px-2 py-1.5 text-[11px] font-black text-white hover:bg-blue-700 sm:rounded-xl sm:px-3 sm:py-2 sm:text-xs"
                           >
-                            編集
+                            {book.copied ? "開く" : "編集"}
                           </button>
                           <Link
                             href={`/?book=${encodeURIComponent(book.id)}`}
@@ -703,7 +710,7 @@ export default function WordbooksClient({
 
           <section className="rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-black">マイ単語帳を編集</h2>
+              <h2 className="text-lg font-black">{selectedCopied ? "取り込んだ単語帳（閲覧のみ）" : selectedMyBookId ? "自分の単語帳を編集" : "自分の単語帳を新しく作る"}</h2>
               <div className="flex flex-wrap gap-2">
                 {selectedMyBookId && (
                   <>
@@ -718,89 +725,95 @@ export default function WordbooksClient({
               </div>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {selectedCopied ? (
+              <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
+                みんなの単語帳から取り込んだ単語帳は、内容を書き換えたり公開したりできません。自分用に学習・印刷する用途でお使いください。内容を変えたいときは「新規作成」で自分の単語帳を作ってください。不要なときは「削除する」で外せます。
+              </p>
+            ) : null}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div>
                 <label className="block text-sm font-bold">タイトル</label>
                 <input
                   value={editorTitle}
+                  disabled={selectedCopied}
                   onChange={(e) => setEditorTitle(e.target.value)}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:bg-slate-100"
                 />
               </div>
               <div>
                 <label className="block text-sm font-bold">説明</label>
                 <input
                   value={editorDescription}
+                  disabled={selectedCopied}
                   onChange={(e) => setEditorDescription(e.target.value)}
-                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+                  className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:bg-slate-100"
                 />
               </div>
             </div>
 
-            <div className="mt-5 overflow-auto rounded-2xl border">
-              <table className="w-full min-w-[760px] border-collapse text-sm">
-                <thead className="bg-slate-100">
-                  <tr>
-                    <th className="border p-2">番号</th>
-                    <th className="border p-2">英語</th>
-                    <th className="border p-2">日本語</th>
-                    <th className="border p-2">Unit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {editorRows.map((row, index) => (
-                    <tr key={index}>
-                      <td className="border p-2">
-                        <input
-                          type="number"
-                          value={row.no}
-                          onChange={(e) => updateRow(index, "no", Number(e.target.value))}
-                          className="w-full rounded-lg border px-2 py-1"
-                        />
-                      </td>
-                      <td className="border p-2">
-                        <input
-                          value={row.english}
-                          onChange={(e) => updateRow(index, "english", e.target.value)}
-                          className="w-full rounded-lg border px-2 py-1"
-                        />
-                      </td>
-                      <td className="border p-2">
-                        <input
-                          value={row.japanese}
-                          onChange={(e) => updateRow(index, "japanese", e.target.value)}
-                          className="w-full rounded-lg border px-2 py-1"
-                        />
-                      </td>
-                      <td className="border p-2">
-                        <input
-                          value={row.unit}
-                          onChange={(e) => updateRow(index, "unit", e.target.value)}
-                          className="w-full rounded-lg border px-2 py-1"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="mt-4 hidden grid-cols-[4rem_1fr_1fr_8rem] gap-2 px-1 text-xs font-black text-slate-500 sm:grid">
+              <span>番号</span><span>英語</span><span>日本語</span><span>Unit</span>
+            </div>
+            <div className="mt-2 max-h-[60dvh] space-y-2 overflow-auto rounded-2xl border bg-slate-50 p-2 sm:mt-1">
+              {editorRows.map((row, index) => (
+                <div key={index} className="grid grid-cols-[3.2rem_1fr] gap-1.5 rounded-xl bg-white p-2 shadow-sm sm:grid-cols-[4rem_1fr_1fr_8rem] sm:bg-transparent sm:p-0 sm:shadow-none">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    aria-label="番号"
+                    value={row.no}
+                    disabled={selectedCopied}
+                    onChange={(e) => updateRow(index, "no", Number(e.target.value))}
+                    className="w-full rounded-lg border px-2 py-1.5 text-sm disabled:bg-slate-100"
+                  />
+                  <input
+                    aria-label="英語"
+                    placeholder="英語"
+                    value={row.english}
+                    disabled={selectedCopied}
+                    onChange={(e) => updateRow(index, "english", e.target.value)}
+                    className="w-full rounded-lg border px-2 py-1.5 text-sm disabled:bg-slate-100"
+                  />
+                  <input
+                    aria-label="日本語"
+                    placeholder="日本語"
+                    value={row.japanese}
+                    disabled={selectedCopied}
+                    onChange={(e) => updateRow(index, "japanese", e.target.value)}
+                    className="col-span-2 w-full rounded-lg border px-2 py-1.5 text-sm disabled:bg-slate-100 sm:col-span-1"
+                  />
+                  <input
+                    aria-label="Unit"
+                    placeholder="Unit（任意）"
+                    value={row.unit}
+                    disabled={selectedCopied}
+                    onChange={(e) => updateRow(index, "unit", e.target.value)}
+                    className="col-span-2 w-full rounded-lg border px-2 py-1.5 text-sm disabled:bg-slate-100 sm:col-span-1"
+                  />
+                </div>
+              ))}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={addRow}
-                className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                行を追加
-              </button>
-              <button
-                type="button"
-                onClick={saveMyBook}
-                disabled={saving || !loggedIn}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-300"
-              >
-                {saving ? "保存中..." : selectedMyBookId ? "更新する" : "保存する"}
-              </button>
+              {!selectedCopied ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={addRow}
+                    className="rounded-xl border px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                  >
+                    行を追加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveMyBook}
+                    disabled={saving || !loggedIn}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:bg-slate-300"
+                  >
+                    {saving ? "保存中..." : selectedMyBookId ? "更新する" : "保存する"}
+                  </button>
+                </>
+              ) : null}
               {selectedMyBookId && (
                 <button
                   type="button"
@@ -812,7 +825,7 @@ export default function WordbooksClient({
               )}
             </div>
 
-            <details className="mt-6 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+            {!selectedCopied ? <details className="mt-6 rounded-xl border border-blue-200 bg-blue-50/50 p-4">
               <summary className="cursor-pointer text-sm font-black text-blue-900">みんなの単語帳に共有する（無料）{editorPublished ? " · 公開中" : ""}</summary>
               <p className="mt-3 text-xs leading-5 text-slate-600">単語帳を保存してから公開できます。公開するとタイトル・説明・単語と表紙を誰でも閲覧できます。メールアドレスは表示しません。</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -839,7 +852,7 @@ export default function WordbooksClient({
                 {editorPublished ? <button type="button" onClick={() => { void unpublishMyBook(); }} disabled={saving} className="rounded-lg border bg-white px-4 py-2 text-sm font-bold text-slate-700">公開を停止</button> : null}
                 {editorPublished && selectedMyBookId ? <Link href={`/shared/${encodeURIComponent(selectedMyBookId)}`} className="rounded-lg border bg-white px-4 py-2 text-sm font-bold text-blue-700">公開ページを見る</Link> : null}
               </div>
-            </details>
+            </details> : null}
 
             {myMessage && (
               <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-700">{myMessage}</p>

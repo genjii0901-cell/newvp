@@ -242,6 +242,20 @@ export async function hasVerifiedAdminBrowserSession(request: Request, userId: s
   }
 }
 
+// 管理者が「購入者と同じ見え方」で試すためのCookie。立っている間は管理者特権(全機能開放)を外し、
+// DBのプラン(購入者と同じ経路)だけで判定する。
+export const CUSTOMER_VIEW_COOKIE = "vpp_customer_view";
+
+export function isCustomerViewRequest(request: Request): boolean {
+  return requestCookie(request, CUSTOMER_VIEW_COOKIE) === "1";
+}
+
+// 管理者特権を実際に適用してよいか（管理者セッション確認済み かつ 購入者ビューでない）。
+export async function hasEffectiveAdminAccess(request: Request, role: unknown, userId: string): Promise<boolean> {
+  if (isCustomerViewRequest(request)) return false;
+  return role === "admin" && (await hasVerifiedAdminBrowserSession(request, userId));
+}
+
 export function setAdminSessionCookie(response: NextResponse, token: string): void {
   // Remove sessions issued by older builds, whose narrower path could leave a
   // second cookie with the same name and make session restoration unreliable.

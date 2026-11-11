@@ -79,13 +79,13 @@ export default function OverlapPageClient() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-3 py-6 text-slate-900 sm:px-6">
+    <main className="min-h-screen bg-slate-50 px-3 py-3 text-slate-900 sm:px-6 sm:py-6">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-black text-blue-700">VOCABULARY COMPARE</p>
-            <h1 className="mt-1 text-2xl font-black sm:text-3xl">単語帳かぶり調査</h1>
-            <p className="mt-2 text-sm font-bold leading-6 text-slate-600">比べる単語帳を選び、共通する語や片方にだけある語を抽出します。</p>
+            <p className="hidden text-xs font-black text-blue-700 sm:block">VOCABULARY COMPARE</p>
+            <h1 className="text-xl font-black sm:mt-1 sm:text-3xl">単語帳かぶり調査</h1>
+            <p className="mt-2 hidden text-sm font-bold leading-6 text-slate-600 sm:block">比べる単語帳を選び、共通する語や片方にだけある語を抽出します。</p>
           </div>
           <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-black text-slate-700">単語テスト印刷へ</Link>
         </div>
