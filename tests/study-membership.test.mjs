@@ -3,7 +3,6 @@ import test from "node:test";
 import fs from "node:fs";
 import { getStudyQuestionCount } from "../lib/study-question-count.ts";
 import { registrationIntentForPlan, FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION } from "../lib/registration-plans.ts";
-import { getPricingVariant } from "../lib/pricing-experiment.ts";
 import { normalizeLocalRedirectPath } from "../lib/safe-redirect.ts";
 
 test("all selected words remain available for study beyond old membership caps", () => {
@@ -16,8 +15,11 @@ test("all selected words remain available for study beyond old membership caps",
   assert.equal(getStudyQuestionCount(-1, "all"), 0);
 });
 
-test("registration always offers the choice flow, independent of old experiment assignment", () => {
-  assert.equal(getPricingVariant(), "choice");
+test("registration always offers the free / Personal choice, whatever the price offer", () => {
+  for (const file of ["../app/page.tsx", "../app/wordbooks/[id]/wordbook-detail-client.tsx"]) {
+    const source = fs.readFileSync(new URL(file, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /showOneTime=\{pricingVariant/);
+  }
   assert.match(FREE_ACCOUNT_LABEL, /無料会員.*都度課金/);
   assert.match(FREE_STUDY_DESCRIPTION, /語数制限なしで無料/);
   assert.match(FREE_STUDY_DESCRIPTION, /1ページ50円/);

@@ -9,7 +9,7 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-5 py-12">
       <h1 className="text-2xl font-black text-slate-900">利用規約</h1>
-      <p className="mt-2 text-sm text-slate-500">最終更新日: 2026年10月6日</p>
+      <p className="mt-2 text-sm text-slate-500">最終更新日: 2026年11月10日</p>
 
       <div className="mt-8 space-y-8 text-sm leading-relaxed text-slate-700">
         <section>
@@ -34,9 +34,9 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-black text-slate-900">第4条（初回割引・解約）</h2>
+          <h2 className="text-lg font-black text-slate-900">第4条（初回特典・年間プラン・解約）</h2>
           <p className="mt-2">
-            新たに申し込むPersonalプランには、初回に限り7日間380円の割引が適用される場合があります。申込時に380円を決済し、解約しない場合は8日目から月額1,580円で自動更新します。割引対象外の方は申込時から月額1,580円で利用します。既存の契約には契約時の料金が適用されます。解約はいつでも可能です。初回割引期間中に解約するとPersonal機能は直ちに停止し、月額期間中は次回更新日以降の課金が停止します。
+            新たに申し込むPersonalプランには、初回に限り7日間アクセス380円の特典が適用される場合があります。申込時に380円を決済し、解約しない場合は8日目から月額1,580円で自動更新します。特典の対象外の方は申込時から月額1,580円で利用します。年間プラン（Personal年額11,800円、Teacher年額24,960円。いずれも税込・一括払い）は、申込時に年額を決済し、1年ごとに自動更新します。Teacher月間は月額3,980円（税込）です。既存の契約には契約時の料金が適用されます。解約はいつでも可能です。7日間アクセス期間中に解約するとPersonal機能は直ちに停止し、月額期間中は次回更新日以降の課金が停止します。
           </p>
         </section>
 

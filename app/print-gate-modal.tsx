@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PERSONAL_INTRO_JPY, PERSONAL_MONTHLY_JPY, PRINT_PAGE_JPY } from "@/lib/personal-pricing";
+import { PRINT_PAGE_JPY, personalOfferText } from "@/lib/personal-pricing";
 
 export type PrintGateModalProps = {
   open: boolean;
@@ -27,6 +27,7 @@ export default function PrintGateModal({
   onClose,
 }: PrintGateModalProps) {
   const [selectedMethod, setSelectedMethod] = useState<"personal" | "purchase">("personal");
+  const offerText = personalOfferText(introEligible);
 
   useEffect(() => {
     if (open) setSelectedMethod("personal");
@@ -65,22 +66,18 @@ export default function PrintGateModal({
         >
           <span className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-black text-blue-800">Personalで印刷をもっと自由に</span>
-            <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
-              {introEligible ? "初回7日間" : "月額プラン"}
-            </span>
+            {offerText && <span className="rounded-full bg-rose-500 px-2 py-0.5 text-[10px] font-black text-white">
+              {offerText.badge}
+            </span>}
           </span>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-xl font-black text-slate-950">{introEligible ? `最初の7日間 ¥${PERSONAL_INTRO_JPY}` : `月額 ¥${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}`}</span>
-            {introEligible && <span className="text-[11px] font-bold text-slate-500">8日目から月額¥{PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}</span>}
+            <span className="text-xl font-black text-slate-950">{offerText?.price ?? "料金を読み込み中…"}</span>
+            {offerText && introEligible && <span className="text-[11px] font-bold text-slate-500">{offerText.after}</span>}
           </div>
           <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
             印刷回数は無制限。1回20ページまで、透かしなしで使えます。
           </p>
-          <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">
-            {introEligible
-              ? `申込時に${PERSONAL_INTRO_JPY}円。7日後から月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。`
-              : `月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。`}
-          </p>
+          {offerText && <p className="mt-1 text-[11px] font-bold leading-5 text-slate-600">{offerText.payNote}</p>}
           <ul className="mt-3 grid gap-1.5 text-[11px] font-bold leading-5 text-slate-700 sm:grid-cols-2">
             <li>✓ 透かしなし・氏名入力</li>
             <li>✓ 1回20ページまで印刷</li>

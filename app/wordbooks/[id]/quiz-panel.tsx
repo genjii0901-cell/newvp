@@ -46,6 +46,7 @@ function clampForFree(s: QuizSettings): QuizSettings {
     ...DEFAULTS,
     mode: s.mode === "cloze" ? "choice" : s.mode,
     count: s.count,
+    customCount: s.customCount,
     order: "random",
   };
 }
@@ -379,6 +380,23 @@ export default function QuizPanel({
                 { value: "all" as QuestionCount, label: `全${scopeWords.length}問` },
               ]}
             />
+            <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
+              自由に指定
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={Math.max(scopeWords.length, 1)}
+                value={settings.customCount > 0 ? settings.customCount : ""}
+                placeholder="例: 30"
+                onChange={(event) => {
+                  const value = Math.floor(Number(event.target.value));
+                  update({ customCount: Number.isFinite(value) && value > 0 ? Math.min(value, Math.max(scopeWords.length, 1)) : 0 });
+                }}
+                className="min-h-10 w-24 rounded-lg border px-2 text-center text-sm font-black text-slate-900"
+              />
+              問（入力すると上のボタンより優先）
+            </label>
           </Field>
           <Field label="出題順" locked={!isPaid}>
             <Seg

@@ -263,12 +263,16 @@ export default function OverlapTool({
   }
 
   return (
-    <div className="mt-6 rounded-3xl border bg-white p-5 shadow-sm sm:p-6">
+    <div className="mt-3 rounded-2xl border bg-white p-3 shadow-sm sm:mt-6 sm:rounded-3xl sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-blue-700">かぶり調査</p>
-          <h3 className="text-lg font-black text-slate-900">単語帳を選んで、必要な単語だけ取り出す</h3>
-          <p className="mt-1 max-w-3xl text-xs font-bold leading-6 text-slate-500">
+          <h3 className="text-base font-black text-slate-900 sm:text-lg">単語帳を選んで、必要な単語だけ取り出す</h3>
+          <ol className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black text-slate-600 sm:hidden">
+            <li className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">① 単語帳を選ぶ</li>
+            <li className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">② 使う／外すを決める</li>
+            <li className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">③ 結果を印刷・保存</li>
+          </ol>
+          <p className="mt-1 hidden max-w-3xl text-xs font-bold leading-6 text-slate-500 sm:block">
             まず比べたい単語帳を選びます。次に「使う」「外す」を決めると、条件に合う単語だけを抽出できます。
             例: ターゲットに出ている語から、シス単にも出ている語を除外できます。
           </p>
@@ -276,7 +280,7 @@ export default function OverlapTool({
         {!isPaid ? <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-800">無料は先頭{FREE_VISIBLE_ROWS}語まで</span> : null}
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="mt-3 grid gap-2 sm:mt-4 sm:gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
         <button
           type="button"
           onClick={() => setSelectorOpen((open) => !open)}
@@ -541,7 +545,7 @@ export default function OverlapTool({
                   無料版は結果を先頭{FREE_VISIBLE_ROWS}語まで表示します。全部見て保存・印刷するにはPersonalをご利用ください。
                 </p>
                 <a href="/pricing" className="mt-3 inline-block rounded-xl bg-amber-600 px-4 py-2 text-xs font-black text-white hover:bg-amber-700">
-                  初回7日間380円で始める
+                  Personalの料金を見る
                 </a>
               </div>
             ) : null}

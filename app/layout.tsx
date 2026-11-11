@@ -5,6 +5,7 @@ import "./globals.css";
 import Nav from "@/components/nav";
 import BottomTabs from "@/components/bottom-tabs";
 import VisitTracker from "@/app/visit-tracker";
+import SupportLoginBanner from "@/components/support-login-banner";
 
 const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://www.vocabprint.com";
 const siteName = "Vocab Print Pro";
@@ -116,24 +117,25 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <VisitTracker />
         </Suspense>
+        <SupportLoginBanner />
         <Nav />
         <div className="flex-1">{children}</div>
         <BottomTabs />
-        <footer className="border-t bg-white py-8 text-center text-xs text-slate-400">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-5">
-            <Link href="/pricing" className="hover:text-slate-600">
+        <footer className="border-t bg-white pb-24 pt-6 text-center text-xs text-slate-500 md:pb-8 md:pt-8">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-0 px-4">
+            <Link href="/pricing" className="inline-block py-2.5 hover:text-slate-700">
               {footerLabels.pricing}
             </Link>
-            <Link href="/legal/terms" className="hover:text-slate-600">
+            <Link href="/legal/terms" className="inline-block py-2.5 hover:text-slate-700">
               {footerLabels.terms}
             </Link>
-            <Link href="/legal/privacy" className="hover:text-slate-600">
+            <Link href="/legal/privacy" className="inline-block py-2.5 hover:text-slate-700">
               {footerLabels.privacy}
             </Link>
-            <Link href="/legal/tokushoho" className="hover:text-slate-600">
+            <Link href="/legal/tokushoho" className="inline-block py-2.5 hover:text-slate-700">
               {footerLabels.tokushoho}
             </Link>
-            <Link href="/legal/copyright" className="hover:text-slate-600">
+            <Link href="/legal/copyright" className="inline-block py-2.5 hover:text-slate-700">
               {footerLabels.copyright}
             </Link>
           </div>

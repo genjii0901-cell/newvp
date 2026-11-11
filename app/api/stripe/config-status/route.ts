@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { findStripeCatalogPrice } from "@/lib/stripe-price-catalog";
 import { PERSONAL_MONTHLY_PRICE, PERSONAL_INTRO_PRICE, PERSONAL_INTRO_DAYS } from "@/lib/personal-pricing";
 
-const TEACHER_PUBLIC_ENABLED = false;
+const TEACHER_PUBLIC_ENABLED = true;
 let catalogCache: { key: string; expires: number; ready: boolean; verified: boolean } | undefined;
 
 async function checkPersonalCatalog(key: string) {
@@ -45,11 +45,15 @@ export async function GET() {
     .map(([name]) => name);
 
   const liveMode = isLiveStripeKey(stripeSecretKey);
-  const catalog = liveMode && stripeSecretKey ? await checkPersonalCatalog(stripeSecretKey) : null;
-  const personalConfigured = Boolean(liveMode && catalog?.verified && process.env.STRIPE_WEBHOOK_SECRET);
+  // 本番（VERCEL_ENV=production）は今までどおりlive鍵のときだけ申し込み可。
+  // プレビュー・手元ではテスト鍵（sk_test_）でも申し込みを試せるようにする（決済作成側は本番ホストでのテスト鍵を拒否する）。
+  const testModeAllowed = Boolean(stripeSecretKey?.startsWith("sk_test_")) && process.env.VERCEL_ENV !== "production";
+  const checkoutUsable = liveMode || testModeAllowed;
+  const catalog = checkoutUsable && stripeSecretKey ? await checkPersonalCatalog(stripeSecretKey) : null;
+  const personalConfigured = Boolean(checkoutUsable && catalog?.verified && process.env.STRIPE_WEBHOOK_SECRET);
   const teacherConfigured = Boolean(
     TEACHER_PUBLIC_ENABLED &&
-      liveMode &&
+      checkoutUsable &&
       (!teacherPrice || String(teacherPrice).startsWith("price_")),
   );
 

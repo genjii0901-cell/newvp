@@ -14,6 +14,7 @@ import QuizPanel from "./quiz-panel";
 import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
 import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
+import { personalOfferText } from "@/lib/personal-pricing";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen";
@@ -344,6 +345,7 @@ export default function WordbookDetailPage({
   const [printGateBusy, setPrintGateBusy] = useState(false);
   const pricingVariant = getPricingVariant();
   const [introEligible, setIntroEligible] = useState(true);
+  const offerText = personalOfferText(introEligible);
   const [printConfirmOpen, setPrintConfirmOpen] = useState(false);
 
   useEffect(() => {
@@ -974,7 +976,7 @@ export default function WordbookDetailPage({
     setPrintGateBusy(false);
   }
 
-  // 支払いゲート「②Personal」: 料金ページ（7日間無料トライアル）へ。
+  // 支払いゲート「②Personal」: 料金ページ（アカウントの料金案で申し込み）へ。
   function handlePersonalFromGate() {
     setPrintGateOpen(false);
     try {
@@ -1581,7 +1583,7 @@ export default function WordbookDetailPage({
                   href="/pricing"
                   className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
                 >
-                  初回7日間380円で始める
+                  {offerText?.cta ?? "Personalを見る"}
                 </Link>
                 <button
                   type="button"
@@ -1857,7 +1859,7 @@ export default function WordbookDetailPage({
               <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <p className="text-sm font-black text-amber-800">51語以上はPersonalプランが必要です</p>
                 <p className="mt-1 text-xs leading-5 text-amber-700">
-                  全範囲をまとめて印刷するにはPersonalをご利用ください。初回7日間は380円です。
+                  {`全範囲をまとめて印刷するにはPersonalをご利用ください。${offerText?.summary ?? ""}`}
                 </p>
                 <Link
                   href="/pricing"
@@ -2007,7 +2009,7 @@ export default function WordbookDetailPage({
         open={printGateOpen}
         pages={printGatePages}
         isLoggedIn={isLoggedIn}
-        showOneTime={pricingVariant === "choice"}
+        showOneTime
         introEligible={introEligible}
         busy={printGateBusy}
         onPurchase={handlePrintPurchase}

@@ -1,21 +1,38 @@
 const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff]/;
 const ALPHABET_RE = /[A-Za-z]/;
 
+// 声の質を点数にして、こもった古い合成音声より、自然で聞き取りやすい声を優先する。
+function voiceScore(voice: SpeechSynthesisVoice, lang: string) {
+  const name = voice.name.toLowerCase();
+  let score = 0;
+  if (voice.lang.toLowerCase().replace("_", "-") === lang.toLowerCase()) score += 20;
+  // ニューラル（自然）音声: Edge の「Online (Natural)」、Google、Apple の高品質版など
+  if (/natural|neural|online/.test(name)) score += 100;
+  if (/premium|enhanced|siri/.test(name)) score += 80;
+  if (/google/.test(name)) score += 60;
+  if (/aria|jenny|guy|nanami|keita|kyoko|samantha|ava|daniel|serena|o-ren|otoya/.test(name)) score += 15;
+  // こもって聞こえやすい古い・軽量の音声は後回し
+  if (/compact|espeak|festival|pico/.test(name)) score -= 80;
+  if (/microsoft (david|zira|mark|haruka|ichiro|sayaka)/.test(name) && !/natural|online/.test(name)) score -= 30;
+  if (voice.localService === false) score += 10;
+  return score;
+}
+
 function pickVoice(lang: string, voiceHint?: "male" | "female") {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return undefined;
   const voices = window.speechSynthesis.getVoices();
   const prefix = lang.slice(0, 2).toLowerCase();
-  const candidates = voices.filter((voice) => voice.lang.toLowerCase() === lang.toLowerCase());
-  const prefixCandidates = voices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix));
-  const pool = candidates.length ? candidates : prefixCandidates;
+  const exact = voices.filter((voice) => voice.lang.toLowerCase().replace("_", "-") === lang.toLowerCase());
+  const pool = (exact.length ? exact : voices.filter((voice) => voice.lang.toLowerCase().startsWith(prefix)))
+    .slice()
+    .sort((a, b) => voiceScore(b, lang) - voiceScore(a, lang));
   if (voiceHint && pool.length > 1) {
     const hinted = pool.find((voice) => {
       const name = voice.name.toLowerCase();
-      if (voiceHint === "female") return /female|woman|girl|haruka|kyoko|nanami|sayaka/.test(name);
-      return /male|man|boy|otoya|ichiro|takumi|keita/.test(name);
+      if (voiceHint === "female") return /female|woman|girl|haruka|kyoko|nanami|sayaka|aria|jenny|samantha|ava|serena/.test(name);
+      return /male|man|boy|otoya|ichiro|takumi|keita|guy|daniel|david/.test(name);
     });
     if (hinted) return hinted;
-    return voiceHint === "female" ? pool[0] : pool[1] ?? pool[0];
   }
   return pool[0] ?? undefined;
 }
@@ -32,6 +49,21 @@ export function primeSpeechVoices() {
   window.speechSynthesis.getVoices();
 }
 
+// 声の一覧は読み込みが遅れることがある。空のままだと既定の（こもった）声になるので少し待つ。
+function waitForVoices(): Promise<void> {
+  if (window.speechSynthesis.getVoices().length > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const synth = window.speechSynthesis;
+    const done = () => {
+      synth.removeEventListener("voiceschanged", done);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const timer = window.setTimeout(done, 800);
+    synth.addEventListener("voiceschanged", done);
+  });
+}
+
 export function speakText(
   text: string,
   options: {
@@ -40,8 +72,9 @@ export function speakText(
     rate?: number;
     voiceHint?: "male" | "female";
     signal?: { stopped: boolean };
+    voicesWaited?: boolean;
   } = {}
-) {
+): Promise<boolean> {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
     return Promise.resolve(false);
   }
@@ -50,10 +83,15 @@ export function speakText(
   if (options.signal?.stopped) return Promise.resolve(false);
   if (!value) return Promise.resolve(true);
 
+  if (!options.voicesWaited && window.speechSynthesis.getVoices().length === 0) {
+    return waitForVoices().then(() => speakText(value, { ...options, voicesWaited: true }));
+  }
   const lang = options.lang ?? guessSpeechLang(value, options.preferred ?? "japanese");
   const utterance = new SpeechSynthesisUtterance(value);
   utterance.lang = lang;
   utterance.rate = options.rate ?? (lang === "en-US" ? 0.9 : 0.95);
+  utterance.pitch = 1;
+  utterance.volume = 1;
   const voice = pickVoice(lang, options.voiceHint);
   if (voice) utterance.voice = voice;
 

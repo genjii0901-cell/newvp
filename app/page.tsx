@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,7 +15,11 @@ import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-build
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
+import HomePlanSection from "@/components/home-plan-section";
+import LockedFeatureButton from "@/components/locked-feature-button";
+import AutoRenewText from "@/components/auto-renew-text";
 import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
+import { personalOfferText } from "@/lib/personal-pricing";
 import RegistrationPlanPicker from "@/components/registration-plan-picker";
 import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION, registrationIntentForPlan, type SignupPlan, type RegistrationIntent } from "@/lib/registration-plans";
 import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
@@ -492,6 +496,7 @@ export default function Home() {
   const [plan, setPlan] = useState<Plan>("free");
   const [trialOffer, setTrialOffer] = useState<"first" | "winback" | null>("first");
   const pricingVariant = getPricingVariant();
+  const offerText = personalOfferText(trialOffer === "first");
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [books, setBooks] = useState<WordBook[]>([]);
@@ -511,6 +516,8 @@ export default function Home() {
   const [direction, setDirection] = useState<Direction>("en-ja");
   const [redSheet, setRedSheet] = useState(false);
   const [signupPlan, setSignupPlan] = useState<SignupPlan>("free");
+  // 料金ページなどでTeacherの申し込みを押して登録画面に来たときだけtrue（登録画面に「選択中: Teacher」を出す）
+  const [signupTeacher, setSignupTeacher] = useState(false);
   // Personalを選んで登録した人に、ログイン後トライアル開始を促すためのフラグ
   const [pendingTrial, setPendingTrial] = useState(false);
   const [trialModalOpen, setTrialModalOpen] = useState(false);
@@ -573,9 +580,8 @@ export default function Home() {
   const listeningRunRef = useRef({ stopped: false, id: 0 });
 
   useEffect(() => {
-    const variant = getPricingVariant();
-    trackPricingEvent("view", variant);
-  }, []);
+    if (pricingVariant) trackPricingEvent("view", pricingVariant);
+  }, [pricingVariant]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -721,6 +727,9 @@ export default function Home() {
     } else if (authStatus === "confirmed") {
       setMessageTone("success");
       setMessage("メール認証が完了しました。ログインして利用を始められます。");
+      // 認証メールから戻った人は、そのままログイン画面を開く（お知らせもログイン画面の中に出る）。
+      setAuthMode("login");
+      setAuthPanelOpen(true);
     } else if (authStatus === "deleted") {
       setMessageTone("success");
       setMessage("アカウントを削除しました。同じメールアドレスで再登録できます。");
@@ -732,13 +741,13 @@ export default function Home() {
     const printAuth = params.get("print_auth");
     if (printAuth === "personal") {
       setAuthMode("signup");
-      setSignupPlan("personal");
+      setSignupPlan("personal"); setSignupTeacher(false);
       setPrintAuthIntent("personal");
-      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、初回7日間380円の決済画面へ進みます。");
+      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、Personalの決済画面へ進みます。");
       rememberPostAuthAction("personal");
     } else if (printAuth === "free") {
       setAuthMode("signup");
-      setSignupPlan("free");
+      setSignupPlan("free"); setSignupTeacher(false);
       setPrintAuthIntent("free");
       setPrintAuthReason("聞き流し・四択は無料会員登録で全語を学習できます。印刷は1ページ50円の都度課金です。");
       clearPostAuthAction();
@@ -750,13 +759,15 @@ export default function Home() {
       }
     } else if (printAuth === "purchase") {
       setAuthMode("signup");
-      setSignupPlan("free");
+      setSignupPlan("free"); setSignupTeacher(false);
       setPrintAuthIntent("purchase");
       setPrintAuthReason("今回だけ印刷するには、先に無料会員登録が必要です。登録後、そのまま1回分の決済へ進みます。");
     }
     const checkoutPlan = params.get("checkout_plan");
     if (checkoutPlan === "teacher") {
       setAuthMode("signup");
+      setSignupPlan("free");
+      setSignupTeacher(true);
       setPrintAuthIntent("login");
       setPrintAuthReason("登録またはログイン後、そのままTeacherプランの決済画面へ進みます。");
       rememberPostAuthAction("teacher");
@@ -886,10 +897,11 @@ export default function Home() {
         id: String(book.id),
         title: book.title ?? "マイ単語帳",
         description: book.description ?? "",
-        coverImage: undefined,
-        level: "自作",
-        premium: false,
-        requiredPlan: "free" as Plan,
+        coverImage: book.coverImage ?? undefined,
+        level: book.copied === true ? "マイ（取り込み）" : "自作",
+        // みんなの単語帳から取り込んだ有料の単語帳は、取り込んでも無料にならない。
+        premium: book.requiredPlan === "personal" || book.requiredPlan === "teacher",
+        requiredPlan: normalizePlan(book.requiredPlan) as Plan,
         creator: user.email ?? "マイ単語帳",
         wordCount: typeof book.wordCount === "number" ? book.wordCount : (book.words ?? []).length,
         words: (book.words ?? []).map((word: any, index: number) => ({
@@ -1717,7 +1729,7 @@ export default function Home() {
       } catch {
         // When storage is unavailable, the user can still return to the print settings.
       }
-      setSignupPlan("free");
+      setSignupPlan("free"); setSignupTeacher(false);
       setAuthMode("signup");
       setPrintAuthIntent("free");
       setPrintAuthReason("印刷を続けるには無料のアカウント登録が必要です。");
@@ -1945,7 +1957,7 @@ export default function Home() {
   async function handlePrintPurchase() {
     if (!user) {
       rememberPrintPurchaseIntent(printGatePages);
-      setSignupPlan("free");
+      setSignupPlan("free"); setSignupTeacher(false);
       setAuthMode("signup");
       setPrintGateOpen(false);
       setPrintAuthIntent("purchase");
@@ -1972,7 +1984,7 @@ export default function Home() {
   }
 
   function selectSignupPlan(next: SignupPlan) {
-    setSignupPlan(next);
+    setSignupPlan(next); setSignupTeacher(false);
     setPrintAuthIntent(registrationIntentForPlan(next, printAuthIntent));
     setPendingTrial(false);
     setTrialModalOpen(false);
@@ -1996,14 +2008,14 @@ export default function Home() {
         : FREE_STUDY_DESCRIPTION);
   }
 
-  // 支払いゲート「②Personal」: 7日間無料トライアルへ。
+  // 支払いゲート「②Personal」: Personalの決済（料金はアカウントの料金案どおり）へ。
   function handlePersonalFromGate() {
     setPrintGateOpen(false);
     if (!user) {
-      setSignupPlan("personal");
+      setSignupPlan("personal"); setSignupTeacher(false);
       setAuthMode("signup");
       setPrintAuthIntent("personal");
-      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、初回7日間380円の決済画面へ進みます。");
+      setPrintAuthReason("Personalプランを選択中です。登録またはログイン後、Personalの決済画面へ進みます。");
       rememberPostAuthAction("personal");
       try {
         window.localStorage.setItem("vpp-signup-intent", "personal");
@@ -2429,7 +2441,7 @@ export default function Home() {
 
   async function guideToPersonal(reason: string) {
     if (!user) {
-      setSignupPlan("personal");
+      setSignupPlan("personal"); setSignupTeacher(false);
       try {
         window.localStorage.setItem("vpp-signup-intent", "personal");
       } catch {
@@ -2443,7 +2455,7 @@ export default function Home() {
     }
 
     if (configuredPlans.personal) {
-      const ok = window.confirm(`${reason}\n\nPersonalは初回7日間380円、その後月1,580円で自動更新します。決済へ進みますか？`);
+      const ok = window.confirm(`${reason}\n\n${offerText ? `Personalは${offerText.summary}` : "Personalの決済画面で料金と更新条件を確認できます。"}決済へ進みますか？`);
       if (ok) await startCheckout("personal");
       return;
     }
@@ -2460,7 +2472,7 @@ export default function Home() {
       return;
     }
     if (!user) {
-      setSignupPlan(targetPlan === "personal" ? "personal" : "free");
+      setSignupPlan(targetPlan === "personal" ? "personal" : "free"); setSignupTeacher(targetPlan === "teacher");
       setAuthMode("signup");
       setPrintAuthIntent(targetPlan === "personal" ? "personal" : "login");
       setPrintAuthReason(`登録またはログイン後、そのまま${targetPlan === "teacher" ? "Teacher" : "Personal"}の決済画面へ進みます。`);
@@ -2578,13 +2590,13 @@ export default function Home() {
       {checkoutError ? <div role="alert" className="fixed left-1/2 top-20 z-[90] flex w-[min(90vw,32rem)] -translate-x-1/2 items-center gap-3 rounded-xl border border-red-200 bg-white p-4 text-sm font-bold text-red-700 shadow-xl"><span className="flex-1">{checkoutError}</span><button type="button" onClick={() => setCheckoutError("")} aria-label="エラーを閉じる" className="rounded-lg border px-2 py-1">閉じる</button></div> : null}
 
       <section className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
-        <div className="rounded-3xl bg-gradient-to-br from-blue-600 to-slate-900 p-5 sm:p-8 text-white">
-          <h2 className="text-2xl sm:text-4xl font-black leading-tight">
+        <div className="rounded-2xl bg-gradient-to-br from-blue-600 to-slate-900 px-4 py-3 text-white sm:rounded-3xl sm:p-8">
+          <h2 className="text-base font-black leading-snug sm:text-4xl sm:leading-tight">
             単語帳を選ぶだけで、
-            <br />
+            <br className="hidden sm:block" />
             小テストPDFを自動生成。
           </h2>
-          <p className="mt-3 sm:mt-4 max-w-2xl text-sm leading-7 text-blue-50">
+          <p className="mt-3 hidden max-w-2xl text-sm leading-7 text-blue-50 sm:mt-4 sm:block">
             印刷だけでなく、聞き流し・4択・カード式の単語チェックまで。英検・受験・資格試験の学習をひとつにまとめます。
           </p>
         </div>
@@ -2594,15 +2606,13 @@ export default function Home() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-black text-rose-500">
-                  {trialOffer === "first" ? "初回限定・7日間380円" : "Personalで印刷回数を気にせず使う"}
+                  {trialOffer === "first" && offerText ? `初回限定・${offerText.badge}` : "Personalで印刷回数を気にせず使う"}
                 </p>
                 <h3 className="mt-1 text-base font-black text-slate-950 sm:text-lg">
-                  {trialOffer === "first"
-                    ? "Personalなら最初の7日間380円で始められます"
-                    : "Personalは月1,580円で印刷回数無制限"}
+                  {offerText ? `Personalは${offerText.price}` : "Personalで印刷回数無制限"}
                 </h3>
                 <p className="mt-1 text-xs font-bold leading-6 text-slate-600 sm:text-sm">
-                  アカウント作成は無料ですが印刷は1ページ50円。Personalは透かしなし・1回20ページまで。初週後は月1,580円で自動更新します。
+                  {`アカウント作成は無料ですが印刷は1ページ50円。Personalは印刷回数無制限・透かしなし（1回20ページまで）。${offerText?.summary ?? ""}`}
                 </p>
               </div>
               <div className="flex flex-none gap-2">
@@ -2611,7 +2621,7 @@ export default function Home() {
                   onClick={() => startCheckout("personal")}
                   className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
                 >
-                  {trialOffer === "first" ? "7日間380円で始める" : "Personalを始める"}
+                  {offerText?.cta ?? "Personalを始める"}
                 </button>
                 <button
                   type="button"
@@ -2626,52 +2636,48 @@ export default function Home() {
         )}
 
         <section className="mt-4 rounded-2xl border bg-white p-3 shadow-sm sm:mt-6 sm:rounded-3xl sm:p-5">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:items-end sm:gap-3">
             <div>
-              <p className="text-xs font-bold text-blue-700 sm:text-sm">みんなの単語帳</p>
-              <h3 className="text-lg font-black text-slate-900 sm:text-2xl">使いたい単語帳をすぐに選んで印刷</h3>
+              <p className="hidden text-xs font-bold text-blue-700 sm:block sm:text-sm">みんなの単語帳</p>
+              <h3 className="text-sm font-black text-slate-900 sm:text-2xl">使いたい単語帳を選ぶ</h3>
               <p className="mt-1 hidden text-sm text-slate-500 sm:block">
                 スマホでは教材アプリのように小さく探して、単語帳ページから印刷・聞き流しを選べます。
               </p>
             </div>
-            <Link href="/wordbooks" className="rounded-xl border bg-white px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm">
-              みんなの単語帳を見る
+            <Link href="/wordbooks" className="shrink-0 rounded-lg border bg-white px-2.5 py-1.5 text-[11px] font-bold sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm">
+              すべて見る
             </Link>
           </div>
 
-          {/* スマホ: アプリの本棚のように横へスライドして探す */}
-          <div className="mt-3 -mx-3 sm:hidden">
-            <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {/* スマホ: 小さな表紙を3列に並べて、一画面でたくさん見えるようにする */}
+          <div className="mt-2 sm:hidden">
+            <div className="grid grid-cols-3 gap-2">
               {featuredBooks.map((book, index) => (
                 <a
                   key={book.id}
                   href={buildWordbookPath(book.id, book.title)}
-                  className={`flex w-[132px] shrink-0 snap-start flex-col overflow-hidden rounded-2xl border bg-white shadow-sm active:scale-[0.98] ${
+                  className={`flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] ${
                     book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
                   }`}
                 >
-                  <div className="relative h-44 w-full bg-slate-100">
+                  <div className="relative h-14 w-full bg-slate-100">
                     <img
                       src={getBookCover(book, index)}
                       alt={book.title}
                       loading="lazy"
                       className="h-full w-full object-cover"
                     />
-                    <span className="absolute left-1 top-1 rounded-full bg-white/90 px-1.5 py-0.5 text-[9px] font-black text-slate-800">
+                    <span className="absolute left-0.5 top-0.5 rounded-full bg-white/90 px-1 py-px text-[8px] font-black text-slate-800">
                       {planLabel(book.requiredPlan)}
                     </span>
-                    <span className="absolute bottom-1 right-1 rounded-full bg-blue-600/90 px-1.5 py-0.5 text-[9px] font-black text-white">
-                      {getBookWordCount(book)}語
-                    </span>
                   </div>
-                  <div className="p-2.5">
-                    <h4 className="line-clamp-2 min-h-[2.4rem] text-[12px] font-black leading-snug text-slate-900">{book.title}</h4>
-                    <p className="mt-1 truncate text-[10px] font-bold text-blue-700">{book.level}</p>
+                  <div className="px-1.5 py-1">
+                    <h4 className="line-clamp-2 min-h-[1.9rem] text-[10px] font-black leading-tight text-slate-900">{book.title}</h4>
+                    <p className="truncate text-[9px] font-bold text-blue-700">{getBookWordCount(book)}語</p>
                   </div>
                 </a>
               ))}
             </div>
-            <p className="mt-1 px-3 text-[11px] font-bold text-slate-400">横にスワイプして単語帳を探せます</p>
           </div>
 
           {/* PC: グリッド表示 */}
@@ -2745,19 +2751,20 @@ export default function Home() {
             id="auth"
             open={authPanelOpen}
             onToggle={(event) => setAuthPanelOpen(event.currentTarget.open)}
-            className="mt-6 scroll-mt-24 rounded-3xl border bg-white shadow-sm"
+            className="mt-3 scroll-mt-24 rounded-2xl border bg-white shadow-sm sm:mt-6 sm:rounded-3xl"
           >
-            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 p-4 sm:p-5">
-              <div>
-                <p className="text-xs font-black text-blue-700">アカウント作成は無料</p>
-                <h3 className="mt-1 text-lg font-black text-slate-950">会員登録して続ける</h3>
-                <p className="mt-1 text-xs font-bold text-slate-500">設定とプレビューは登録前でも利用できます。</p>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 sm:p-5">
+              <div className="min-w-0">
+                <h3 className="text-sm font-black text-slate-950 sm:text-lg">無料の会員登録で全機能へ</h3>
+                <p className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">設定とプレビューは登録前でも使えます。</p>
               </div>
-              <span className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">
-                {authPanelOpen ? "登録画面を閉じる" : "会員登録・ログイン"}
+              <span className="shrink-0 rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white sm:px-4 sm:text-sm">
+                登録・ログイン
               </span>
             </summary>
-            <div className="border-t p-5">
+            <div className="fixed inset-0 z-[80] bg-black/50" onClick={() => setAuthPanelOpen(false)} aria-hidden />
+            <div role="dialog" aria-modal="true" aria-label="会員登録・ログイン" className="fixed inset-x-3 top-[max(1rem,env(safe-area-inset-top))] z-[81] max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl border bg-white p-5 shadow-2xl sm:inset-x-auto sm:left-1/2 sm:w-[30rem] sm:-translate-x-1/2 sm:top-16">
+            <button type="button" onClick={() => setAuthPanelOpen(false)} aria-label="閉じる" className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border bg-white text-lg font-black text-slate-500">×</button>
             <p className="text-xs font-black text-blue-700">無料でアカウント作成</p>
             <h3 className="mt-1 text-2xl font-black text-slate-950">作成したプリントを続ける</h3>
             <p className="mt-2 text-sm font-bold leading-6 text-slate-600">
@@ -2786,7 +2793,7 @@ export default function Home() {
               </button>
             </div>
 
-            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} /> : null}
+            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} teacherSelected={signupTeacher} /> : null}
 
             <div className="mt-4 grid gap-2">
               <button
@@ -2872,6 +2879,20 @@ export default function Home() {
             </div>
           </details>
         )}
+        {!user && !authPanelOpen && message ? (
+          <p
+            role="status"
+            className={`mt-3 rounded-xl p-3 text-sm font-bold ${
+              messageTone === "error"
+                ? "bg-red-50 text-red-700"
+                : messageTone === "success"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-slate-50 text-slate-700"
+            }`}
+          >
+            {message}
+          </p>
+        ) : null}
 
         {user && (
           <div className="mt-6 space-y-3">
@@ -2915,7 +2936,10 @@ export default function Home() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[400px_1fr]">
           <section id="pdf-builder" className="rounded-3xl border bg-white p-5 shadow-sm">
-            <h3 className="text-lg font-black">単語テスト印刷</h3>
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-black">単語テスト印刷</h3>
+              <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" />
+            </div>
 
             <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>
             <input
@@ -2964,7 +2988,7 @@ export default function Home() {
                         <img src={getBookCover(book, index)} alt="" className="h-10 w-10 flex-none rounded-lg object-cover" />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-black text-slate-800">
-                            {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Pro）" : ""}
+                            {book.title} {book.requiredPlan === "teacher" ? "（Teacher）" : book.requiredPlan === "personal" ? "（Personal）" : ""}
                           </span>
                           <span className="block truncate text-xs font-bold text-slate-400">{book.creator ?? "非公開"}</span>
                         </span>
@@ -2987,13 +3011,13 @@ export default function Home() {
               </button>
             ) : null}
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:grid-cols-4">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
-              <div className="rounded-xl border bg-slate-50 px-3 py-2">
+              <div className="col-span-3 flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-1.5 sm:col-span-1 sm:block sm:py-2">
                 <p className="text-xs font-bold text-slate-500">ページ数</p>
-                <p className="mt-1 text-lg font-black text-slate-900">{outputPageCount}ページ</p>
+                <p className="text-base font-black text-slate-900 sm:mt-1 sm:text-lg">{outputPageCount}ページ</p>
               </div>
             </div>
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
@@ -3379,7 +3403,7 @@ export default function Home() {
                 onClick={addCustomBook}
                 className="rounded-xl border bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
               >
-              単語帳として登録{accessPlan === "free" ? "（Pro）" : ""}
+              単語帳として登録{accessPlan === "free" ? "（Personal）" : ""}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">
@@ -3557,19 +3581,6 @@ export default function Home() {
         </section>
         )}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {<PlanCard title={FREE_ACCOUNT_LABEL} price="¥50/ページ（印刷時）" text={FREE_STUDY_DESCRIPTION} />}
-          <PlanCard
-            title="Personal"
-            price={trialOffer === "first" ? "最初の7日間 ¥380" : "¥1,580/月"}
-            text={trialOffer === "first"
-              ? "初回7日間380円、8日目から月1,580円で自動更新。印刷回数無制限・透かしなし（1回20ページまで）。聞き流し・単語チェックの全設定、忘却曲線の復習も使えます。"
-              : "月1,580円で自動更新。印刷回数無制限・透かしなし（1回20ページまで）。聞き流し・単語チェックの全設定、忘却曲線の復習も使えます。初回割引は利用済みです。"}
-            onClick={plan === "personal" ? undefined : () => startCheckout("personal")}
-            disabled={plan !== "personal" && !configuredPlans.personal}
-            current={plan === "personal"}
-          />
-        </div>
       </section>
 
       {showPrintConfirm ? (
@@ -3870,11 +3881,13 @@ export default function Home() {
         );
       })()}
 
+      <HomePlanSection plan={accessPlan} introEligible={trialOffer === "first"} loggedIn={Boolean(user)} />
+
       <PrintGateModal
         open={printGateOpen}
         pages={printGatePages}
         isLoggedIn={!!user}
-        showOneTime={pricingVariant === "choice"}
+        showOneTime
         introEligible={trialOffer === "first"}
         busy={printGateBusy}
         onPurchase={handlePrintPurchase}
@@ -3895,10 +3908,10 @@ export default function Home() {
               Vocab Print Pro アカウント
             </p>
             <h3 className="mt-1 text-center text-xl font-black leading-tight text-slate-950">
-              {authMode === "signup" ? "プランを選んで会員登録" : "ログインして続ける"}
+              {authMode === "signup" ? "アカウントを作成（無料）" : "ログインして続ける"}
             </h3>
             <p className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-800">
-              {printAuthReason || "登録だけでは料金はかかりません。印刷は有料です。"}
+              <AutoRenewText text={printAuthReason || "登録だけでは料金はかかりません。印刷は有料です。"} />
               {authMode === "signup" && " 登録後、印刷する前に料金と条件を確認できます。"}
             </p>
             {message && messageTone === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
@@ -3920,7 +3933,7 @@ export default function Home() {
               </button>
             </div>
 
-            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} /> : null}
+            {authMode === "signup" ? <RegistrationPlanPicker value={signupPlan} onChange={selectSignupPlan} introEligible={trialOffer === "first"} disabled={authSubmitting} teacherSelected={signupTeacher} /> : null}
 
             <div className="mt-4 grid gap-2">
               <button
@@ -4006,7 +4019,7 @@ export default function Home() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-8">
             <p className="text-center text-xs font-black text-rose-500">
-              {trialOffer === "first" ? "初回1回限定・7日間380円" : "Personalプラン"}
+              {trialOffer === "first" && offerText ? `初回1回限定・${offerText.badge}` : "Personalプラン"}
             </p>
             <h3 className="mt-2 text-center text-2xl font-black leading-tight text-slate-950">
               Personalプランの登録を
@@ -4014,8 +4027,8 @@ export default function Home() {
               完了しましょう
             </h3>
             <div className="mt-5 rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 text-center">
-              <p className="text-3xl font-black text-slate-950">{trialOffer === "first" ? "最初の7日間 380円" : "月額1,580円"}</p>
-              <p className="mt-1 text-sm font-black text-slate-600">{trialOffer === "first" ? "8日目から月額1,580円" : "毎月自動更新"}・いつでも解約OK</p>
+              <p className="text-3xl font-black text-slate-950">{offerText?.price ?? "料金を読み込み中…"}</p>
+              {offerText && <p className="mt-1 text-sm font-black text-slate-600">{offerText.after}・いつでも解約OK</p>}
             </div>
             <ul className="mt-4 space-y-1.5 text-sm font-bold text-slate-700">
               <li>✓ 印刷回数無制限・1回20ページまで</li>
@@ -4029,7 +4042,7 @@ export default function Home() {
                 onClick={() => startCheckout("personal")}
                 className="w-full rounded-2xl bg-blue-600 px-4 py-4 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700"
               >
-                {trialOffer === "first" ? "7日間380円で始める" : "Personalを始める"}
+                {offerText?.cta ?? "Personalを始める"}
               </button>
               <button
                 type="button"
@@ -4040,7 +4053,7 @@ export default function Home() {
               </button>
             </div>
             <p className="mt-3 text-center text-[11px] font-bold text-slate-400">
-              初週380円は申込時に決済されます。解約すると以後の自動更新は止まります。
+              {offerText?.payNote ?? "解約すると以後の自動更新は止まります。"}
             </p>
           </div>
         </div>

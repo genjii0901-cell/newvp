@@ -369,10 +369,10 @@ export default function ListenPanel({
                   const primary = i === 0;
                   return (
                     <p
-                      key={`${line.lang}-${i}`}
-                      className={`break-words font-black leading-tight transition-opacity duration-200 ${
+                      key={`${wordKey}-${line.lang}-${i}`}
+                      className={`break-words font-black leading-tight ${
                         primary ? "text-3xl text-slate-950 sm:text-5xl" : "mt-5 text-2xl text-blue-700 sm:text-3xl"
-                      } ${shown ? "opacity-100" : "opacity-0"}`}
+                      } ${shown ? "opacity-100 transition-opacity duration-200" : "opacity-0"}`}
                       aria-live={primary ? undefined : "polite"}
                     >
                       {line.text || " "}

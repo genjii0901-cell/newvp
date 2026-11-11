@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
 import { ensureProfile, requireSupabaseUser } from "@/lib/supabase/admin";
-import { hasVerifiedAdminBrowserSession } from "@/lib/admin-auth";
-import { hasAdminFeatureAccess } from "@/lib/plan-access";
+import { hasEffectiveAdminAccess } from "@/lib/admin-auth";
 
 function csvCell(value: unknown) {
   return `"${String(value ?? "").replace(/"/g, '""')}"`;
@@ -13,7 +12,7 @@ export async function GET(request: Request) {
   if (auth.response) return auth.response;
 
   const profile = await ensureProfile(auth.user);
-  const adminAccess = hasAdminFeatureAccess(profile?.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
+  const adminAccess = await hasEffectiveAdminAccess(request, profile?.role, auth.user.id);
   // 単語帳データの一括出力は管理者のみ（会員には渡さない）
   if (!adminAccess) {
     return NextResponse.json({ ok: false, message: "CSV出力は管理者のみ利用できます。" }, { status: 403 });
