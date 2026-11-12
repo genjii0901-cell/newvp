@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import LockedFeatureButton from "@/components/locked-feature-button";
+import { downloadWordbookCsv, OWN_WORDBOOK_ONLY_MESSAGE } from "@/lib/teacher-csv";
 import {
   applyAnswer,
   dueWords,
@@ -73,6 +74,8 @@ export default function MyWordbooksHub() {
   const [userId, setUserId] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [isPaid, setIsPaid] = useState(false);
+  // Teacher（または管理者）なら、選んでいる自作単語帳をその場でCSV出力できる。
+  const [csvAllowed, setCsvAllowed] = useState(false);
   const [books, setBooks] = useState<MyBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
@@ -130,6 +133,7 @@ export default function MyWordbooksHub() {
       setSelectedId((current) => (list.some((book) => book.id === current) ? current : list[0]?.id ?? ""));
       const plan = profileJson?.profile?.plan;
       setIsPaid(plan === "personal" || plan === "teacher");
+      setCsvAllowed(plan === "teacher" || profileJson?.profile?.adminAccess === true);
     } finally {
       setLoading(false);
     }
@@ -340,7 +344,25 @@ export default function MyWordbooksHub() {
         <div className="flex gap-2">
           <button type="button" onClick={() => setAdderOpen(true)} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700">＋ 単語帳を追加</button>
           <Link href="/wordbooks?tab=my" className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">自作・公開</Link>
-          <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" />
+          {csvAllowed ? (
+            <button
+              type="button"
+              onClick={() => {
+                const current = books.find((item) => item.id === selectedId);
+                if (!current) { alert("CSV出力する単語帳を選んでください。"); return; }
+                if (current.copied === true) { alert(`${OWN_WORDBOOK_ONLY_MESSAGE}
+
+自作の単語帳を選んでから、もう一度押してください。`); return; }
+                if (current.words.length === 0) { alert("この単語帳には単語がありません。"); return; }
+                downloadWordbookCsv(current.title, current.words);
+              }}
+              className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
+            >
+              CSV出力
+            </button>
+          ) : (
+            <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" />
+          )}
         </div>
       </div>
 

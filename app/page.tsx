@@ -12,6 +12,7 @@ import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { buildPrintHtml, formatPrintMarkedText, previewCss, printCss, stripPrintMarkers } from "@/lib/print/full-builder";
+import { downloadWordbookCsv, OWN_WORDBOOK_ONLY_MESSAGE } from "@/lib/teacher-csv";
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
@@ -2587,6 +2588,25 @@ export default function Home() {
     alert(result.message ?? result.error ?? "請求管理ページを開けませんでした。");
   }
 
+  // Teacher: 選択中の自作単語帳を、その場でCSV出力する（公式・取り込みは対象外）。
+  function exportOwnBookCsv() {
+    if (!selectedBook) {
+      alert("CSV出力する単語帳を選んでください。");
+      return;
+    }
+    if (selectedBook.level !== "自作") {
+      alert(`${OWN_WORDBOOK_ONLY_MESSAGE}
+
+上の一覧で自作の単語帳を選んでから、もう一度押してください。`);
+      return;
+    }
+    if (!selectedBook.words || selectedBook.words.length === 0) {
+      alert("この単語帳には単語がありません。");
+      return;
+    }
+    downloadWordbookCsv(selectedBook.title, selectedBook.words);
+  }
+
   async function exportSelectedBookCsv() {
     if (!selectedBook || !supabase || !user) return;
     if (role !== "admin") return;
@@ -2977,7 +2997,11 @@ export default function Home() {
           <section id="pdf-builder" className="rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-lg font-black">単語テスト印刷</h3>
-              <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" />
+              {plan === "teacher" || role === "admin" ? (
+                <button type="button" onClick={exportOwnBookCsv} title="選択中の自作単語帳をCSVで書き出します" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50">CSV出力</button>
+              ) : (
+                <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50" />
+              )}
             </div>
 
             <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>

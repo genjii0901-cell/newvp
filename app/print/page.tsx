@@ -495,11 +495,13 @@ const printJobCss = `
       margin-top: 3mm !important;
     }
 
-    /* min-heightでの強制フィルはしない。端末差は行の高さだけで調整（溢れ防止を最優先）。 */
-    .plat-ios .paper-preview .print-table td { height: 8.6mm !important; max-height: 8.6mm !important; }
-    .plat-ios .paper-preview .print-table th { height: 7.6mm !important; max-height: 7.6mm !important; }
-    .plat-ios .paper-preview .has-info .print-table td { height: 8.2mm !important; max-height: 8.2mm !important; }
-    .plat-ios .paper-preview .has-info .print-table th { height: 7.2mm !important; max-height: 7.2mm !important; }
+    /* min-heightでの強制フィルはしない。端末差は行の高さだけで調整（溢れ防止を最優先）。
+       2026-11-12: スマホで下が大きく余るため、iOSの行を少し高くした（8.6→9.2mm）。
+       25行で約15mm伸びる。2枚目に溢れる報告があれば、ここを戻す。 */
+    .plat-ios .paper-preview .print-table td { height: 9.2mm !important; max-height: 9.2mm !important; }
+    .plat-ios .paper-preview .print-table th { height: 8mm !important; max-height: 8mm !important; }
+    .plat-ios .paper-preview .has-info .print-table td { height: 8.7mm !important; max-height: 8.7mm !important; }
+    .plat-ios .paper-preview .has-info .print-table th { height: 7.5mm !important; max-height: 7.5mm !important; }
 
     .plat-wide .paper-preview .print-table td { height: 9.5mm !important; max-height: 9.5mm !important; }
     .plat-wide .paper-preview .print-table th { height: 8.5mm !important; max-height: 8.5mm !important; }
