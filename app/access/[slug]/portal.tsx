@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
+import ResendConfirmButton from "@/components/resend-confirm-button";
 
 type Product = {
   slug: string;
@@ -24,6 +25,7 @@ export default function AccessPortal() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [confirmSent, setConfirmSent] = useState<{ email: string; redirectTo: string } | null>(null);
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("signup");
@@ -97,7 +99,9 @@ export default function AccessPortal() {
       return;
     }
     const origin = window.location.origin;
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(`/access/${slug}`)}` } });
+    const redirectTo = `${origin}/auth/confirm?next=${encodeURIComponent(`/access/${slug}`)}`;
+    setConfirmSent(null);
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: redirectTo } });
     setBusy(false);
     if (error) {
       setMessage(error.message.toLowerCase().includes("already") ? "このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からログインしてください。" : error.message);
@@ -109,7 +113,10 @@ export default function AccessPortal() {
       return;
     }
     if (data.session) setMessage("登録しました。続けてライセンスキーを登録してください。");
-    else setMessage(`${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開いて登録を完了し、もう一度この購入者用URLを開いてログインしてください。届かないときは迷惑メールフォルダを確認してください。`);
+    else {
+      setConfirmSent({ email, redirectTo });
+      setMessage(`${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開いて登録を完了し、もう一度この購入者用URLを開いてログインしてください。届かないときは迷惑メールフォルダを確認してください。`);
+    }
   }
 
   const mainHref = product?.wordbook_id ? buildWordbookPath(product.wordbook_id, product.title) : "/";
@@ -134,6 +141,7 @@ export default function AccessPortal() {
         </section>
 
         {message && <p className={`mt-5 rounded-xl px-4 py-3 text-sm font-bold ${message.includes("失敗") || message.includes("できません") || message.includes("違い") ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-800"}`}>{message}</p>}
+        {confirmSent && !signedIn ? <div className="mx-auto max-w-lg"><ResendConfirmButton supabase={supabase} email={confirmSent.email} redirectTo={confirmSent.redirectTo} /></div> : null}
 
         {!signedIn ? (
           <form onSubmit={submitAuth} className="mx-auto mt-6 max-w-lg rounded-2xl border bg-white p-6 shadow-sm">

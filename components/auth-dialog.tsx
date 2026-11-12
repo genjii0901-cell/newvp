@@ -5,6 +5,7 @@ import { Eye, EyeOff } from "lucide-react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import AutoRenewText from "@/components/auto-renew-text";
+import ResendConfirmButton from "@/components/resend-confirm-button";
 
 // ページ移動なしで開く「登録・ログイン」ポップアップ（料金ページなどで使う）。
 // Google/LINEは外部サイトへ移動して戻ってくるため、戻り先(next)と再開用の目印は呼び出し側が決める。
@@ -29,6 +30,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [confirmSentTo, setConfirmSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
@@ -84,6 +86,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
     }
     setBusy(true);
     setMessage(null);
+    setConfirmSentTo(null);
     try {
       if (mode === "signup") {
         onBeforeRedirect?.();
@@ -110,6 +113,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
           onAuthed();
           return;
         }
+        setConfirmSentTo(email);
         setMessage({ tone: "success", text: `${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開くと登録が完了し、この料金ページに戻って続きから進めます。届かないときは迷惑メールフォルダを確認してください。` });
         return;
       }
@@ -137,6 +141,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
         {message ? (
           <p role="alert" className={`mt-3 rounded-lg p-3 text-sm font-bold ${message.tone === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{message.text}</p>
         ) : null}
+        {confirmSentTo && message?.tone === "success" ? <ResendConfirmButton supabase={supabase} email={confirmSentTo} redirectTo={confirmUrl()} /> : null}
 
         <div className="mt-4 flex gap-2">
           {(["signup", "login"] as const).map((value) => (

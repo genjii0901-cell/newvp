@@ -23,6 +23,7 @@ import { personalOfferText } from "@/lib/personal-pricing";
 import RegistrationPlanPicker from "@/components/registration-plan-picker";
 import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION, registrationIntentForPlan, type SignupPlan, type RegistrationIntent } from "@/lib/registration-plans";
 import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
+import ResendConfirmButton from "@/components/resend-confirm-button";
 
 type Word = {
   no: number;
@@ -490,6 +491,8 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [passwordConfirm, setPasswordConfirm] = useState("");
+  // 確認メールを送った先（再送ボタン用）。
+  const [confirmSent, setConfirmSent] = useState<{ email: string; redirectTo: string } | null>(null);
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
@@ -1456,6 +1459,7 @@ export default function Home() {
 
   async function handleAuth() {
     if (authSubmitting) return;
+    setConfirmSent(null);
     setMessage("");
     setMessageTone("info");
 
@@ -1489,12 +1493,13 @@ export default function Home() {
       if (authMode === "signup") {
         if (signupPlan === "personal") rememberPostAuthAction("personal");
         else clearPostAuthAction();
+        const signupRedirectTo = getAuthConfirmUrl(signupPlan === "personal" ? "/" : authReturnPath);
         const { data, error } = await withAuthTimeout(
           supabase.auth.signUp({
             email,
             password,
             options: {
-              emailRedirectTo: getAuthConfirmUrl(signupPlan === "personal" ? "/" : authReturnPath),
+              emailRedirectTo: signupRedirectTo,
             },
           })
         );
@@ -1557,6 +1562,7 @@ export default function Home() {
           return;
         }
 
+        setConfirmSent({ email, redirectTo: signupRedirectTo });
         setMessageTone("success");
         setMessage(
           signupPlan === "personal"
@@ -2904,6 +2910,7 @@ export default function Home() {
                 {message}
               </p>
             )}
+            {confirmSent && messageTone === "success" ? <ResendConfirmButton supabase={supabase} email={confirmSent.email} redirectTo={confirmSent.redirectTo} /> : null}
             </div>
           </details>
         )}
@@ -3943,6 +3950,7 @@ export default function Home() {
               {authMode === "signup" && " 登録後、印刷する前に料金と条件を確認できます。"}
             </p>
             {message && messageTone !== "info" ? <p role="alert" className={`mt-3 rounded-lg p-3 text-sm font-bold ${messageTone === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{message}</p> : null}
+            {confirmSent && messageTone === "success" ? <ResendConfirmButton supabase={supabase} email={confirmSent.email} redirectTo={confirmSent.redirectTo} /> : null}
 
             <div className="mt-4 flex gap-2">
               <button
