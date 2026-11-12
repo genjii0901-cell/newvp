@@ -16,3 +16,12 @@ test("admin access unlocks Teacher features without changing the billing plan", 
   assert.equal(effectiveAccessPlan("free", false), "free");
   assert.equal(effectiveAccessPlan("personal", false), "personal");
 });
+
+test("admin trial is only for the confirmed owner account", async () => {
+  const { isAdminOwnerAccount, adminOwnerEmails } = await import("../lib/plan-access.ts");
+  const owners = adminOwnerEmails("owner@example.com");
+  assert.equal(isAdminOwnerAccount({ email: "Owner@Example.com", email_confirmed_at: "2026-01-01" }, owners), true);
+  assert.equal(isAdminOwnerAccount({ email: "owner@example.com", email_confirmed_at: null }, owners), false);
+  assert.equal(isAdminOwnerAccount({ email: "customer@example.com", email_confirmed_at: "2026-01-01" }, owners), false);
+  assert.equal(isAdminOwnerAccount(null, owners), false);
+});

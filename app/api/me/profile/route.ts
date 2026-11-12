@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
-import { CUSTOMER_VIEW_COOKIE, hasVerifiedAdminBrowserSession, isCustomerViewRequest } from "@/lib/admin-auth";
-import { hasAdminFeatureAccess } from "@/lib/plan-access";
+import { CUSTOMER_VIEW_COOKIE, hasOwnerMfaSession, hasVerifiedAdminBrowserSession, isCustomerViewRequest } from "@/lib/admin-auth";
+import { hasAdminFeatureAccess, isAdminOwnerAccount } from "@/lib/plan-access";
 
 type Plan = "free" | "personal" | "teacher";
 
@@ -110,9 +110,13 @@ export async function GET(request: Request) {
 
   try {
     const profile = await ensureProfile(auth.user);
-    const adminCapable = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
-    const customerView = adminCapable && isCustomerViewRequest(request);
-    const adminAccess = adminCapable && !customerView;
+    // 管理者としての全機能開放（従来どおり role=admin ＋ 管理者セッション）。
+    const roleAdmin = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
+    // 「管理者の試用」は運営者本人のアカウントだけ。さらに2段階認証済みのときだけ使える。
+    const adminOwner = isAdminOwnerAccount(auth.user);
+    const adminCapable = adminOwner && (await hasOwnerMfaSession(request, auth.user.id));
+    const customerView = (roleAdmin || adminCapable) && isCustomerViewRequest(request);
+    const adminAccess = roleAdmin && !customerView;
     let plan = normalizePlan(profile.plan);
     const stripeCustomerId = profile.stripe_customer_id ?? null;
 
@@ -140,7 +144,7 @@ export async function GET(request: Request) {
           { onConflict: "stripe_subscription_id" }
         );
       }
-    } else if (activeSubscription === null && plan !== "free" && !adminCapable) {
+    } else if (activeSubscription === null && plan !== "free" && !adminCapable && !roleAdmin) {
       // 管理者の試用プランは、Stripe契約がなくてもfreeへ戻さない。
       plan = "free";
       await supabase
@@ -158,6 +162,7 @@ export async function GET(request: Request) {
         role: profile.role ?? "user",
         adminAccess,
         adminCapable,
+        adminOwner,
         customerView,
         stripe_customer_id: stripeCustomerId,
         trialOffer: getTrialOffer(profile),
@@ -180,12 +185,14 @@ export async function PATCH(request: Request) {
     const profile = await ensureProfile(auth.user);
     const nextPlan = body.plan === undefined ? normalizePlan(profile.plan) : normalizePlan(body.plan);
 
-    if (!hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id))) {
+    // 運営者本人のアカウント かつ 2段階認証済みのときだけ、試用のプラン切り替えを許す。
+    if (!isAdminOwnerAccount(auth.user) || !(await hasOwnerMfaSession(request, auth.user.id))) {
       return NextResponse.json(
-        { ok: false, error: "Only admin users can change preview plan." },
+        { ok: false, error: "管理者の試用は、運営者のアカウントで2段階認証をしたときだけ使えます。" },
         { status: 403 }
       );
     }
+    const roleAdmin = hasAdminFeatureAccess(profile.role, await hasVerifiedAdminBrowserSession(request, auth.user.id));
 
     const supabase = getSupabaseAdmin();
     // 購入者と同じDB項目（plan / trial_used）だけを書き換える。専用の特別処理は持たない。
@@ -211,8 +218,9 @@ export async function PATCH(request: Request) {
         email: profile.email ?? auth.user.email ?? null,
         plan: nextPlan,
         role: profile.role ?? "user",
-        adminAccess: !customerView,
+        adminAccess: roleAdmin && !customerView,
         adminCapable: true,
+        adminOwner: true,
         customerView,
         trialOffer: getTrialOffer({ ...profile, trial_used: trialUsed }),
         stripe_customer_id: profile.stripe_customer_id ?? null,

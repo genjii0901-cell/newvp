@@ -242,6 +242,22 @@ export async function hasVerifiedAdminBrowserSession(request: Request, userId: s
   }
 }
 
+// 運営者本人の「管理者の試用」用。2段階認証（認証アプリのコード）を済ませたセッションに限る。
+// 2段階認証そのものが未設定なら、常に false（安全側）。
+export async function hasOwnerMfaSession(request: Request, userId: string): Promise<boolean> {
+  const token = requestCookie(request, ADMIN_SESSION_COOKIE);
+  if (!token) return false;
+  try {
+    const claims = verifyAdminSessionToken(token, getAdminServerKey());
+    if (!claims || !claims.mfa) return false;
+    if (!isAdminSessionForUser(claims, userId)) return false;
+    return Boolean(await getAdminTotpSecret());
+  } catch (error) {
+    console.error("Owner MFA session verification failed closed", error);
+    return false;
+  }
+}
+
 // 管理者が「購入者と同じ見え方」で試すためのCookie。立っている間は管理者特権(全機能開放)を外し、
 // DBのプラン(購入者と同じ経路)だけで判定する。
 export const CUSTOMER_VIEW_COOKIE = "vpp_customer_view";

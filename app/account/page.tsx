@@ -82,6 +82,12 @@ export default function AccountPage() {
   const [cancellationFeedback, setCancellationFeedback] = useState("");
   const [adminPlanSaving, setAdminPlanSaving] = useState(false);
   const [adminCapable, setAdminCapable] = useState(false);
+  // 運営者本人のアカウントか（2段階認証の前でも true）。お客さんのアカウントでは常に false。
+  const [adminOwner, setAdminOwner] = useState(false);
+  const [ownerCodeOpen, setOwnerCodeOpen] = useState(false);
+  const [ownerCode, setOwnerCode] = useState("");
+  const [ownerVerifying, setOwnerVerifying] = useState(false);
+  const [ownerVerifyMsg, setOwnerVerifyMsg] = useState("");
   const [customerView, setCustomerView] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -141,6 +147,7 @@ export default function AccountPage() {
         setPlan(normalizePlan(result.profile?.plan));
         setRole(result.profile?.adminAccess === true ? "admin" : "user");
         setAdminCapable(result.profile?.adminCapable === true);
+        setAdminOwner(result.profile?.adminOwner === true);
         setCustomerView(result.profile?.customerView === true);
         setTrialOffer(result.profile?.trialOffer === "first" ? "first" : null);
       }
@@ -246,6 +253,40 @@ export default function AccountPage() {
       setMsg(result.error ?? "解約処理に失敗しました。時間をおいて再度お試しください。");
     }
     setCancelLoading(false);
+  }
+
+  // 運営者本人が「管理者としてプランを試す」を押したときの2段階認証。成功したら読み込み直して試用欄を出す。
+  async function verifyOwner2fa() {
+    if (!supabase || !user || ownerVerifying) return;
+    const code = ownerCode.replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(code)) {
+      setOwnerVerifyMsg("認証アプリに出ている6桁の数字を入れてください。");
+      return;
+    }
+    setOwnerVerifying(true);
+    setOwnerVerifyMsg("");
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const response = await fetch("/api/me/admin-verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ code }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (response.ok && result.ok) {
+        window.location.reload();
+        return;
+      }
+      setOwnerVerifyMsg(result.message ?? "2段階認証に失敗しました。");
+    } catch {
+      setOwnerVerifyMsg("通信に失敗しました。もう一度お試しください。");
+    } finally {
+      setOwnerVerifying(false);
+    }
   }
 
   // 管理者の試用: 購入者と同じ plan / trial_used をDBに書き、購入者ビューのON/OFFも切り替える。
@@ -587,6 +628,46 @@ export default function AccountPage() {
           </div>
         )}
       </section>
+
+      {adminOwner && !adminCapable && (
+        <section id="admin-trial" className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
+          <h2 className="text-lg font-black text-amber-900">管理者としてプランを試す</h2>
+          <p className="mt-2 text-sm text-amber-800">
+            Free / Personal / Teacher を切り替えて、購入者と同じ画面で試せます。運営者のアカウントだけに表示され、使うには2段階認証（認証アプリの6桁のコード）が必要です。
+          </p>
+          {!ownerCodeOpen ? (
+            <button
+              type="button"
+              onClick={() => { setOwnerCodeOpen(true); setOwnerVerifyMsg(""); }}
+              className="mt-4 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-black text-white hover:bg-amber-600"
+            >
+              管理者としてプランを試す
+            </button>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={ownerCode}
+                onChange={(event) => setOwnerCode(event.target.value)}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="認証アプリの6桁のコード"
+                className="flex-1 rounded-xl border border-amber-300 bg-white px-3 py-3 text-base tracking-widest"
+                onKeyDown={(event) => { if (event.key === "Enter") void verifyOwner2fa(); }}
+              />
+              <button
+                type="button"
+                onClick={verifyOwner2fa}
+                disabled={ownerVerifying}
+                className="rounded-xl bg-amber-500 px-5 py-3 text-sm font-black text-white hover:bg-amber-600 disabled:opacity-60"
+              >
+                {ownerVerifying ? "確認中..." : "2段階認証して開く"}
+              </button>
+            </div>
+          )}
+          {ownerVerifyMsg ? <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-sm font-bold text-red-700">{ownerVerifyMsg}</p> : null}
+        </section>
+      )}
 
       {adminCapable && (
         <section id="admin-trial" className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm">
