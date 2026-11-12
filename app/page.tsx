@@ -25,6 +25,8 @@ import RegistrationPlanPicker from "@/components/registration-plan-picker";
 import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION, registrationIntentForPlan, type SignupPlan, type RegistrationIntent } from "@/lib/registration-plans";
 import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
 import ResendConfirmButton from "@/components/resend-confirm-button";
+import WordbookShelf, { type ShelfBook } from "@/components/wordbook-shelf";
+import { wordbookShelfCategory } from "@/lib/wordbook-category";
 
 type Word = {
   no: number;
@@ -1111,7 +1113,40 @@ export default function Home() {
     }
   }, []);
 
-  const featuredBooks = useMemo(() => books.slice(0, 6), [books]);
+  // 単語帳ごとの使用者数（推定込み）。人気順の並びと表紙の人数表示に使う。
+  const [popularity, setPopularity] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/wordbooks/popularity")
+      .then((res) => res.json())
+      .then((data) => {
+        if (alive && data?.counts && typeof data.counts === "object") setPopularity(data.counts as Record<string, number>);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  const shelves = useMemo(() => {
+    const items: Array<ShelfBook & { category: ReturnType<typeof wordbookShelfCategory> }> = books.map((book, index) => ({
+      id: book.id,
+      title: book.title,
+      href: buildWordbookPath(book.id, book.title),
+      cover: getBookCover(book, index),
+      planLabel: planLabel(book.requiredPlan),
+      wordCount: getBookWordCount(book),
+      users: popularity[String(book.id)] ?? 0,
+      // 公式（非公開）とメールアドレスは出さない。みんなの単語帳の作成者名だけ出す。
+      creator: book.creator && book.creator !== "非公開" && !book.creator.includes("@") ? book.creator : undefined,
+      category: wordbookShelfCategory(book),
+    }));
+    // 人気順（同じ人数なら元の並び）
+    const byPopularity = [...items].sort((a, b) => b.users - a.users);
+    return {
+      ranking: byPopularity.filter((item) => item.users > 0).slice(0, 10),
+      english: byPopularity.filter((item) => item.category === "english"),
+      japanese: byPopularity.filter((item) => item.category === "japanese"),
+      languages: byPopularity.filter((item) => item.category === "languages"),
+    };
+  }, [books, popularity]);
   const searchableBooks = useMemo(() => {
     const query = bookSearch.trim().toLowerCase();
     if (!query) return books;
@@ -2474,7 +2509,7 @@ export default function Home() {
         body: JSON.stringify({
           type,
           wordCount: outputWords.length,
-          wordbookId: selectedBook && isUuid(selectedBook.id) ? selectedBook.id : null,
+          wordbookId: selectedBook ? String(selectedBook.id) : null,
         }),
       });
     } catch (error) {
@@ -2714,106 +2749,13 @@ export default function Home() {
                 スマホでは教材アプリのように小さく探して、単語帳ページから印刷・聞き流しを選べます。
               </p>
             </div>
-            <Link href="/wordbooks" className="shrink-0 rounded-lg border bg-white px-2.5 py-1.5 text-[11px] font-bold sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm">
-              すべて見る
-            </Link>
           </div>
 
-          {/* スマホ: 小さな表紙を3列に並べて、一画面でたくさん見えるようにする */}
-          <div className="mt-2 sm:hidden">
-            <div className="grid grid-cols-3 gap-2">
-              {featuredBooks.map((book, index) => (
-                <a
-                  key={book.id}
-                  href={buildWordbookPath(book.id, book.title)}
-                  className={`flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] ${
-                    book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
-                  }`}
-                >
-                  <div className="relative h-14 w-full bg-slate-100">
-                    <img
-                      src={getBookCover(book, index)}
-                      alt={book.title}
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                    <span className="absolute left-0.5 top-0.5 rounded-full bg-white/90 px-1 py-px text-[8px] font-black text-slate-800">
-                      {planLabel(book.requiredPlan)}
-                    </span>
-                  </div>
-                  <div className="px-1.5 py-1">
-                    <h4 className="line-clamp-2 min-h-[1.9rem] text-[10px] font-black leading-tight text-slate-900">{book.title}</h4>
-                    <p className="truncate text-[9px] font-bold text-blue-700">{getBookWordCount(book)}語</p>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* PC: グリッド表示 */}
-          <div className="mt-4 hidden gap-2 sm:mt-5 sm:grid sm:gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {featuredBooks.map((book, index) => (
-              <div
-                key={book.id}
-                onClick={() => {
-                  window.location.href = buildWordbookPath(book.id, book.title);
-                }}
-                className={`flex min-h-[92px] cursor-pointer overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:block sm:min-h-0 sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md ${
-                  book.id === bookId ? "border-blue-500 ring-2 ring-blue-200" : "border-slate-200"
-                }`}
-              >
-                <div className="relative h-auto w-20 flex-shrink-0 bg-slate-100 sm:h-40 sm:w-full">
-                  <img
-                    src={getBookCover(book, index)}
-                    alt={book.title}
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                  />
-                  <div className="absolute inset-x-0 bottom-0 hidden bg-gradient-to-t from-slate-950/80 to-transparent p-4 sm:block">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="rounded-full bg-white/90 px-2.5 py-1 text-xs font-bold text-slate-800">
-                        {planLabel(book.requiredPlan)}
-                      </span>
-                      <span className="rounded-full bg-blue-500/90 px-2.5 py-1 text-xs font-bold text-white">
-                        {getBookWordCount(book)} words
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="min-w-0 flex-1 p-2.5 sm:p-4">
-                  <div className="flex items-start justify-between gap-2 sm:block">
-                    <h4 className="line-clamp-2 text-sm font-black leading-snug text-slate-900 sm:text-lg">{book.title}</h4>
-                    <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-black text-blue-700 sm:hidden">
-                      {planLabel(book.requiredPlan)}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex flex-wrap items-center gap-2">
-                    <p className="text-xs font-bold text-blue-700 sm:text-sm">{book.level}</p>
-                    <span className="text-[11px] font-bold text-slate-400 sm:hidden">{getBookWordCount(book)}語</span>
-                  </div>
-                  <p className="mt-1 truncate text-xs font-bold text-slate-400">
-                    作成者: {book.creator ?? "非公開"}
-                  </p>
-                  <div className="mt-1 hidden sm:mt-2 sm:block sm:min-h-12">
-                    <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedBookDescriptionId === book.id ? "" : "line-clamp-2"}`}>
-                      {book.description ?? "印刷用の見やすい教材として、すぐ使える単語帳です。"}
-                    </p>
-                    {(book.description?.length ?? 0) > 90 ? <button type="button" onClick={(event) => { event.stopPropagation(); setExpandedBookDescriptionId((value) => value === book.id ? "" : book.id); }} className="mt-1 text-xs font-black text-blue-700 hover:underline">{expandedBookDescriptionId === book.id ? "閉じる" : "続きを読む"}</button> : null}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Link
-                      href={buildWordbookPath(book.id, book.title)}
-                      prefetch={false}
-                      onClick={(event) => event.stopPropagation()}
-                      className="rounded-lg bg-blue-600 px-2.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 sm:px-3 sm:py-2"
-                    >
-                      単語帳ページへ
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* 漫画アプリのように、小さな表紙を横に流れる棚で並べる（人気順） */}
+          <WordbookShelf title="人気ランキング" books={shelves.ranking} ranked selectedId={bookId} />
+          <WordbookShelf title="英語" books={shelves.english} rows={2} selectedId={bookId} moreHref="/wordbooks" />
+          <WordbookShelf title="古文・国語" books={shelves.japanese} rows={2} selectedId={bookId} moreHref="/wordbooks" />
+          <WordbookShelf title="多言語" books={shelves.languages} rows={2} selectedId={bookId} moreHref="/wordbooks" />
         </section>
 
         {!user && (

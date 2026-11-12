@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { defaultCommunityCover, type CommunitySubject } from "@/lib/community-wordbook-types";
+import { POPULARITY_DISPLAY_MIN } from "@/lib/wordbook-popularity";
 
 type Plan = "free" | "personal" | "teacher";
 type Word = { no: number; english: string; japanese: string; unit: string | null };
@@ -217,9 +218,23 @@ export default function WordbooksClient({
 
   const selectedCopied = myBooks.find((book) => book.id === selectedMyBookId)?.copied === true;
 
+  // 単語帳ごとの使用者数（推定込み）。人気順に並べ、表紙に人数を出す。
+  const [popularity, setPopularity] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/wordbooks/popularity")
+      .then((res) => res.json())
+      .then((data) => {
+        if (alive && data?.counts && typeof data.counts === "object") setPopularity(data.counts as Record<string, number>);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
   const filteredOfficialBooks = useMemo(() => {
     const query = officialSearch.trim().toLowerCase();
-    return [...officialBooks, ...communityBooks].filter((book) => {
+    const users = (id: string) => popularity[String(id)] ?? 0;
+    return [...officialBooks, ...communityBooks].sort((a, b) => users(b.id) - users(a.id)).filter((book) => {
       if (communityFilter === "official" && book.community) return false;
       if (communityFilter === "community" && !book.community) return false;
       const inPlan = officialFilter === "all" || book.requiredPlan === officialFilter;
@@ -230,7 +245,7 @@ export default function WordbooksClient({
         .toLowerCase()
         .includes(query);
     });
-  }, [officialBooks, communityBooks, communityFilter, officialFilter, officialSearch]);
+  }, [officialBooks, communityBooks, communityFilter, officialFilter, officialSearch, popularity]);
 
   function updateRow(index: number, field: keyof EditableRow, value: string | number) {
     setEditorRows((prev) =>
@@ -586,7 +601,12 @@ export default function WordbooksClient({
                     }}
                     className="flex h-[255px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:h-[390px] sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
                   >
-                    <img src={book.coverImage || defaultCommunityCover(book.subject ?? "その他")} alt={`${book.title}の表紙`} loading="lazy" className="h-24 w-full shrink-0 object-cover sm:h-40" />
+                    <div className="relative h-24 w-full shrink-0 sm:h-40">
+                      <img src={book.coverImage || defaultCommunityCover(book.subject ?? "その他")} alt={`${book.title}の表紙`} loading="lazy" className="h-full w-full object-cover" />
+                      <span className="absolute bottom-1 left-1 rounded-full bg-slate-900/75 px-1.5 py-0.5 text-[9px] font-black text-white sm:text-xs">
+                        {(popularity[String(book.id)] ?? 0) >= POPULARITY_DISPLAY_MIN ? `👤 約${(popularity[String(book.id)] ?? 0).toLocaleString()}人` : "新着"}
+                      </span>
+                    </div>
                     <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-5">
                       <div className="flex items-center justify-between gap-1.5">
                         <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 sm:px-3 sm:py-1 sm:text-xs">
