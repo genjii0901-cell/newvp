@@ -581,6 +581,21 @@ export default function Home() {
   const [infoOffset, setInfoOffset] = useState({ x: 0, y: 0 });
   const [gridOffset, setGridOffset] = useState({ x: 0, y: 0 });
   const [pageNoOffset, setPageNoOffset] = useState({ x: 0, y: 0 });
+  // レイアウト調整で今動かしている項目
+  const [layoutTarget, setLayoutTarget] = useState<"title" | "date" | "info" | "grid" | "pageNo">("grid");
+  // 表の縦の長さ（1=標準）。プリンターや端末で下が余る・はみ出す差を合わせる。端末ごとに保存。
+  const [rowScale, setRowScale] = useState(1);
+  useEffect(() => {
+    try {
+      const saved = Number(window.localStorage.getItem("vpp-row-scale"));
+      if (Number.isFinite(saved) && saved >= 0.8 && saved <= 1.2) setRowScale(saved);
+    } catch {}
+  }, []);
+  function changeRowScale(value: number) {
+    const next = Math.min(1.2, Math.max(0.8, Math.round(value * 100) / 100));
+    setRowScale(next);
+    try { window.localStorage.setItem("vpp-row-scale", String(next)); } catch {}
+  }
   const [dragging, setDragging] = useState<"title" | "date" | "info" | "grid" | "pageNo" | null>(null);
   const [dragStart, setDragStart] = useState({ cx: 0, cy: 0, ox: 0, oy: 0 });
   const listeningTimerRef = useRef<number | null>(null);
@@ -1853,6 +1868,7 @@ export default function Home() {
       gridOffsetY: gridOffset.y,
       pageNoOffsetX: pageNoOffset.x,
       pageNoOffsetY: pageNoOffset.y,
+      rowScale,
     });
 
     const safeTitle = fullTitle.replace(/[<>"&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", '"': "&quot;", "&": "&amp;" }[c] ?? c));
@@ -2329,6 +2345,7 @@ export default function Home() {
       gridOffsetY: gridOffset.y,
       pageNoOffsetX: pageNoOffset.x,
       pageNoOffsetY: pageNoOffset.y,
+      rowScale,
     });
     const previewBody = bodyHtml.replace(/^<style>[\s\S]*?<\/style>/, `<style>${previewCss}</style>`);
     const homePreviewOverrides = `
@@ -2412,7 +2429,8 @@ export default function Home() {
     const sx = (v: number) => (Math.abs(v) <= 3 ? 0 : v);
     const sy = (v: number) => (Math.abs(v) <= 2 ? 0 : v);
     const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
+      e.preventDefault();
       const dx = (e.clientX - dragStart.cx) / ppMM;
       const dy = (e.clientY - dragStart.cy) / ppMM;
       if (dragging === "title") {
@@ -2428,9 +2446,14 @@ export default function Home() {
       }
     };
     const onUp = () => setDragging(null);
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, dragStart, layoutPreviewScale]);
 
@@ -3702,6 +3725,7 @@ export default function Home() {
           border: "1.5px dashed #3b82f6",
           borderRadius: 3,
           cursor: "move",
+          touchAction: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3720,6 +3744,7 @@ export default function Home() {
           border: "1.5px dashed #ca8a04",
           borderRadius: 3,
           cursor: "move",
+          touchAction: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3738,6 +3763,7 @@ export default function Home() {
           border: "1.5px dashed #64748b",
           borderRadius: 3,
           cursor: "move",
+          touchAction: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3760,6 +3786,7 @@ export default function Home() {
           border: "1.5px dashed #8b5cf6",
           borderRadius: 3,
           cursor: "move",
+          touchAction: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -3779,18 +3806,19 @@ export default function Home() {
           border: "1.5px dashed #10b981",
           borderRadius: 3,
           cursor: "move",
+          touchAction: "none",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
         };
 
-        const startDrag = (type: "title" | "date" | "info" | "grid" | "pageNo", e: React.MouseEvent, ox: number, oy: number) => {
+        const startDrag = (type: "title" | "date" | "info" | "grid" | "pageNo", e: React.PointerEvent, ox: number, oy: number) => {
           e.preventDefault();
+          setLayoutTarget(type);
           setDragging(type);
           setDragStart({ cx: e.clientX, cy: e.clientY, ox, oy });
         };
 
-        const fmt = (v: number) => `${v >= 0 ? "+" : ""}${Math.round(v * 10) / 10}`;
         const nudge = (target: "title" | "date" | "grid" | "info" | "pageNo", dx: number, dy: number) => {
           const update = (current: { x: number; y: number }, yMin: number, yMax: number) => ({
             x: Math.max(-80, Math.min(80, current.x + dx)),
@@ -3802,33 +3830,19 @@ export default function Home() {
           if (target === "info") setInfoOffset((current) => update(current, -10, 10));
           if (target === "pageNo") setPageNoOffset((current) => update(current, -20, 20));
         };
-        const setPosition = (target: "title" | "date" | "grid" | "info" | "pageNo", axis: "x" | "y", value: number, current: { x: number; y: number }) => {
+        const layoutItems = [
+          { key: "title" as const, label: "タイトル", value: titleOffset, show: true, yMin: -5, yMax: 15, color: "#3b82f6" },
+          { key: "date" as const, label: "日付", value: dateOffset, show: includeDate, yMin: -5, yMax: 20, color: "#ca8a04" },
+          { key: "grid" as const, label: "単語リスト", value: gridOffset, show: true, yMin: -30, yMax: 30, color: "#8b5cf6" },
+          { key: "info" as const, label: "記入欄", value: infoOffset, show: hasInfoFields, yMin: -10, yMax: 10, color: "#10b981" },
+          { key: "pageNo" as const, label: "ページ番号", value: pageNoOffset, show: showPageNo, yMin: -20, yMax: 20, color: "#64748b" },
+        ].filter((item) => item.show);
+        const activeItem = layoutItems.find((item) => item.key === layoutTarget) ?? layoutItems.find((item) => item.key === "grid")!;
+        const setActive = (axis: "x" | "y", value: number) => {
           if (!Number.isFinite(value)) return;
-          nudge(target, axis === "x" ? value - current.x : 0, axis === "y" ? value - current.y : 0);
+          nudge(activeItem.key, axis === "x" ? value - activeItem.value.x : 0, axis === "y" ? value - activeItem.value.y : 0);
         };
-        const PositionControl = ({ label, target, value, tone }: { label: string; target: "title" | "date" | "grid" | "info" | "pageNo"; value: { x: number; y: number }; tone: string }) => (
-          <div className={`rounded-xl border p-3 ${tone}`}>
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-black text-slate-800">{label}</p>
-              <p className="text-[11px] font-bold text-slate-500">横 {fmt(value.x)} / 縦 {fmt(value.y)}mm</p>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-1">
-              <span />
-              <button type="button" onClick={() => nudge(target, 0, -1)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を上へ`}>↑</button>
-              <span />
-              <button type="button" onClick={() => nudge(target, -1, 0)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を左へ`}>←</button>
-              <button type="button" onClick={() => nudge(target, -value.x, -value.y)} className="rounded-lg border bg-white py-1.5 text-[10px] font-black text-blue-700 hover:bg-blue-50" aria-label={`${label}を中央へ戻す`}>中央</button>
-              <button type="button" onClick={() => nudge(target, 1, 0)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を右へ`}>→</button>
-              <span />
-              <button type="button" onClick={() => nudge(target, 0, 1)} className="rounded-lg border bg-white py-1.5 text-sm font-black text-slate-700 hover:bg-slate-50" aria-label={`${label}を下へ`}>↓</button>
-              <span />
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-bold text-slate-600">
-              <label>横 (mm)<input type="number" step="0.5" min="-80" max="80" value={value.x} onChange={(event) => setPosition(target, "x", Number(event.target.value), value)} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5 text-sm" /></label>
-              <label>縦 (mm)<input type="number" step="0.5" min={target === "grid" ? -30 : target === "pageNo" ? -20 : target === "info" ? -10 : -5} max={target === "grid" ? 30 : target === "pageNo" || target === "date" ? 20 : target === "info" ? 10 : 15} value={value.y} onChange={(event) => setPosition(target, "y", Number(event.target.value), value)} className="mt-1 w-full rounded-lg border bg-white px-2 py-1.5 text-sm" /></label>
-            </div>
-          </div>
-        );
+        const handleRing = (key: string): React.CSSProperties => (activeItem.key === key ? { boxShadow: "0 0 0 2px #fff, 0 0 0 4px #2563eb", zIndex: 2 } : {});
 
         return (
           <div
@@ -3841,13 +3855,6 @@ export default function Home() {
                 <div className="border-b px-5 py-4">
                   <h2 className="text-lg font-black">印刷レイアウト</h2>
                   <p className="mt-1 text-xs font-black text-blue-700">{outputWords.length}語 / 自動計算 {outputPageCount}ページ</p>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    <span style={{ color: "#3b82f6" }}>■</span> タイトル &nbsp;
-                    <span style={{ color: "#ca8a04" }}>■</span> 日付 &nbsp;
-                    <span style={{ color: "#8b5cf6" }}>■</span> 単語リスト &nbsp;
-                    {hasInfoFields && <><span style={{ color: "#10b981" }}>■</span> 記入欄 &nbsp;</>}
-                    <span style={{ color: "#64748b" }}>■</span> ページ数
-                  </p>
                 </div>
                 <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4" style={{ background: "#e8edf2" }}>
                   <div style={{ position: "relative", width: overlayW, minWidth: overlayW, height: overlayH, background: "white", boxShadow: "0 4px 20px rgba(0,0,0,0.18)" }}>
@@ -3882,24 +3889,24 @@ export default function Home() {
                         );
                       })()}
                       {/* タイトルハンドル */}
-                      <div style={titleHandleStyle} onMouseDown={(e) => startDrag("title", e, titleOffset.x, titleOffset.y)}>
+                      <div style={{ ...titleHandleStyle, ...handleRing("title") }} onPointerDown={(e) => startDrag("title", e, titleOffset.x, titleOffset.y)}>
                         <span style={{ fontSize: 9, color: "#3b82f6", fontWeight: 800, userSelect: "none" }}>✥ タイトル</span>
                       </div>
                       {/* 日付ハンドル */}
-                      <div style={dateHandleStyle} onMouseDown={(e) => startDrag("date", e, dateOffset.x, dateOffset.y)}>
+                      <div style={{ ...dateHandleStyle, ...handleRing("date") }} onPointerDown={(e) => startDrag("date", e, dateOffset.x, dateOffset.y)}>
                         <span style={{ fontSize: 8, color: "#92400e", fontWeight: 800, userSelect: "none" }}>✥</span>
                       </div>
                       {/* ページ番号ハンドル */}
-                      <div style={pageNoHandleStyle} onMouseDown={(e) => startDrag("pageNo", e, pageNoOffset.x, pageNoOffset.y)}>
+                      <div style={{ ...pageNoHandleStyle, ...handleRing("pageNo") }} onPointerDown={(e) => startDrag("pageNo", e, pageNoOffset.x, pageNoOffset.y)}>
                         <span style={{ fontSize: 8, color: "#475569", fontWeight: 800, userSelect: "none" }}>✥ ページ数</span>
                       </div>
                       {/* 単語グリッドハンドル */}
-                      <div style={gridHandleStyle} onMouseDown={(e) => startDrag("grid", e, gridOffset.x, gridOffset.y)}>
+                      <div style={{ ...gridHandleStyle, ...handleRing("grid") }} onPointerDown={(e) => startDrag("grid", e, gridOffset.x, gridOffset.y)}>
                         <span style={{ fontSize: 9, color: "#8b5cf6", fontWeight: 800, userSelect: "none" }}>✥ 単語リスト</span>
                       </div>
                       {/* 記入欄ハンドル */}
                       {hasInfoFields && (
-                        <div style={infoHandleStyle} onMouseDown={(e) => startDrag("info", e, infoOffset.x, infoOffset.y)}>
+                        <div style={{ ...infoHandleStyle, ...handleRing("info") }} onPointerDown={(e) => startDrag("info", e, infoOffset.x, infoOffset.y)}>
                           <span style={{ fontSize: 9, color: "#10b981", fontWeight: 800, userSelect: "none" }}>✥ 記入欄</span>
                         </div>
                       )}
@@ -3911,24 +3918,57 @@ export default function Home() {
 
               {/* コントロールパネル */}
               <div className="flex w-full flex-col border-t lg:w-72 lg:border-l lg:border-t-0">
-                <div className="border-b px-5 py-4">
-                  <p className="text-sm font-black text-slate-900">位置を調整</p>
-                  <p className="mt-1 text-xs font-bold leading-5 text-slate-500">紙の上をドラッグするか、矢印で1mmずつ動かせます。</p>
-                </div>
-                <div className="flex-1 space-y-3 overflow-auto p-4 text-xs">
-                  <PositionControl label="タイトル" target="title" value={titleOffset} tone="border-blue-100 bg-blue-50" />
-                  {includeDate ? <PositionControl label="日付" target="date" value={dateOffset} tone="border-yellow-100 bg-yellow-50" /> : null}
-                  <PositionControl label="単語リスト" target="grid" value={gridOffset} tone="border-violet-100 bg-violet-50" />
-                  {hasInfoFields && (
-                    <PositionControl label="記入欄" target="info" value={infoOffset} tone="border-emerald-100 bg-emerald-50" />
-                  )}
-                  {showPageNo ? <PositionControl label="ページ番号" target="pageNo" value={pageNoOffset} tone="border-slate-200 bg-slate-50" /> : null}
+                <div className="flex-1 space-y-4 overflow-auto p-4">
+                  <div>
+                    <p className="text-sm font-black text-slate-900">動かす項目</p>
+                    <p className="mt-0.5 text-[11px] font-bold leading-4 text-slate-500">紙の上の枠を指やマウスで動かすか、ここで選んでつまみを動かします。</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {layoutItems.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setLayoutTarget(item.key)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-black ${activeItem.key === item.key ? "border-blue-600 bg-blue-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}`}
+                        >
+                          <span style={{ color: activeItem.key === item.key ? "#fff" : item.color }}>●</span> {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 rounded-2xl border bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                    <label className="block">
+                      <span className="flex justify-between"><span>上下</span><span className="text-slate-900">{activeItem.value.y === 0 ? "そのまま" : `${activeItem.value.y > 0 ? "下へ" : "上へ"} ${Math.abs(Math.round(activeItem.value.y * 10) / 10)}mm`}</span></span>
+                      <input type="range" min={activeItem.yMin} max={activeItem.yMax} step={0.5} value={activeItem.value.y} onChange={(event) => setActive("y", Number(event.target.value))} className="mt-1 h-8 w-full accent-blue-600" />
+                    </label>
+                    <label className="block">
+                      <span className="flex justify-between"><span>左右</span><span className="text-slate-900">{activeItem.value.x === 0 ? "中央" : `${activeItem.value.x > 0 ? "右へ" : "左へ"} ${Math.abs(Math.round(activeItem.value.x * 10) / 10)}mm`}</span></span>
+                      <input type="range" min={-40} max={40} step={0.5} value={Math.max(-40, Math.min(40, activeItem.value.x))} onChange={(event) => setActive("x", Number(event.target.value))} className="mt-1 h-8 w-full accent-blue-600" />
+                    </label>
+                    {activeItem.value.x !== 0 || activeItem.value.y !== 0 ? (
+                      <button type="button" onClick={() => nudge(activeItem.key, -activeItem.value.x, -activeItem.value.y)} className="text-xs font-black text-blue-700 underline">
+                        {activeItem.label}を元の位置に戻す
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1 rounded-2xl border border-violet-100 bg-violet-50 p-3 text-xs font-bold text-slate-600">
+                    <label className="block">
+                      <span className="flex justify-between"><span>表の縦の長さ</span><span className="text-slate-900">{Math.round(rowScale * 100)}%</span></span>
+                      <input type="range" min={0.8} max={1.2} step={0.01} value={rowScale} onChange={(event) => changeRowScale(Number(event.target.value))} className="mt-1 h-8 w-full accent-violet-600" />
+                    </label>
+                    <p className="text-[11px] leading-4 text-slate-500">印刷して下が余るときは長く、2枚目にはみ出すときは短くします。この端末に保存されます。</p>
+                    {rowScale !== 1 ? (
+                      <button type="button" onClick={() => changeRowScale(1)} className="text-xs font-black text-violet-700 underline">標準（100%）に戻す</button>
+                    ) : null}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => { setTitleOffset({ x: 0, y: 0 }); setDateOffset({ x: 0, y: 0 }); setGridOffset({ x: 0, y: 0 }); setInfoOffset({ x: 0, y: 0 }); setPageNoOffset({ x: 0, y: 0 }); }}
                     className="text-xs text-slate-400 underline"
                   >
-                    全てリセット
+                    位置をすべて元に戻す
                   </button>
                 </div>
 

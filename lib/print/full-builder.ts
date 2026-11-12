@@ -88,6 +88,8 @@ export interface BuildPrintHtmlOptions {
   gridOffsetY?: number;
   pageNoOffsetX?: number;
   pageNoOffsetY?: number;
+  /** 表の縦の長さ（1=標準）。端末で下が余る・はみ出すときにレイアウト調整で変える。0.8〜1.2。 */
+  rowScale?: number;
   /** 管理者用: 1ページを1列/2列で組む。未指定時は従来の2列。 */
   layoutColumns?: "one" | "two";
   /** 管理者用: 1ページに収める語数。2列は最大100語、1列は最大50語。 */
@@ -132,6 +134,7 @@ export function buildPrintHtml({
   gridOffsetY = 0,
   pageNoOffsetX = 0,
   pageNoOffsetY = 0,
+  rowScale = 1,
   layoutColumns = "two",
   wordsPerPage = 50,
   wordColumnWidth = 26,
@@ -177,6 +180,7 @@ export function buildPrintHtml({
   const rowsPerColumn = isOneColumn ? perPage : Math.ceil(perPage / 2);
   const availableGridHeight = hasInfoBox ? 233 : 246;
   const rowHeight = Math.min(baseRowHeight, Math.max(4.2, (availableGridHeight - baseHeaderHeight) / rowsPerColumn));
+  const rs = Math.min(1.2, Math.max(0.8, Number(rowScale) || 1));
   const compactRatio = Math.min(1, rowHeight / baseRowHeight);
   const tableFontSize = Math.max(5.3, baseFontSize * (0.65 + compactRatio * 0.35));
   const englishColumnWidth = Math.min(55, Math.max(18, Number(wordColumnWidth) || 26));
@@ -262,7 +266,7 @@ export function buildPrintHtml({
             )
             .join("")}</div>`
         : "";
-      return `<section class="print-page${hasInfoBox ? " has-info" : ""}" style="--vp-fs:${fs};--vp-row-height:${rowHeight.toFixed(2)}mm;--vp-header-height:${baseHeaderHeight.toFixed(2)}mm;--vp-table-font:${tableFontSize.toFixed(2)}pt;--vp-word-width:${englishColumnWidth.toFixed(2)}%;--vp-meaning-width:${meaningColumnWidth.toFixed(2)}%">
+      return `<section class="print-page${hasInfoBox ? " has-info" : ""}" style="--vp-fs:${fs};--vp-row-scale:${rs};--vp-row-height:${(rowHeight * rs).toFixed(2)}mm;--vp-header-height:${(baseHeaderHeight * rs).toFixed(2)}mm;--vp-table-font:${tableFontSize.toFixed(2)}pt;--vp-word-width:${englishColumnWidth.toFixed(2)}%;--vp-meaning-width:${meaningColumnWidth.toFixed(2)}%">
         ${wmTiled}
         <div class="print-page-header"${headerStyle ? ` style="${headerStyle}"` : ""}>
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>

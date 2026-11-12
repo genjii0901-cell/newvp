@@ -243,14 +243,14 @@ const printJobCss = `
   .paper-preview .print-table td {
     border: .65pt solid #111;
     padding: 0;
-    height: 9.5mm;
-    max-height: 9.5mm;
+    height: calc(9.5mm * var(--vp-row-scale, 1));
+    max-height: calc(9.5mm * var(--vp-row-scale, 1));
     overflow: hidden;
     vertical-align: middle;
   }
 
   .paper-preview .print-table th {
-    height: 8.5mm;
+    height: calc(8.5mm * var(--vp-row-scale, 1));
     text-align: center;
     font-weight: 800;
     background: #fff;
@@ -261,13 +261,13 @@ const printJobCss = `
   }
 
   .paper-preview .has-info .print-table td {
-    height: 9.0mm;
-    max-height: 9.0mm;
+    height: calc(9.0mm * var(--vp-row-scale, 1));
+    max-height: calc(9.0mm * var(--vp-row-scale, 1));
   }
 
   .paper-preview .has-info .print-table th {
-    height: 8.0mm;
-    max-height: 8.0mm;
+    height: calc(8.0mm * var(--vp-row-scale, 1));
+    max-height: calc(8.0mm * var(--vp-row-scale, 1));
   }
 
   .paper-preview .p-no {
@@ -498,15 +498,16 @@ const printJobCss = `
     /* min-heightでの強制フィルはしない。端末差は行の高さだけで調整（溢れ防止を最優先）。
        2026-11-12: スマホで下が大きく余るため、iOSの行を少し高くした（8.6→9.2mm）。
        25行で約15mm伸びる。2枚目に溢れる報告があれば、ここを戻す。 */
-    .plat-ios .paper-preview .print-table td { height: 9.2mm !important; max-height: 9.2mm !important; }
-    .plat-ios .paper-preview .print-table th { height: 8mm !important; max-height: 8mm !important; }
-    .plat-ios .paper-preview .has-info .print-table td { height: 8.7mm !important; max-height: 8.7mm !important; }
-    .plat-ios .paper-preview .has-info .print-table th { height: 7.5mm !important; max-height: 7.5mm !important; }
+    /* 2026-11-12: iPhoneもPCと同じ高さ。端末差はレイアウト調整の「表の縦の長さ」（--vp-row-scale）で本人が合わせる。 */
+    .plat-ios .paper-preview .print-table td { height: calc(9.5mm * var(--vp-row-scale, 1)) !important; max-height: calc(9.5mm * var(--vp-row-scale, 1)) !important; }
+    .plat-ios .paper-preview .print-table th { height: calc(8.5mm * var(--vp-row-scale, 1)) !important; max-height: calc(8.5mm * var(--vp-row-scale, 1)) !important; }
+    .plat-ios .paper-preview .has-info .print-table td { height: calc(9mm * var(--vp-row-scale, 1)) !important; max-height: calc(9mm * var(--vp-row-scale, 1)) !important; }
+    .plat-ios .paper-preview .has-info .print-table th { height: calc(7.8mm * var(--vp-row-scale, 1)) !important; max-height: calc(7.8mm * var(--vp-row-scale, 1)) !important; }
 
-    .plat-wide .paper-preview .print-table td { height: 9.5mm !important; max-height: 9.5mm !important; }
-    .plat-wide .paper-preview .print-table th { height: 8.5mm !important; max-height: 8.5mm !important; }
-    .plat-wide .paper-preview .has-info .print-table td { height: 9mm !important; max-height: 9mm !important; }
-    .plat-wide .paper-preview .has-info .print-table th { height: 7.8mm !important; max-height: 7.8mm !important; }
+    .plat-wide .paper-preview .print-table td { height: calc(9.5mm * var(--vp-row-scale, 1)) !important; max-height: calc(9.5mm * var(--vp-row-scale, 1)) !important; }
+    .plat-wide .paper-preview .print-table th { height: calc(8.5mm * var(--vp-row-scale, 1)) !important; max-height: calc(8.5mm * var(--vp-row-scale, 1)) !important; }
+    .plat-wide .paper-preview .has-info .print-table td { height: calc(9mm * var(--vp-row-scale, 1)) !important; max-height: calc(9mm * var(--vp-row-scale, 1)) !important; }
+    .plat-wide .paper-preview .has-info .print-table th { height: calc(7.8mm * var(--vp-row-scale, 1)) !important; max-height: calc(7.8mm * var(--vp-row-scale, 1)) !important; }
   }
 `;
 
