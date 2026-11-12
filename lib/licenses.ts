@@ -19,7 +19,12 @@ type LicenseRow = {
 };
 
 export function isLicenseSchemaError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
+  // Supabaseのエラーは Error ではなく { message, code } のオブジェクトで返る。
+  // String(error) だと "[object Object]" になり判定できず、印刷が止まっていた（2026-11-12）。
+  const record = error && typeof error === "object" ? (error as { message?: unknown; code?: unknown }) : null;
+  const code = typeof record?.code === "string" ? record.code : "";
+  if (code === "PGRST205" || code === "42P01") return true;
+  const message = typeof record?.message === "string" ? record.message : String(error ?? "");
   return /license_(products|codes|entitlements)|schema cache|relation .* does not exist/i.test(message);
 }
 

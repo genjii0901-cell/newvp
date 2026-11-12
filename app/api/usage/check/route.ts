@@ -47,8 +47,9 @@ export async function POST(request: Request) {
       if (hasPersonalLicense(entitlements)) licenseKind = "personal";
       else if (wordbookId && hasWordbookLicense(entitlements, wordbookId)) licenseKind = "wordbook";
     } catch (error) {
-      // Existing installs remain usable until the optional Note license tables are created.
-      if (!isLicenseSchemaError(error)) throw error;
+      // ライセンス（note購入者用）の確認に失敗しても、通常のプランでの印刷は止めない。
+      // 表が未作成のときは静かに無視し、それ以外のエラーは記録だけする。
+      if (!isLicenseSchemaError(error)) console.error("[usage-check] license lookup failed; continuing without license", error);
     }
     const plan = licenseKind === "personal" ? "personal" : normalizePlan(profile?.plan);
     if (await hasEffectiveAdminAccess(request, profile?.role, auth.user.id)) {
