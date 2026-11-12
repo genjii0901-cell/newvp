@@ -2,6 +2,10 @@ import { revalidatePath, revalidateTag, unstable_cache } from "next/cache";
 import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
 
 const OFFICIAL_WORDBOOKS_CACHE_TAG = "official-wordbooks";
+// 公式単語帳の説明文には表紙画像（Base64）が入っていて全冊で約7MBある。5分ごとに取り直すと
+// SupabaseのEgress（無料枠 月5GB）を1日1GB以上使ってしまうため、6時間に延ばす。
+// 管理画面で編集したときは revalidateOfficialWordbookCaches() で即時に作り直される。
+const OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS = 6 * 60 * 60;
 
 function requireWordbooks<T extends Awaited<ReturnType<typeof loadOfficialWordbooks>>>(result: T) {
   if (!result.ok || result.wordbooks.length === 0) {
@@ -19,7 +23,7 @@ export const loadCachedPublicCatalog = unstable_cache(
       })
     ),
   ["official-wordbooks-catalog-v1"],
-  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export const loadCachedPublicWordbookSummary = unstable_cache(
@@ -32,7 +36,7 @@ export const loadCachedPublicWordbookSummary = unstable_cache(
       })
     ),
   ["official-wordbook-summary-v1"],
-  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export const loadCachedPublicWordbookWords = unstable_cache(
@@ -44,7 +48,21 @@ export const loadCachedPublicWordbookWords = unstable_cache(
       })
     ),
   ["official-wordbook-words-v1"],
-  { revalidate: 300, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+  { revalidate: OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
+);
+
+export const loadCachedCoverImage = unstable_cache(
+  async (id: string) => {
+    const result = await loadOfficialWordbooks({
+      includeWords: false,
+      includeWordStats: false,
+      filterIds: [id],
+      deferDataCoverImages: false,
+    });
+    return result.wordbooks.find((book) => String(book.id) === id)?.coverImage ?? null;
+  },
+  ["official-wordbook-cover-v1"],
+  { revalidate: 24 * 60 * 60, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
 export function revalidateOfficialWordbookCaches() {

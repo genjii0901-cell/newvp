@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { loadOfficialWordbooks } from "@/lib/server-wordbooks";
+import { loadCachedCoverImage } from "@/lib/cached-wordbooks";
 
 export const revalidate = 86400;
 
@@ -24,12 +24,8 @@ export async function GET(request: Request) {
     });
   }
 
-  const result = await loadOfficialWordbooks({
-    includeWords: false,
-    filterIds: [id],
-    deferDataCoverImages: false,
-  }).catch(() => null);
-  const coverImage = result?.wordbooks.find((book) => String(book.id) === id)?.coverImage;
+  // 表紙1枚のためにDBへ毎回取りに行かないよう、1日キャッシュする（Supabaseの通信量対策）。
+  const coverImage = await loadCachedCoverImage(id).catch(() => null);
   if (!coverImage) {
     return new NextResponse("Not found", {
       status: 404,

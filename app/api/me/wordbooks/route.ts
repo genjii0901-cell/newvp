@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { unstable_cache } from "next/cache";
+import { MY_WORDBOOKS_REVALIDATE_SECONDS, myWordbooksTag, withMyWordbooksRevalidation } from "@/lib/my-wordbooks-cache";
 import { getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { embedWordbookMeta, isLegacyCopiedDescription, parseEmbeddedWordbookMeta, stripEmbeddedWordbookMeta } from "@/lib/wordbook-meta";
 
@@ -105,14 +107,19 @@ export async function GET(request: Request) {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
 
-    const wordbooks = await loadWordbooksForUser(auth.user.id);
+    const userId = auth.user.id;
+    const wordbooks = await unstable_cache(
+      () => loadWordbooksForUser(userId),
+      ["my-wordbooks-v1", userId],
+      { revalidate: MY_WORDBOOKS_REVALIDATE_SECONDS, tags: [myWordbooksTag(userId)] }
+    )();
     return NextResponse.json({ ok: true, wordbooks }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: readableError(error) }, { status: 500 });
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
@@ -221,7 +228,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function handlePATCH(request: Request) {
   try {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
@@ -310,7 +317,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function handleDELETE(request: Request) {
   try {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
@@ -343,3 +350,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, error: readableError(error) }, { status: 500 });
   }
 }
+
+export const POST = withMyWordbooksRevalidation(handlePOST);
+
+export const PATCH = withMyWordbooksRevalidation(handlePATCH);
+
+export const DELETE = withMyWordbooksRevalidation(handleDELETE);

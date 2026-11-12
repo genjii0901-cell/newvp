@@ -49,3 +49,10 @@
 - 確認中は全ページ上部にオレンジの帯と「確認を終える」（`components/support-login-banner.tsx`、`app/layout.tsx` に1行追加）。
 - 自分のプラン切り替え（Free/Personal/Teacher・購入者ビュー）は既存の「アカウント → 管理者の試用」。ユーザー調査から案内リンクを追加。
 - 元に戻す: タグ `backup-wip-20261111`（作業前）と、本番反映前のコミット `08ac12d`。
+
+## 2026-11-12 Supabase通信量（Egress）対策
+- 状況: 無料枠 月5GBに対し12.4GB（249%）。11/14から制限予定。原因は公式単語帳の説明文に埋め込まれた表紙画像（全69冊で約7.2MB）を、一覧キャッシュの5分ごとの作り直しで1日約180回取得していたこと、マイ単語帳の全語を毎回取得していたこと。
+- `lib/cached-wordbooks.ts`: 公式単語帳のキャッシュを5分→6時間（管理画面の編集時は即時に作り直す）。表紙画像も1日キャッシュ（`loadCachedCoverImage`）。
+- `app/api/wordbooks/cover/route.ts`: 上の表紙キャッシュを使う。
+- `app/api/me/wordbooks/route.ts`: 一覧を利用者ごとに1時間キャッシュ。保存・編集・削除・公開（`app/api/community/wordbooks/route.ts`）で即時に作り直す（`lib/my-wordbooks-cache.ts`）。
+- 次の候補: 説明文の中の表紙画像を別の場所へ移す（データ移行。DBの変更になるため要確認）。

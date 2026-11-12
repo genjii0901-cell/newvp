@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withMyWordbooksRevalidation } from "@/lib/my-wordbooks-cache";
 import { defaultCreatorName, loadCommunityWordbooks } from "@/lib/community-wordbooks";
 import { normalizeCommunitySubject } from "@/lib/community-wordbook-types";
 import { getSupabaseAdmin, isSupabaseServerConfigured, requireSupabaseUser } from "@/lib/supabase/admin";
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
   try {
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function handleDELETE(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
   try {
@@ -112,3 +113,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: false, message: "公開を停止できませんでした。" }, { status: 503 });
   }
 }
+
+export const POST = withMyWordbooksRevalidation(handlePOST);
+
+export const DELETE = withMyWordbooksRevalidation(handleDELETE);
