@@ -406,6 +406,10 @@ export default function WordbookDetailPage({
   const [studentNumber, setStudentNumber] = useState("");
   const [studentName, setStudentName] = useState("");
   const [includeWatermark, setIncludeWatermark] = useState(true);
+  // 「Created by」表記。外せるのはTeacherだけ。
+  const [includeCredit, setIncludeCredit] = useState(true);
+  // 印刷の透かし・右下表記に入れる購入者メール（メイン画面と同じ表記にする）。
+  const [authUserEmail, setAuthUserEmail] = useState("");
   const [oneTimeOptionsEnabled, setOneTimeOptionsEnabled] = useState(false);
   const printOptionsUnlocked = isPaid || oneTimeOptionsEnabled;
   const [customTitle, setCustomTitle] = useState("");
@@ -530,6 +534,7 @@ export default function WordbookDetailPage({
       const token = data.session?.access_token;
       if (active) setIsLoggedIn(Boolean(token));
       if (active) setAuthUserId(data.session?.user.id ?? null);
+      if (active) setAuthUserEmail(data.session?.user.email ?? "");
       if (!token) {
         if (active) { setUserPlan("free"); setAdminAccess(false); }
         return;
@@ -641,9 +646,10 @@ export default function WordbookDetailPage({
       plan: printOptionsUnlocked ? (accessPlan === "teacher" ? "teacher" : "personal") : "free",
       printStyle,
       includeWatermark: printOptionsUnlocked ? includeWatermark : true,
+      includeCredit: printOptionsUnlocked && accessPlan === "teacher" ? includeCredit : true,
       includeDate,
       generatedAt: new Date(),
-      userEmail: "",
+      userEmail: authUserEmail,
       showRecordFields,
       showClassField,
       showNumberField,
@@ -670,6 +676,8 @@ export default function WordbookDetailPage({
     gridOffsetY,
     includeDate,
     includeWatermark,
+    includeCredit,
+    authUserEmail,
     infoOffsetX,
     infoOffsetY,
     effectiveCount,
@@ -846,7 +854,7 @@ export default function WordbookDetailPage({
         includeWatermark,
         includeDate,
         generatedAt: new Date(),
-        userEmail: "",
+        userEmail: authUserEmail,
         showRecordFields,
         showClassField,
         showNumberField,
@@ -1497,12 +1505,22 @@ export default function WordbookDetailPage({
                     <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} className="h-5 w-5" />
                   </label>
                   <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    Created by / 透かし
+                    透かし
                     <input
                       type="checkbox"
                       checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
                       disabled={!isPaid && !oneTimeOptionsEnabled}
                       onChange={(event) => setIncludeWatermark(event.target.checked)}
+                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    <span>「Created by」表記{accessPlan !== "teacher" ? <span className="ml-1 text-xs text-amber-700">🔒 Teacherで外せます</span> : null}</span>
+                    <input
+                      type="checkbox"
+                      checked={accessPlan === "teacher" ? includeCredit : true}
+                      disabled={accessPlan !== "teacher"}
+                      onChange={(event) => setIncludeCredit(event.target.checked)}
                       className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>
@@ -1771,12 +1789,22 @@ export default function WordbookDetailPage({
                     <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} className="h-5 w-5" />
                   </label>
                   <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    Created by / 透かし
+                    透かし
                     <input
                       type="checkbox"
                       checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
                       disabled={!isPaid && !oneTimeOptionsEnabled}
                       onChange={(event) => setIncludeWatermark(event.target.checked)}
+                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
+                    <span>「Created by」表記{accessPlan !== "teacher" ? <span className="ml-1 text-xs text-amber-700">🔒 Teacherで外せます</span> : null}</span>
+                    <input
+                      type="checkbox"
+                      checked={accessPlan === "teacher" ? includeCredit : true}
+                      disabled={accessPlan !== "teacher"}
+                      onChange={(event) => setIncludeCredit(event.target.checked)}
                       className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
                     />
                   </label>

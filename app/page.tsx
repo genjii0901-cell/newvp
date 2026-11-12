@@ -11,7 +11,7 @@ import { effectiveAccessPlan } from "@/lib/plan-access";
 import { formatMeaning } from "@/lib/meaning";
 import { primeSpeechVoices, speakText } from "@/lib/speech";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
-import { formatPrintMarkedText, stripPrintMarkers } from "@/lib/print/full-builder";
+import { buildPrintHtml, formatPrintMarkedText, previewCss, printCss, stripPrintMarkers } from "@/lib/print/full-builder";
 import { normalizeAuthErrorMessage, withAuthTimeout } from "@/lib/auth";
 import OverlapTool from "./overlap-tool";
 import PrintGateModal from "./print-gate-modal";
@@ -535,6 +535,8 @@ export default function Home() {
   const [showPageNo, setShowPageNo] = useState(true);
   const [printStyle, setPrintStyle] = useState<PrintStyle>("standard");
   const [includeWatermark, setIncludeWatermark] = useState(true);
+  // 「Created by」表記。外せるのはTeacherだけ（透かしはPersonalから外せる）。
+  const [includeCredit, setIncludeCredit] = useState(true);
   const [showRecordFields, setShowRecordFields] = useState(true);
   const [showClassField, setShowClassField] = useState(true);
   const [showNumberField, setShowNumberField] = useState(true);
@@ -1829,6 +1831,7 @@ export default function Home() {
       plan: buildPlan,
       printStyle,
       includeWatermark: buildPlan === "free" ? true : includeWatermark,
+      includeCredit: buildPlan === "teacher" ? includeCredit : true,
       showRecordFields,
       showClassField,
       showNumberField,
@@ -2304,6 +2307,7 @@ export default function Home() {
       previewAllPages: true,
       printStyle,
       includeWatermark: previewPlan === "free" ? true : includeWatermark,
+      includeCredit: previewPlan === "teacher" ? includeCredit : true,
       showRecordFields,
       showClassField,
       showNumberField,
@@ -3189,6 +3193,16 @@ export default function Home() {
                     onChange={(event) => setIncludeWatermark(event.target.checked)}
                   />
                   透かしを入れる
+                </label>
+                <label className="flex items-center gap-2 text-sm font-bold">
+                  <input
+                    type="checkbox"
+                    checked={accessPlan === "teacher" ? includeCredit : true}
+                    disabled={accessPlan !== "teacher"}
+                    onChange={(event) => setIncludeCredit(event.target.checked)}
+                  />
+                  「Created by」表記を入れる
+                  {accessPlan !== "teacher" ? <span className="text-xs font-bold text-amber-700">🔒 Teacherで外せます</span> : null}
                 </label>
                 {accessPlan === "free" && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
@@ -4182,343 +4196,3 @@ function PlanCard({
   );
 }
 
-function buildPrintHtml({
-  title,
-  words,
-  type,
-  showPageNo,
-  direction = "en-ja",
-  redSheet = false,
-  plan,
-  previewAllPages = false,
-  printStyle,
-  includeWatermark,
-  showRecordFields,
-  showClassField,
-  showNumberField,
-  showNameField,
-  studentClass,
-  studentNumber,
-  studentName,
-  includeDate,
-  generatedAt,
-  userEmail = "",
-  titleOffsetX = 0,
-  titleOffsetY = 0,
-  dateOffsetX = 0,
-  dateOffsetY = 0,
-  infoOffsetX = 0,
-  infoOffsetY = 0,
-  gridOffsetX = 0,
-  gridOffsetY = 0,
-  pageNoOffsetX = 0,
-  pageNoOffsetY = 0,
-}: {
-  title: string;
-  words: Word[];
-  type: PdfType;
-  showPageNo: boolean;
-  makeQuestion: (word: Word) => { question: string; answer: string };
-  direction?: Direction;
-  redSheet?: boolean;
-  plan: Plan;
-  previewAllPages?: boolean;
-  printStyle: PrintStyle;
-  includeWatermark: boolean;
-  userEmail?: string;
-  showRecordFields: boolean;
-  showClassField: boolean;
-  showNumberField: boolean;
-  showNameField: boolean;
-  studentClass: string;
-  studentNumber: string;
-  studentName: string;
-  includeDate: boolean;
-  generatedAt: Date;
-  titleOffsetX?: number;
-  titleOffsetY?: number;
-  dateOffsetX?: number;
-  dateOffsetY?: number;
-  infoOffsetX?: number;
-  infoOffsetY?: number;
-  gridOffsetX?: number;
-  gridOffsetY?: number;
-  pageNoOffsetX?: number;
-  pageNoOffsetY?: number;
-}) {
-  const perPage = 50;
-  const visibleWords = plan === "free" && !previewAllPages ? words.slice(0, perPage) : words;
-  const pages: Word[][] = [];
-
-  for (let index = 0; index < visibleWords.length; index += perPage) {
-    pages.push(visibleWords.slice(index, index + perPage));
-  }
-
-  const formatStyledText = (value: string, language: "english" | "japanese") => {
-    const shouldBlank =
-      (printStyle === "blank-english" && language === "english") ||
-      (printStyle === "blank-japanese" && language === "japanese");
-    const shouldRed =
-      (printStyle === "red-english" && language === "english") ||
-      (printStyle === "red-japanese" && language === "japanese");
-
-    if (shouldBlank) {
-      return `<span class="p-blank"></span>`;
-    }
-
-    if (shouldRed) {
-      return `<span class="p-red">${formatPrintMarkedText(value)}</span>`;
-    }
-
-    return formatPrintMarkedText(value);
-  };
-
-  const hasInfoBox = showRecordFields && (showClassField || showNumberField || showNameField);
-  const showDateHeader = includeDate;
-  const dateStr = showDateHeader ? formatPrintDate(generatedAt) : "";
-
-  // 透かし: 有料は購入者メール入り（流出・編集の抑止＝誰のものか残す）、無料はFREE表記
-  const watermark = includeWatermark || plan === "free"
-    ? plan === "free"
-      ? "FREE ・ 1ページのみ ・ 見本"
-      : userEmail
-        ? userEmail
-        : "Vocab Print Pro"
-    : "";
-
-  return `<style>${printCss}</style>` + pages
-    .map((pageWords, pageIndex) => {
-      const left = pageWords.slice(0, 25);
-      const right = pageWords.slice(25, 50);
-
-      // 列は常に[番号|単語(英)|意味(日)]。出題方向で「答え側」を決め、問題PDFではそこを空欄/ヒント/赤字にする。
-      const answerSide: "english" | "japanese" = direction === "en-ja" ? "japanese" : "english";
-      const isSpelling = direction === "spelling";
-      const renderColumn = (word: Word, side: "english" | "japanese") => {
-        const text = side === "english" ? word.english : word.japanese;
-        const isAnswer = side === answerSide;
-        // 赤シート対応: 答え側を赤字で印刷（一覧・問題・解答すべてで有効）。赤シートを重ねると隠せる。
-        if (redSheet && isAnswer) {
-          return `<span class="p-red">${formatPrintMarkedText(text)}</span>`;
-        }
-        if (type === "list") return formatStyledText(text, side);
-        if (!isAnswer) return formatPrintMarkedText(text);
-        // ここから下は「答え側 かつ 赤シートOFF」
-        if (type === "answer") return formatPrintMarkedText(text);
-        // type === "test"（問題PDF）: 答え側は空欄（スペルは先頭1文字だけ表示）
-        if (isSpelling && side === "english") {
-          const first = (stripPrintMarkers(text).trim().charAt(0) || "");
-          return `<span class="p-hint">${escapeHtml(first)}</span>`;
-        }
-        return `<span class="p-blank"></span>`;
-      };
-
-      const table = (items: Word[]) => `
-        <table class="print-table">
-          <thead>
-            <tr>
-              <th class="p-no">番号</th>
-              <th class="p-word">単語</th>
-              <th class="p-meaning">意味</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map((word) => {
-              const leftText = renderColumn(word, "english");
-              const rightText = renderColumn(word, "japanese");
-              return `<tr>
-                <td class="p-no"><div class="p-fit center"><span class="p-text one">${escapeHtml(String(word.label ?? word.no))}</span></div></td>
-                <td class="p-word"><div class="p-fit"><span class="p-text two">${leftText}</span></div></td>
-                <td class="p-meaning"><div class="p-fit"><span class="p-text two">${rightText}</span></div></td>
-              </tr>`;
-            }).join("")}
-          </tbody>
-        </table>`;
-
-      const headerStyle = titleOffsetY ? `margin-top:${titleOffsetY}mm` : "";
-      const h1Style = titleOffsetX ? `transform:translateX(${titleOffsetX}mm)` : "";
-      const dateStyle = (dateOffsetX || dateOffsetY) ? `transform:translate(${dateOffsetX}mm,${dateOffsetY}mm)` : "";
-      const infoTransform = (infoOffsetX || infoOffsetY) ? `transform:translate(${infoOffsetX}mm,${infoOffsetY}mm)` : "";
-      const infoStyle = `flex:0 0 auto;margin-top:8mm;background:white${infoTransform ? `;${infoTransform}` : ""}`;
-      const pageNoStyle = (pageNoOffsetX || pageNoOffsetY) ? `transform:translate(${pageNoOffsetX}mm,${pageNoOffsetY}mm);display:inline-block` : "";
-      // タイル状の透かし: ページ全体に繰り返し表示（流出抑止）
-      const wmTiled = watermark
-        ? `<div class="print-watermark">${Array.from({ length: 16 })
-            .map(
-              () =>
-                `<div class="wm-row">${Array.from({ length: 6 })
-                  .map(() => escapeHtml(watermark))
-                  .join("&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;")}</div>`
-            )
-            .join("")}</div>`
-        : "";
-      return `<section class="print-page${hasInfoBox ? " has-info" : ""}">
-        ${wmTiled}
-        <div class="print-page-header"${headerStyle ? ` style="${headerStyle}"` : ""}>
-          <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
-          ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
-        </div>
-        ${plan === "free" ? `<p class="print-note">${previewAllPages && pages.length > 1 ? "プレビューです。印刷には都度購入またはPersonalが必要です。" : "プレビューです。印刷にはお支払いが必要です。"}</p>` : ""}
-        <div class="print-grid"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${table(right)}</div>
-        ${hasInfoBox ? `<div class="print-info-box" style="${infoStyle}"><div class="print-info-fields">
-          ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
-          ${showNumberField ? `<div class="pif pif-sm"><span class="pif-label">番号</span><span class="pif-value">${escapeHtml(studentNumber)}</span></div>` : ""}
-          ${showNameField ? `<div class="pif pif-lg"><span class="pif-label">氏名</span><span class="pif-value">${escapeHtml(studentName)}</span></div>` : ""}
-        </div></div>` : ""}
-        <footer>
-          <span></span>
-          <span${pageNoStyle ? ` style="${pageNoStyle}"` : ""}>${showPageNo ? `${pageIndex + 1}/${pages.length}` : ""}</span>
-          <span>${escapeHtml(userEmail ? userEmail + " ・ Vocab Print Pro" : "Vocab Print Pro")}</span>
-        </footer>
-      </section>`;
-    })
-    .join("");
-}
-
-function escapeHtml(value: string) {
-  return String(value || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-const printCss = `
-@media print {
-  body { margin:0!important; background:white!important; }
-  body * { visibility:hidden!important; }
-  #print-root, #print-root * { visibility:visible!important; }
-  #print-root { display:block!important; position:absolute!important; left:0!important; top:0!important; width:100%!important; background:white!important; }
-
-  @page { size:A4 portrait; margin:9mm 9mm 8mm 9mm; }
-
-  .print-page {
-    width:100%; height:280mm; page-break-after:always;
-    box-sizing:border-box; position:relative; overflow:hidden;
-    font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white;
-    display:flex; flex-direction:column; padding-bottom:1mm;
-  }
-
-  /* ヘッダー: タイトル中央・日付右上 */
-  .print-page-header { position:relative; text-align:center; margin-bottom:4mm; }
-  .print-page-header h1 { margin:0; font-size:12pt; font-weight:900; letter-spacing:.04em; }
-  .print-date { position:absolute; right:0; top:2mm; font-size:7.5pt; color:#333; font-weight:600; line-height:1.2; }
-
-  .print-note { margin:-1mm 0 3mm; text-align:center; font-size:8.5pt; color:#7c2d12; }
-
-  .print-watermark {
-    position:absolute; inset:-20% -20%; z-index:0; overflow:hidden;
-    display:flex; flex-direction:column; justify-content:space-around; align-items:center;
-    transform:rotate(-30deg); pointer-events:none; user-select:none;
-  }
-  .print-watermark .wm-row {
-    white-space:nowrap; font-size:13pt; font-weight:800; letter-spacing:.18em;
-    color:rgba(37,99,235,.08);
-  }
-  .print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
-
-  .print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
-
-  /* 記入欄なし: footer margin 9mm込み → grid ~254mm。td=9.5mm×25+th=8.5mm=246mm */
-  .print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.4pt; line-height:1.2; }
-  .print-table th, .print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
-  .print-table th { height:8.5mm; text-align:center; font-weight:800; background:#fff; }
-
-  /* 記入欄あり: footer margin 9mm込み → grid ~237mm。td=9.0mm×25+th=8.0mm=233mm */
-  .has-info .print-table { font-size:7.8pt; }
-  .has-info .print-table td { height:9.0mm; max-height:9.0mm; }
-  .has-info .print-table th { height:8.0mm; max-height:8.0mm; }
-
-  .p-no { width:10%; text-align:center; }
-  .p-word { width:26%; }
-  .p-meaning { width:64%; }
-
-  .p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
-  .p-fit.center { justify-content:center; text-align:center; }
-  .p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
-  .p-text strong { font-weight:800; }
-  .p-text.one { -webkit-line-clamp:1; line-clamp:1; }
-  .p-text.two { -webkit-line-clamp:2; line-clamp:2; }
-  .p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
-  .p-red { color:#dc2626; font-weight:800; }
-  .p-hint { font-weight:800; letter-spacing:.02em; }
-
-  /* 記入欄: クラス(小)・番号(小)・氏名(大) */
-  .print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
-  .print-info-fields { display:flex; gap:3mm; align-items:flex-end; }
-  .pif { display:flex; align-items:baseline; gap:1.5mm; border-bottom:.75pt solid #111; padding-bottom:1mm; padding-top:.5mm; }
-  .pif-sm { flex:0 0 26mm; }
-  .pif-lg { flex:1 1 auto; }
-  .pif-label { flex:0 0 auto; font-size:6.8pt; font-weight:800; white-space:nowrap; color:#333; }
-  .pif-value { flex:1 1 auto; font-size:8.2pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; min-width:0; }
-
-  footer {
-    flex:0 0 auto; margin-top:9mm; height:6mm;
-    display:grid; grid-template-columns:1fr 1fr 1fr; align-items:end;
-    font-size:7.5pt; color:#555; background:white;
-  }
-  footer span { min-width:0; }
-  footer span:nth-child(2) { text-align:center; }
-  footer span:nth-child(3) { text-align:right; word-break:break-word; }
-}
-`;
-
-const previewCss = `
-body { margin:0; background:white; overflow:hidden; }
-#print-root { display:block; }
-.print-page {
-  width:192mm; height:280mm; page-break-after:always;
-  box-sizing:border-box; position:relative; overflow:hidden;
-  font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white;
-  display:flex; flex-direction:column; padding-bottom:1mm; margin:9mm 9mm 8mm;
-}
-.print-page-header { position:relative; text-align:center; margin-bottom:4mm; flex:0 0 auto; }
-.print-page-header h1 { margin:0; font-size:12pt; font-weight:900; letter-spacing:.04em; }
-.print-date { position:absolute; right:0; top:0; font-size:7.5pt; color:#333; font-weight:600; line-height:1.2; }
-.print-note { margin:-1mm 0 3mm; text-align:center; font-size:8.5pt; color:#7c2d12; }
-.print-watermark {
-  position:absolute; inset:-20% -20%; z-index:0; overflow:hidden;
-  display:flex; flex-direction:column; justify-content:space-around; align-items:center;
-  transform:rotate(-30deg); pointer-events:none; user-select:none;
-}
-.print-watermark .wm-row {
-  white-space:nowrap; font-size:13pt; font-weight:800; letter-spacing:.18em;
-  color:rgba(37,99,235,.08);
-}
-.print-page-header, .print-note, .print-grid, .print-info-box, footer { position:relative; z-index:1; }
-.print-grid { display:grid; grid-template-columns:1fr 1fr; column-gap:6.5mm; align-items:start; flex:1 1 0; min-height:0; }
-.print-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:8.4pt; line-height:1.2; }
-.print-table th, .print-table td { border:.65pt solid #111; padding:0; height:9.5mm; max-height:9.5mm; overflow:hidden; vertical-align:middle; }
-.print-table th { height:8.5mm; text-align:center; font-weight:800; background:#fff; }
-.has-info .print-table { font-size:7.8pt; }
-.has-info .print-table td { height:9.0mm; max-height:9.0mm; }
-.has-info .print-table th { height:8.0mm; max-height:8.0mm; }
-.p-no { width:10%; text-align:center; }
-.p-word { width:26%; }
-.p-meaning { width:64%; }
-.p-fit { box-sizing:border-box; width:100%; height:100%; padding:.8mm 1.05mm; overflow:hidden; display:flex; align-items:center; justify-content:flex-start; overflow-wrap:anywhere; word-break:break-word; }
-.p-fit.center { justify-content:center; text-align:center; }
-.p-text { display:-webkit-box; -webkit-box-orient:vertical; overflow:hidden; }
-.p-text strong { font-weight:800; }
-.p-text.one { -webkit-line-clamp:1; line-clamp:1; }
-.p-text.two { -webkit-line-clamp:2; line-clamp:2; }
-.p-blank { display:inline-block; width:100%; min-width:22mm; height:1.2em; border-bottom:0!important; transform:none; }
-.p-red { color:#dc2626; font-weight:800; }
-.p-hint { font-weight:800; letter-spacing:.02em; }
-.print-info-box { flex:0 0 auto; margin-top:8mm; background:white; }
-.print-info-fields { display:flex; gap:3mm; align-items:flex-end; }
-.pif { display:flex; align-items:baseline; gap:1.5mm; border-bottom:.75pt solid #111; padding-bottom:1mm; padding-top:.5mm; }
-.pif-sm { flex:0 0 26mm; }
-.pif-lg { flex:1 1 auto; }
-.pif-label { flex:0 0 auto; font-size:6.8pt; font-weight:800; white-space:nowrap; color:#333; }
-.pif-value { flex:1 1 auto; font-size:8.2pt; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; min-width:0; }
-footer {
-  flex:0 0 auto; margin-top:9mm; height:6mm;
-  display:grid; grid-template-columns:1fr 1fr 1fr; align-items:end;
-  font-size:7.5pt; color:#555; background:white;
-}
-footer span { min-width:0; }
-footer span:nth-child(2) { text-align:center; }
-footer span:nth-child(3) { text-align:right; word-break:break-word; }
-`;

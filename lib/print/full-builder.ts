@@ -58,6 +58,8 @@ export interface BuildPrintHtmlOptions {
   /** 赤シート対応: 答えを空欄にせず赤字で印刷する。 */
   redSheet?: boolean;
   plan: PrintPlan;
+  /** 無料でも全ページをプレビューする（印刷は1ページのみ）。 */
+  previewAllPages?: boolean;
   printStyle: PrintStyle;
   includeWatermark: boolean;
   userEmail?: string;
@@ -72,6 +74,8 @@ export interface BuildPrintHtmlOptions {
   generatedAt: Date;
   /** フッター右の作成者表記。未指定なら従来どおり（購入者メール＋Vocab Print Pro）。 */
   footerText?: string;
+  /** 「Created by」表記を入れるか。外せるのはTeacherだけ（呼び出し側で判定）。既定true。 */
+  includeCredit?: boolean;
   /** 本文の文字サイズ倍率（1=標準）。 */
   fontScale?: number;
   titleOffsetX?: number;
@@ -95,6 +99,7 @@ export interface BuildPrintHtmlOptions {
 }
 
 export function buildPrintHtml({
+  previewAllPages = false,
   title,
   words,
   type,
@@ -115,6 +120,7 @@ export function buildPrintHtml({
   generatedAt,
   userEmail = "",
   footerText,
+  includeCredit = true,
   fontScale = 1,
   titleOffsetX = 0,
   titleOffsetY = 0,
@@ -134,7 +140,7 @@ export function buildPrintHtml({
   const isOneColumn = layoutColumns === "one";
   const maxWordsPerPage = isOneColumn ? 50 : 100;
   const perPage = Math.min(maxWordsPerPage, Math.max(10, Math.floor(Number(wordsPerPage) || 50)));
-  const visibleWords = plan === "free" ? words.slice(0, 50) : words;
+  const visibleWords = plan === "free" && !previewAllPages ? words.slice(0, 50) : words;
   const pages: PrintWord[][] = [];
 
   for (let index = 0; index < visibleWords.length; index += perPage) {
@@ -185,7 +191,7 @@ export function buildPrintHtml({
         : "Vocab Print Pro"
     : "";
 
-  const credit = (footerText ?? "").trim()
+  const credit = !includeCredit ? "" : (footerText ?? "").trim()
     ? (footerText as string).trim()
     : (userEmail ? userEmail + " ・ Vocab Print Pro" : "Vocab Print Pro");
 
@@ -262,7 +268,7 @@ export function buildPrintHtml({
           <h1${h1Style ? ` style="${h1Style}"` : ""}>${escapeHtml(title)}</h1>
           ${dateStr ? `<div class="print-date"${dateStyle ? ` style="${dateStyle}"` : ""}>${escapeHtml(dateStr)}</div>` : ""}
         </div>
-        ${plan === "free" ? `<p class="print-note">プレビューです。印刷にはお支払いが必要です。</p>` : ""}
+        ${plan === "free" ? `<p class="print-note">${previewAllPages && pages.length > 1 ? "プレビューです。印刷には都度購入またはPersonalが必要です。" : "プレビューです。印刷にはお支払いが必要です。"}</p>` : ""}
         <div class="print-grid${isOneColumn ? " print-grid-one" : ""}"${(gridOffsetX || gridOffsetY) ? ` style="transform:translate(${gridOffsetX}mm,${gridOffsetY}mm)"` : ""}>${table(left)}${right.length > 0 ? table(right) : ""}</div>
         ${hasInfoBox ? `<div class="print-info-box" style="${infoStyle}"><div class="print-info-fields">
           ${showClassField ? `<div class="pif pif-sm"><span class="pif-label">クラス</span><span class="pif-value">${escapeHtml(studentClass)}</span></div>` : ""}
@@ -290,7 +296,9 @@ export const printCss = `
   @page { size:A4 portrait; margin:9mm 9mm 8mm 9mm; }
 
   .print-page {
-    width:100%; height:280mm; page-break-after:always;
+    /* 用紙の印刷可能域は 297-17=280mm ちょうど。ブラウザの丸め誤差で1mmでもはみ出すと
+       ページが途中で切れて白紙が挟まり、ページ数がずれるため、少し余裕を持たせる（2026-11-12）。 */
+    width:100%; height:277mm; page-break-after:always; break-inside:avoid;
     box-sizing:border-box; position:relative; overflow:hidden;
     font-family:"Yu Gothic","Meiryo",sans-serif; color:#111; background:white;
     display:flex; flex-direction:column; padding-bottom:1mm;

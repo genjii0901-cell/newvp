@@ -119,6 +119,7 @@ export const PERSONAL_FEATURES = [
 export const TEACHER_FEATURES = [
   "Personalの全機能を含む",
   "単語テストのタイトルを自由に変更",
+  "プリント下の「Created by」表記を外せる",
   "20ページを超える教材もまとめて印刷",
   "自作単語帳のCSV出力と列名の設定",
   "塾・学校での配布用に繰り返し印刷",
