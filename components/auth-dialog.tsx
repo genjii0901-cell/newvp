@@ -28,6 +28,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "error" | "success"; text: string } | null>(null);
 
@@ -77,6 +78,10 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
       setMessage({ tone: "error", text: "パスワードは6文字以上で入力してください。" });
       return;
     }
+    if (mode === "signup" && password !== passwordConfirm) {
+      setMessage({ tone: "error", text: "パスワードと確認用のパスワードが一致しません。同じものを2回入力してください。" });
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -89,6 +94,12 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
           setMessage({ tone: "error", text: normalizeAuthErrorMessage(error.message) });
           return;
         }
+        // 登録済みのメールだと、Supabaseはエラーを返さずメールも送らない（identitiesが空）。ログインへ案内する。
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setMode("login");
+          setMessage({ tone: "error", text: "このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からパスワードでログインしてください（Googleで登録した場合は「Googleで続ける」を押してください）。" });
+          return;
+        }
         if (data.user) {
           void withAuthTimeout(
             supabase.from("profiles").upsert({ id: data.user.id, email, plan: "free" }),
@@ -99,7 +110,7 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
           onAuthed();
           return;
         }
-        setMessage({ tone: "success", text: "確認メールを送信しました。メール内のリンクを開くと、この料金ページに戻って続きから進めます。" });
+        setMessage({ tone: "success", text: `${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開くと登録が完了し、この料金ページに戻って続きから進めます。届かないときは迷惑メールフォルダを確認してください。` });
         return;
       }
       const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
@@ -161,6 +172,9 @@ export default function AuthDialog({ open, supabase, reason, nextPath, onBeforeR
               {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
+          {mode === "signup" && (
+            <input value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="パスワード（確認のためもう一度）" className="w-full rounded-xl border px-3 py-3 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          )}
           <button type="button" onClick={submit} disabled={!supabase || busy} className="w-full rounded-2xl bg-blue-600 px-4 py-3.5 text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700 disabled:bg-slate-300 disabled:shadow-none">
             {busy ? "処理中..." : mode === "signup" ? "登録して次へ" : "ログインして次へ"}
           </button>

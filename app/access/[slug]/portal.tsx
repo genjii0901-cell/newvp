@@ -23,6 +23,7 @@ export default function AccessPortal() {
   const [product, setProduct] = useState<Product | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [code, setCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [mode, setMode] = useState<"login" | "signup">("signup");
@@ -90,15 +91,25 @@ export default function AccessPortal() {
       else setMessage("ログインしました。続けてライセンスキーを登録してください。");
       return;
     }
+    if (password !== passwordConfirm) {
+      setBusy(false);
+      setMessage("パスワードと確認用のパスワードが一致しません（同じものを2回入力してください）。");
+      return;
+    }
     const origin = window.location.origin;
     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(`/access/${slug}`)}` } });
     setBusy(false);
     if (error) {
-      setMessage(error.message);
+      setMessage(error.message.toLowerCase().includes("already") ? "このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からログインしてください。" : error.message);
+      return;
+    }
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setMode("login");
+      setMessage("このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からパスワードでログインしてください（Googleで登録した場合は本体サイトの「Googleで続ける」）。");
       return;
     }
     if (data.session) setMessage("登録しました。続けてライセンスキーを登録してください。");
-    else setMessage("確認メールを送信しました。メール認証後、もう一度この購入者用URLを開いてログインしてください。");
+    else setMessage(`${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開いて登録を完了し、もう一度この購入者用URLを開いてログインしてください。届かないときは迷惑メールフォルダを確認してください。`);
   }
 
   const mainHref = product?.wordbook_id ? buildWordbookPath(product.wordbook_id, product.title) : "/";
@@ -132,6 +143,7 @@ export default function AccessPortal() {
             </div>
             <label className="mt-5 block text-sm font-bold">メールアドレス<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-3" /></label>
             <label className="mt-4 block text-sm font-bold">パスワード<div className="relative mt-1"><input required minLength={6} type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-xl border px-3 py-3 pr-12" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-3 text-slate-500" aria-label="パスワード表示を切り替える">{showPassword ? <EyeOff size={20} /> : <Eye size={20} />}</button></div></label>
+            {mode === "signup" && <label className="mt-4 block text-sm font-bold">パスワード（確認のためもう一度）<input required minLength={6} type={showPassword ? "text" : "password"} autoComplete="new-password" value={passwordConfirm} onChange={(e) => setPasswordConfirm(e.target.value)} className="mt-1 w-full rounded-xl border px-3 py-3" /></label>}
             <button disabled={busy} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 font-black text-white disabled:opacity-50">{busy ? "処理中…" : mode === "signup" ? "メールアドレスで登録する" : "ログインする"}</button>
           </form>
         ) : !claimed ? (

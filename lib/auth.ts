@@ -49,7 +49,7 @@ export function normalizeAuthErrorMessage(message: string) {
     return "メール認証が完了していません。最新の確認メール内のリンクを開いてください。";
   }
   if (lower.includes("user already registered") || lower.includes("already been registered")) {
-    return "このメールアドレスは登録済みです。ログインをお試しください。";
+    return "このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からパスワードでログインしてください（Googleで登録した場合は「Googleで続ける」を押してください）。";
   }
   if (lower.includes("signup is disabled")) {
     return "現在、新規登録を一時停止しています。";

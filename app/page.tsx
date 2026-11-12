@@ -489,6 +489,7 @@ export default function Home() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [passwordConfirm, setPasswordConfirm] = useState("");
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"info" | "success" | "error">("info");
@@ -1476,6 +1477,12 @@ export default function Home() {
       return;
     }
 
+    if (authMode === "signup" && password !== passwordConfirm) {
+      setMessageTone("error");
+      setMessage("パスワードと確認用のパスワードが一致しません。同じものを2回入力してください。");
+      return;
+    }
+
     setAuthSubmitting(true);
     try {
       const authReturnPath = getRequestedAuthReturnPath();
@@ -1496,6 +1503,16 @@ export default function Home() {
           if (signupPlan === "personal") clearPostAuthAction();
           setMessageTone("error");
           setMessage(normalizeAuthErrorMessage(error.message));
+          return;
+        }
+
+        // 登録済みのメールでもう一度登録すると、Supabaseはエラーを返さずメールも送らない（identitiesが空）。
+        // 「確認メールを送信しました」と誤って出さず、ログインへ案内する。
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          if (signupPlan === "personal") clearPostAuthAction();
+          setAuthMode("login");
+          setMessageTone("error");
+          setMessage("このメールアドレスはすでに登録されています。新規登録はできません。「ログイン」からパスワードでログインしてください（Googleで登録した場合は「Googleで続ける」を押してください）。");
           return;
         }
 
@@ -1543,8 +1560,8 @@ export default function Home() {
         setMessageTone("success");
         setMessage(
           signupPlan === "personal"
-            ? "確認メールを送信しました。認証後、Personalの決済手続きへ進めます。"
-            : "確認メールを送信しました。メール内のリンクを開くと Vocab Print Pro に戻って認証が完了します。"
+            ? `${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開くと登録が完了し、Personalの決済手続きへ進めます。届かないときは迷惑メールフォルダを確認してください。`
+            : `${email} に確認メールを送りました。まだ登録は完了していません。メール内のリンクを開くと登録が完了します。届かないときは迷惑メールフォルダを確認してください。`
         );
         return;
       }
@@ -2853,6 +2870,17 @@ export default function Home() {
                   {showAuthPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
+              {authMode === "signup" && (
+                <input
+                  value={passwordConfirm}
+                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                  placeholder="パスワード（確認のためもう一度）"
+                  type={showAuthPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  className="rounded-xl border px-3 py-2 md:col-start-2"
+                  disabled={!supabase || authSubmitting}
+                />
+              )}
             </div>
 
             <button
@@ -3914,7 +3942,7 @@ export default function Home() {
               <AutoRenewText text={printAuthReason || "登録だけでは料金はかかりません。印刷は有料です。"} />
               {authMode === "signup" && " 登録後、印刷する前に料金と条件を確認できます。"}
             </p>
-            {message && messageTone === "error" ? <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-bold text-red-700">{message}</p> : null}
+            {message && messageTone !== "info" ? <p role="alert" className={`mt-3 rounded-lg p-3 text-sm font-bold ${messageTone === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`}>{message}</p> : null}
 
             <div className="mt-4 flex gap-2">
               <button
@@ -3991,6 +4019,16 @@ export default function Home() {
                   {showAuthPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {authMode === "signup" && (
+                <input
+                  value={passwordConfirm}
+                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                  type={showAuthPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="パスワード（確認のためもう一度）"
+                  className="w-full rounded-xl border px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              )}
               <button
                 type="button"
                 onClick={handleAuth}
