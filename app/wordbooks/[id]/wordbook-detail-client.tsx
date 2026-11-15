@@ -1341,223 +1341,217 @@ export default function WordbookDetailPage({
       )}
 
       {activeTab === "test" && (
-        <section className="mt-4 grid gap-4 lg:grid-cols-[360px_1fr]">
-          <div className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
-            <p className="text-sm font-black text-blue-700">単語テスト印刷</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">印刷設定</h2>
-
-            <div className="mt-4 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-900">
-              <p>{rangeStart || "-"}番から{rangeEnd || "-"}番まで / {visibleWords.length}語</p>
-              <p className="mt-1 text-xs text-blue-700">
-                この設定では{requestedCount}語・{previewPageCount}ページを印刷します。
-              </p>
+        <section className="mt-4 grid gap-4 lg:grid-cols-[400px_1fr]">
+          <div id="pdf-builder" className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-lg font-black">単語テスト印刷</h3>
+              <button
+                type="button"
+                onClick={() => (isLoggedIn ? showUpgrade("CSV出力はTeacherプランで使えます。") : guideToRegister("CSV出力はTeacherプランの機能です。"))}
+                className="flex min-h-9 items-center rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-black text-slate-700"
+              >
+                CSV出力 🔒
+              </button>
             </div>
 
-            <div className="mt-5 space-y-3">
-              <label className="block rounded-2xl border p-3">
-                <span className="text-xs font-black text-slate-500">印刷タイトル</span>
+            <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>
+            <input
+              value={customTitle}
+              onChange={(event) => setCustomTitle(event.target.value)}
+              placeholder={accessPlan === "teacher" ? automaticPrintTitle : "Teacherプランで変更できます"}
+              disabled={accessPlan !== "teacher"}
+              className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+            />
+            {accessPlan !== "teacher" ? <p className="mt-1 text-[11px] font-bold text-amber-600">🔒 印刷タイトルの変更はTeacherプランの機能です。</p> : null}
+
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:grid-cols-4">
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500">開始</span>
                 <input
-                  value={customTitle}
-                  onChange={(event) => setCustomTitle(event.target.value)}
-                  placeholder={accessPlan === "teacher" ? automaticPrintTitle : "Teacherプランで変更できます"}
-                  disabled={accessPlan !== "teacher"}
-                  className="mt-1 w-full bg-transparent text-sm font-bold outline-none disabled:cursor-not-allowed disabled:text-slate-400"
+                  value={rangeStart}
+                  readOnly={numbersLocked}
+                  onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
+                  onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
+                  type="number"
+                  className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                 />
-                {accessPlan !== "teacher" ? <span className="mt-1 block text-[11px] font-bold text-amber-600">印刷タイトルの変更はTeacherプランの機能です。</span> : null}
               </label>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <label className={`block rounded-2xl border p-3 ${controlsLocked ? "border-amber-200 bg-amber-50" : ""}`}>
-                  <span className="text-xs font-black text-slate-500">出力形式{controlsLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}</span>
-                  <select
-                    value={testType}
-                    onChange={(event) => { if (!controlsLocked) setTestType(event.target.value as TestType); }}
-                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出力形式（問題・解答・一覧）の切り替えには無料会員登録が必要です。"); } : undefined}
-                    className={`mt-1 w-full bg-transparent text-sm font-bold ${controlsLocked ? "cursor-pointer text-slate-400" : ""}`}
-                  >
-                    <option value="test">問題プリント</option>
-                    <option value="answer">解答プリント</option>
-                    <option value="list">単語一覧</option>
-                  </select>
-                </label>
-                <label className={`block rounded-2xl border p-3 ${controlsLocked ? "border-amber-200 bg-amber-50" : ""}`}>
-                  <span className="text-xs font-black text-slate-500">出題方向{controlsLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}</span>
-                  <select
-                    value={testDirection}
-                    onChange={(event) => { if (!controlsLocked) setTestDirection(event.target.value as TestDirection); }}
-                    onMouseDown={controlsLocked ? (event) => { event.preventDefault(); guideToRegister("出題方向（英→日・日→英・スペル）の切り替えには無料会員登録が必要です。"); } : undefined}
-                    className={`mt-1 w-full bg-transparent text-sm font-bold ${controlsLocked ? "cursor-pointer text-slate-400" : ""}`}
-                  >
-                    <option value="en-ja">英語 → 日本語（意味を空欄）</option>
-                    <option value="ja-en">日本語 → 英語（単語を空欄）</option>
-                    <option value="spelling">スペルテスト（単語の頭文字だけ）</option>
-                  </select>
-                </label>
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500">終了</span>
+                <input
+                  value={rangeEnd}
+                  readOnly={numbersLocked}
+                  onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
+                  onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
+                  type="number"
+                  className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500">問題数</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={count}
+                  readOnly={numbersLocked}
+                  onChange={(event) => { if (!numbersLocked) setCount(Math.max(1, Number(event.target.value) || 1)); }}
+                  onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
+                  className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
+                />
+              </label>
+              <div className="col-span-3 flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-1.5 sm:col-span-1 sm:block sm:py-2">
+                <p className="text-xs font-bold text-slate-500">ページ数</p>
+                <p className="text-base font-black text-slate-900 sm:mt-1 sm:text-lg">{previewPageCount}ページ</p>
               </div>
+            </div>
+            <p className={`mt-2 text-xs font-bold leading-5 ${freePrintBlocked ? "text-amber-700" : "text-slate-500"}`}>
+              50語ごとに1ページとして自動計算します。{!isLoggedIn ? "印刷時に利用条件と料金を確認できます。" : accessPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでで、超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
+            </p>
 
-              <label className="flex items-center justify-between rounded-2xl border p-3">
-                <span className="min-w-0 pr-2">
-                  <span className="block text-xs font-black text-slate-700">赤シート対応（答えを赤字で印刷）</span>
-                  <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
-                    赤シートを重ねると答えが隠れます。空欄ではなく赤字で出したいときに。
-                  </span>
+            <label className="mt-4 block text-sm font-bold">出力形式</label>
+            <select
+              value={testType}
+              onChange={(event) => setTestType(event.target.value as TestType)}
+              className="mt-1 w-full rounded-xl border px-3 py-2"
+            >
+              <option value="list">一覧PDF</option>
+              <option value="test">問題PDF</option>
+              <option value="answer">解答PDF</option>
+            </select>
+
+            <label className="mt-4 block text-sm font-bold">出題方向</label>
+            <select
+              value={testDirection}
+              onChange={(event) => setTestDirection(event.target.value as TestDirection)}
+              className="mt-1 w-full rounded-xl border px-3 py-2"
+            >
+              <option value="en-ja">英語 → 日本語（意味を空欄）</option>
+              <option value="ja-en">日本語 → 英語（単語を空欄）</option>
+              <option value="spelling">スペルテスト（単語の頭文字だけ）</option>
+            </select>
+
+            <label className="mt-4 flex items-start justify-between gap-2 rounded-xl border px-3 py-2">
+              <span className="min-w-0 pr-1">
+                <span className="block text-sm font-bold text-slate-700">赤シート対応（答えを赤字で印刷）</span>
+                <span className="mt-0.5 block text-[11px] font-bold text-slate-400">
+                  赤シートを重ねると答えが隠れます。空欄ではなく赤字で出したいときに。
                 </span>
-                <input
-                  type="checkbox"
-                  checked={redSheet}
-                  onChange={(event) => setRedSheet(event.target.checked)}
-                  className="h-5 w-5 shrink-0"
-                />
-              </label>
+              </span>
+              <input type="checkbox" checked={redSheet} onChange={(event) => setRedSheet(event.target.checked)} className="mt-0.5 h-5 w-5 shrink-0" />
+            </label>
 
-              <div className={`rounded-2xl border p-3 ${numbersLocked ? "border-amber-200 bg-amber-50/60" : ""}`}>
-                <p className="text-xs font-black text-slate-500">
-                  使う範囲と問題数{numbersLocked ? <span className="ml-1 text-amber-600">🔒 無料登録で変更</span> : null}
-                </p>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <label className="block">
-                    <span className="text-[11px] font-black text-slate-400">開始</span>
-                    <input
-                      value={rangeStart}
-                      readOnly={numbersLocked}
-                      onChange={(event) => { if (!numbersLocked) setRangeStart(event.target.value); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
-                      type="number"
-                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] font-black text-slate-400">終了</span>
-                    <input
-                      value={rangeEnd}
-                      readOnly={numbersLocked}
-                      onChange={(event) => { if (!numbersLocked) setRangeEnd(event.target.value); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
-                      type="number"
-                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] font-black text-slate-400">問題数</span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={count}
-                      readOnly={numbersLocked}
-                      onChange={(event) => { if (!numbersLocked) setCount(Math.max(1, Number(event.target.value) || 1)); }}
-                      onMouseDown={numbersLocked ? (event) => { event.preventDefault(); guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。"); } : undefined}
-                      className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm font-bold outline-none ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
-                    />
-                  </label>
-                  <div className="rounded-xl border bg-slate-50 px-3 py-2">
-                    <span className="text-[11px] font-black text-slate-400">ページ数</span>
-                    <p className="mt-1 text-sm font-black text-slate-900">{previewPageCount}ページ</p>
-                  </div>
-                </div>
-                <p className={`mt-2 text-xs font-bold ${freePrintBlocked ? "text-amber-700" : "text-slate-400"}`}>
-                  範囲の{visibleWords.length}語から{requestedCount}語を使い、50語ごとにページ数を自動計算します。{!isLoggedIn ? "印刷する前に利用条件と料金を確認できます。" : accessPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでです。超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
-                </p>
+            <label className="mt-4 flex items-center gap-2 text-sm font-bold">
+              <input type="checkbox" checked={randomOrder} onChange={(event) => setRandomOrder(event.target.checked)} />
+              ランダム順
+            </label>
+            {(randomOrder || lastRandomPrint) ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {randomOrder ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setRandomRevision((value) => value + 1); }} className="rounded-lg border px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">別の並びにする</button> : null}
+                {lastRandomPrint ? <button type="button" onClick={restoreLastRandomPrint} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-100">前回の並びで解答を表示</button> : null}
               </div>
+            ) : null}
 
-              <div className="grid gap-2 text-sm font-bold sm:grid-cols-2">
-                {[
-                  ["ランダム順", randomOrder, setRandomOrder],
-                  ["ページ番号", showPageNo, setShowPageNo],
-                ].map(([label, value, setter]) => (
-                  <label key={String(label)} className="flex items-center justify-between rounded-2xl border px-3 py-2">
-                    {label as string}
-                    <input
-                      type="checkbox"
-                      checked={value as boolean}
-                      onChange={(event) => (setter as (next: boolean) => void)(event.target.checked)}
-                      className="h-5 w-5"
-                    />
-                  </label>
-                ))}
-              </div>
+            <label className="mt-2 flex items-center gap-2 text-sm font-bold">
+              <input type="checkbox" checked={showPageNo} onChange={(event) => setShowPageNo(event.target.checked)} />
+              ページ番号を表示
+            </label>
 
-              {(randomOrder || lastRandomPrint) ? (
-                <div className="flex flex-wrap gap-2">
-                  {randomOrder ? <button type="button" onClick={() => { setRestoredRandomPrint(null); setRandomRevision((value) => value + 1); }} className="rounded-lg border px-3 py-1.5 text-xs font-bold text-blue-700">別の並びにする</button> : null}
-                  {lastRandomPrint ? <button type="button" onClick={restoreLastRandomPrint} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800">前回の並びで解答を表示</button> : null}
-                </div>
-              ) : null}
-
-              <details className="group rounded-2xl border border-slate-300 bg-white shadow-sm">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-3 py-3 hover:bg-slate-50">
-                  <span className="flex items-center gap-2">
-                    <span>⚙️</span>
-                    <span className="text-sm font-black text-slate-800">詳細設定</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">記入欄・日付など</span>
-                  </span>
-                  <span className="flex items-center gap-1 text-xs font-black text-blue-600">
-                    <span className="group-open:hidden">開く</span>
-                    <span className="hidden group-open:inline">閉じる</span>
-                    <span className="transition-transform group-open:rotate-180">▾</span>
-                  </span>
-                </summary>
-                <div className="grid gap-2 border-t px-3 pb-3 pt-3 text-sm font-bold">
-                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    日付を入れる
-                    <input type="checkbox" checked={includeDate} onChange={(event) => setIncludeDate(event.target.checked)} className="h-5 w-5" />
-                  </label>
-                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    組・番・氏名欄
-                    <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} className="h-5 w-5" />
-                  </label>
-                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    透かし
-                    <input
-                      type="checkbox"
-                      checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
-                      disabled={!isPaid && !oneTimeOptionsEnabled}
-                      onChange={(event) => setIncludeWatermark(event.target.checked)}
-                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between rounded-xl bg-white px-3 py-2">
-                    <span>「Created by」表記{accessPlan !== "teacher" ? <span className="ml-1 text-xs text-amber-700">🔒 Teacherで外せます</span> : null}</span>
-                    <input
-                      type="checkbox"
-                      checked={accessPlan === "teacher" ? includeCredit : true}
-                      disabled={accessPlan !== "teacher"}
-                      onChange={(event) => setIncludeCredit(event.target.checked)}
-                      className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-60"
-                    />
-                  </label>
-                  {!isPaid && !oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-amber-700">🔒 無料プランでは透かしを外せません。</p> : null}
-                  {oneTimeOptionsEnabled ? <p className="px-1 text-xs font-bold text-blue-700">今回だけ利用する設定です。印刷時に1ページ50円の決済へ進みます。</p> : null}
+            <details className="group mt-4 rounded-2xl border border-slate-300 bg-white shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-4 py-3 hover:bg-slate-50">
+                <span className="flex items-center gap-2">
+                  <span className="text-base">⚙️</span>
+                  <span className="text-sm font-black text-slate-800">詳細設定</span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">文字の見せ方・記入欄・日付など</span>
+                </span>
+                <span className="flex items-center gap-1 text-xs font-black text-blue-600">
+                  <span className="group-open:hidden">開く</span>
+                  <span className="hidden group-open:inline">閉じる</span>
+                  <span className="transition-transform group-open:rotate-180">▾</span>
+                </span>
+              </summary>
+              <div className="space-y-4 border-t px-4 pb-4 pt-4">
+                <div>
+                  <label className="block text-sm font-bold">文字の見せ方</label>
+                  <select value={printStyle} onChange={(event) => setPrintStyle(event.target.value as PrintStyle)} className="mt-1 w-full rounded-xl border px-3 py-2">
+                    <option value="standard">標準</option>
+                    <option value="blank-english">英語を空欄にする</option>
+                    <option value="blank-japanese">日本語を空欄にする</option>
+                    <option value="red-english">英語を赤字にする</option>
+                    <option value="red-japanese">日本語を赤字にする</option>
+                  </select>
                 </div>
 
-                {showRecordFields ? (
-                  <div className="mt-3 rounded-2xl border bg-white p-3">
-                    <p className="text-xs font-black text-slate-500">記入欄</p>
-                    <div className="mt-3 grid gap-2">
-                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
-                        クラス欄
-                        <input type="checkbox" checked={showClassField} onChange={(event) => setShowClassField(event.target.checked)} className="h-5 w-5" />
-                      </label>
-                      {showClassField ? <input value={studentClass} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentClass(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 3-A" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
-                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
-                        番号欄
-                        <input type="checkbox" checked={showNumberField} onChange={(event) => setShowNumberField(event.target.checked)} className="h-5 w-5" />
-                      </label>
-                      {showNumberField ? <input value={studentNumber} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentNumber(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "例: 12" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
-                      <label className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold">
-                        氏名欄
-                        <input type="checkbox" checked={showNameField} onChange={(event) => setShowNameField(event.target.checked)} className="h-5 w-5" />
-                      </label>
-                      {showNameField ? <input value={studentName} disabled={!isPaid && !oneTimeOptionsEnabled} onChange={(event) => setStudentName(event.target.value)} placeholder={isPaid || oneTimeOptionsEnabled ? "空欄のままでも使えます" : "🔒 Personal以上で入力できます"} className="rounded-xl border bg-white px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100" /> : null}
-                    </div>
+                <label className="flex items-center gap-2 text-sm font-bold">
+                  <input
+                    type="checkbox"
+                    checked={isPaid || oneTimeOptionsEnabled ? includeWatermark : true}
+                    disabled={!isPaid && !oneTimeOptionsEnabled}
+                    onChange={(event) => setIncludeWatermark(event.target.checked)}
+                  />
+                  透かしを入れる
+                </label>
+                <label className="flex items-center gap-2 text-sm font-bold">
+                  <input
+                    type="checkbox"
+                    checked={accessPlan === "teacher" ? includeCredit : true}
+                    disabled={accessPlan !== "teacher"}
+                    onChange={(event) => setIncludeCredit(event.target.checked)}
+                  />
+                  「Created by」表記を入れる
+                  {accessPlan !== "teacher" ? <span className="text-xs font-bold text-amber-700">🔒 Teacherで外せます</span> : null}
+                </label>
+                {!isPaid && !oneTimeOptionsEnabled ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-5 text-amber-800">
+                    透かし解除とクラス・番号・氏名の事前入力はロック中です。今回だけ1ページ50円、またはPersonalで解除できます。
+                    <button type="button" onClick={selectOneTimePrintOptions} className="mt-2 block rounded-lg bg-white px-3 py-2 text-blue-700 shadow-sm">ロックを解除して印刷</button>
                   </div>
                 ) : null}
+                {oneTimeOptionsEnabled ? <p className="text-xs font-bold text-blue-700">今回だけ利用する設定です。印刷時に1ページ50円の決済へ進みます。</p> : null}
 
-                <div className="mt-3 rounded-2xl border bg-white p-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowLayoutTools((value) => !value)}
-                    className="flex w-full items-center justify-between text-left text-sm font-black text-slate-800"
-                  >
+                <div>
+                  <label className="block text-sm font-bold">記入欄を表示</label>
+                  <label className="mt-2 flex items-center gap-2 font-bold">
+                    <input type="checkbox" checked={showRecordFields} onChange={(event) => setShowRecordFields(event.target.checked)} />
+                    記入欄を出す
+                  </label>
+                  <div className="mt-2 grid gap-2 rounded-xl border bg-white p-3 text-sm">
+                    <label className="flex items-center gap-2 font-bold">
+                      <input type="checkbox" checked={showClassField} disabled={!showRecordFields} onChange={(event) => setShowClassField(event.target.checked)} />
+                      クラス
+                    </label>
+                    <label className="flex items-center gap-2 font-bold">
+                      <input type="checkbox" checked={showNumberField} disabled={!showRecordFields} onChange={(event) => setShowNumberField(event.target.checked)} />
+                      番号
+                    </label>
+                    <label className="flex items-center gap-2 font-bold">
+                      <input type="checkbox" checked={showNameField} disabled={!showRecordFields} onChange={(event) => setShowNameField(event.target.checked)} />
+                      氏名
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <div>
+                    <label className="block text-sm font-bold">クラスの値</label>
+                    <input value={studentClass} onChange={(event) => setStudentClass(event.target.value)} placeholder="例: 2年A組" disabled={(!isPaid && !oneTimeOptionsEnabled) || !showRecordFields || !showClassField} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:bg-slate-100" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">番号の値</label>
+                    <input value={studentNumber} onChange={(event) => setStudentNumber(event.target.value)} placeholder="例: 12" disabled={(!isPaid && !oneTimeOptionsEnabled) || !showRecordFields || !showNumberField} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:bg-slate-100" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold">氏名の値</label>
+                    <input value={studentName} onChange={(event) => setStudentName(event.target.value)} placeholder="例: 山田 太郎" disabled={(!isPaid && !oneTimeOptionsEnabled) || !showRecordFields || !showNameField} className="mt-1 w-full rounded-xl border px-3 py-2 text-sm disabled:bg-slate-100" />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm font-bold">
+                  <input type="checkbox" checked={includeDate} onChange={(event) => setIncludeDate(event.target.checked)} />
+                  日付を入れる
+                </label>
+
+                <div className="rounded-2xl border bg-white p-3">
+                  <button type="button" onClick={() => setShowLayoutTools((value) => !value)} className="flex w-full items-center justify-between text-left text-sm font-black text-slate-800">
                     レイアウトを細かく調整
                     <span className="text-xs text-blue-600">{showLayoutTools ? "閉じる" : "開く"}</span>
                   </button>
@@ -1568,29 +1562,14 @@ export default function WordbookDetailPage({
                       <LayoutSlider label="タイトル 上下" value={titleOffsetY} onChange={setTitleOffsetY} min={-6} max={10} />
                       <LayoutSlider label="表 左右" value={gridOffsetX} onChange={setGridOffsetX} />
                       <LayoutSlider label="表 上下" value={gridOffsetY} onChange={setGridOffsetY} min={-10} max={10} />
-                      {includeDate ? (
-                        <>
-                          <LayoutSlider label="日付 左右" value={dateOffsetX} onChange={setDateOffsetX} />
-                          <LayoutSlider label="日付 上下" value={dateOffsetY} onChange={setDateOffsetY} />
-                        </>
-                      ) : null}
-                      {showRecordFields ? (
-                        <>
-                          <LayoutSlider label="記入欄 左右" value={infoOffsetX} onChange={setInfoOffsetX} />
-                          <LayoutSlider label="記入欄 上下" value={infoOffsetY} onChange={setInfoOffsetY} />
-                        </>
-                      ) : null}
-                      {showPageNo ? (
-                        <>
-                          <LayoutSlider label="ページ番号 左右" value={pageNoOffsetX} onChange={setPageNoOffsetX} />
-                          <LayoutSlider label="ページ番号 上下" value={pageNoOffsetY} onChange={setPageNoOffsetY} />
-                        </>
-                      ) : null}
+                      {includeDate ? (<><LayoutSlider label="日付 左右" value={dateOffsetX} onChange={setDateOffsetX} /><LayoutSlider label="日付 上下" value={dateOffsetY} onChange={setDateOffsetY} /></>) : null}
+                      {showRecordFields ? (<><LayoutSlider label="記入欄 左右" value={infoOffsetX} onChange={setInfoOffsetX} /><LayoutSlider label="記入欄 上下" value={infoOffsetY} onChange={setInfoOffsetY} /></>) : null}
+                      {showPageNo ? (<><LayoutSlider label="ページ番号 左右" value={pageNoOffsetX} onChange={setPageNoOffsetX} /><LayoutSlider label="ページ番号 上下" value={pageNoOffsetY} onChange={setPageNoOffsetY} /></>) : null}
                     </div>
                   ) : null}
                 </div>
-              </details>
-            </div>
+              </div>
+            </details>
 
             {isLoggedIn && !isPaid && !freePrintBlocked ? (
               <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4">
