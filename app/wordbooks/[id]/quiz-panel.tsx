@@ -451,7 +451,7 @@ export default function QuizPanel({
           type="button"
           onClick={() => begin(settings.mode)}
           disabled={startDisabled}
-          className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[5] w-full md:bottom-3 rounded-2xl bg-slate-900 px-4 py-4 text-base font-black text-white shadow-xl hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500"
+          className="sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[5] w-full md:bottom-3 rounded-2xl bg-slate-900 px-3 py-2.5 text-sm sm:px-4 sm:py-4 sm:text-base font-black text-white shadow-xl hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500"
         >
           {settings.mode === "choice" ? "選択式チェックを始める" : settings.mode === "cloze" ? "穴埋めテストを始める" : "カード学習を始める"}
         </button>
@@ -521,7 +521,7 @@ export default function QuizPanel({
   /* ───────── 出題画面 ───────── */
   const timedOut = selected === TIMEOUT;
   return (
-    <div className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6">
+    <div className="rounded-2xl border bg-white p-3 shadow-sm sm:rounded-3xl sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-black text-slate-500">
           {runMode === "choice" ? `${runSettings.choiceCount}択` : runMode === "cloze" ? "英検形式の穴埋め" : "カード"} ・ {index + 1} / {total}
@@ -544,7 +544,7 @@ export default function QuizPanel({
         </div>
       ) : null}
 
-      <div className="relative mt-4 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white px-4 py-8 text-center sm:py-10">
+      <div className="relative mt-4 rounded-[28px] border bg-gradient-to-br from-blue-50 to-white px-3 py-4 text-center sm:px-4 sm:py-10">
         {current && onToggleMark ? (
           <button
             type="button"
@@ -560,27 +560,27 @@ export default function QuizPanel({
             No.{current.no} ・ {runMode === "cloze" ? "空所に入る語を選ぼう" : dir === "en-ja" ? "意味は？" : "英語は？"}
           </p>
         ) : null}
-        <p className="mt-2 break-words text-[clamp(1.9rem,8vw,3.6rem)] font-black leading-tight text-slate-950">{promptText}</p>
+        <p className="mt-2 break-words text-[clamp(1.5rem,7vw,3.6rem)] font-black leading-tight text-slate-950">{promptText}</p>
         {runMode !== "cloze" && current && dir === "en-ja" ? (
           <button type="button" onClick={() => speak(current.english, true)} className="mt-3 rounded-full border bg-white px-4 py-2 text-xs font-black text-slate-600 hover:bg-slate-50">
             🔊 発音
           </button>
         ) : null}
-        {runMode === "card" ? <p className={`mt-5 min-h-[56px] text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>{answerText}</p> : null}
+        {runMode === "card" ? <p className={`mt-3 min-h-[40px] text-xl sm:mt-5 sm:min-h-[56px] sm:text-2xl font-black text-blue-700 transition ${showAnswer ? "opacity-100" : "opacity-0"}`}>{answerText}</p> : null}
       </div>
 
       {runMode === "card" ? (
         <div className="mt-4 grid gap-2">
           {!showAnswer ? (
-            <button type="button" onClick={() => setShowAnswer(true)} className="min-h-14 rounded-2xl bg-blue-600 px-4 py-4 text-base font-black text-white hover:bg-blue-700">
+            <button type="button" onClick={() => setShowAnswer(true)} className="min-h-11 rounded-2xl sm:min-h-14 bg-blue-600 px-3 py-2.5 text-sm sm:px-4 sm:py-4 sm:text-base font-black text-white hover:bg-blue-700">
               答えを見る
             </button>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => advance(false)} className="min-h-14 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-base font-black text-amber-700 hover:bg-amber-100">
+              <button type="button" onClick={() => advance(false)} className="min-h-11 rounded-2xl sm:min-h-14 border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm sm:px-4 sm:py-4 sm:text-base font-black text-amber-700 hover:bg-amber-100">
                 まだ不安
               </button>
-              <button type="button" onClick={() => advance(true)} className="min-h-14 rounded-2xl bg-emerald-600 px-4 py-4 text-base font-black text-white hover:bg-emerald-700">
+              <button type="button" onClick={() => advance(true)} className="min-h-11 rounded-2xl sm:min-h-14 bg-emerald-600 px-3 py-2.5 text-sm sm:px-4 sm:py-4 sm:text-base font-black text-white hover:bg-emerald-700">
                 覚えた
               </button>
             </div>
@@ -601,7 +601,7 @@ export default function QuizPanel({
                 type="button"
                 disabled={answered}
                 onClick={() => setSelected(choice)}
-                className={`flex min-h-14 items-center rounded-xl border px-4 py-3 text-left text-base font-bold transition ${tone}`}
+                className={`flex min-h-11 items-center rounded-xl border px-3 py-2 text-left text-sm sm:min-h-14 sm:px-4 sm:py-3 sm:text-base font-bold transition ${tone}`}
               >
                 <span className="mr-3 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-black text-slate-500">{choiceIndex + 1}</span>
                 <span className="min-w-0 break-words">{choice}</span>
@@ -614,7 +614,7 @@ export default function QuizPanel({
                 {selected === answerText ? "正解です！" : timedOut ? `時間切れ。正解は「${answerText}」です` : `正解は「${answerText}」です`}
               </p>
               {!(runSettings.autoNext && selected === answerText) ? (
-                <button type="button" onClick={() => advance(selected === answerText)} className="min-h-14 w-full rounded-xl bg-blue-600 px-4 py-3 text-base font-black text-white hover:bg-blue-700">
+                <button type="button" onClick={() => advance(selected === answerText)} className="min-h-11 w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm sm:min-h-14 sm:py-3 sm:text-base font-black text-white hover:bg-blue-700">
                   {index + 1 >= total ? "結果を見る" : "次へ"}
                 </button>
               ) : null}

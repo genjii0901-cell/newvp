@@ -341,7 +341,7 @@ export default function ListenPanel({
 
           {word ? (
             settings.screen === "audio-only" ? (
-              <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 bg-slate-900 px-4 py-8 text-center text-white">
+              <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 bg-slate-900 px-4 py-5 sm:min-h-[260px] sm:py-8 text-center text-white">
                 <p className="text-5xl" aria-hidden>🎧</p>
                 <p className="text-lg font-black">{playing ? "音声だけで再生中" : "耳だけモード"}</p>
                 <p className="text-xs font-bold text-slate-300">画面を見なくても学習できます。「答えを見る」で内容を確認できます。</p>
@@ -353,7 +353,7 @@ export default function ListenPanel({
                 ) : null}
               </div>
             ) : (
-              <div className="relative flex min-h-[260px] flex-col justify-center px-4 pb-6 pt-12 text-center sm:min-h-[300px]">
+              <div className="relative flex min-h-[170px] flex-col justify-center px-3 pb-4 pt-10 text-center sm:min-h-[300px] sm:px-4 sm:pb-6 sm:pt-12">
                 <button
                   type="button"
                   onClick={() => onToggleMark(word)}
@@ -371,7 +371,7 @@ export default function ListenPanel({
                     <p
                       key={`${wordKey}-${line.lang}-${i}`}
                       className={`break-words font-black leading-tight ${
-                        primary ? "text-3xl text-slate-950 sm:text-5xl" : "mt-5 text-2xl text-blue-700 sm:text-3xl"
+                        primary ? "text-2xl text-slate-950 sm:text-5xl" : "mt-2 text-xl text-blue-700 sm:mt-5 sm:text-3xl"
                       } ${shown ? "opacity-100 transition-opacity duration-200" : "opacity-0"}`}
                       aria-live={primary ? undefined : "polite"}
                     >
@@ -392,27 +392,27 @@ export default function ListenPanel({
 
           <div className="border-t bg-slate-50/70 px-3 py-3 sm:px-4">
             <div className="grid grid-cols-[1fr_1.6fr_1fr] gap-2">
-              <button type="button" onClick={() => go(-1)} disabled={!word} className="min-h-14 rounded-2xl border bg-white text-sm font-black text-slate-700 disabled:opacity-40">
+              <button type="button" onClick={() => go(-1)} disabled={!word} className="min-h-11 rounded-2xl sm:min-h-14 border bg-white text-sm font-black text-slate-700 disabled:opacity-40">
                 ⏮ 前へ
               </button>
               {playing ? (
-                <button type="button" onClick={stop} className="min-h-14 rounded-2xl bg-slate-900 text-base font-black text-white">
+                <button type="button" onClick={stop} className="min-h-11 rounded-2xl sm:min-h-14 bg-slate-900 text-base font-black text-white">
                   ⏸ 停止
                 </button>
               ) : (
-                <button type="button" onClick={() => void play()} disabled={!word} className="min-h-14 rounded-2xl bg-blue-600 text-base font-black text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300">
+                <button type="button" onClick={() => void play()} disabled={!word} className="min-h-11 rounded-2xl sm:min-h-14 bg-blue-600 text-base font-black text-white shadow-lg shadow-blue-600/20 disabled:bg-slate-300">
                   ▶ 連続再生
                 </button>
               )}
-              <button type="button" onClick={() => go(1)} disabled={!word} className="min-h-14 rounded-2xl border bg-white text-sm font-black text-slate-700 disabled:opacity-40">
+              <button type="button" onClick={() => go(1)} disabled={!word} className="min-h-11 rounded-2xl sm:min-h-14 border bg-white text-sm font-black text-slate-700 disabled:opacity-40">
                 次へ ⏭
               </button>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setManualReveal((value) => !value)} disabled={!word} className="min-h-11 rounded-xl border bg-white text-xs font-black text-slate-700 disabled:opacity-40 sm:text-sm">
+              <button type="button" onClick={() => setManualReveal((value) => !value)} disabled={!word} className="min-h-9 rounded-xl border bg-white text-xs sm:min-h-11 font-black text-slate-700 disabled:opacity-40 sm:text-sm">
                 {manualReveal ? "答えを隠す" : "答えを見る"}
               </button>
-              <button type="button" onClick={() => void playOnly()} disabled={!word} className="min-h-11 rounded-xl border bg-white text-xs font-black text-slate-700 disabled:opacity-40 sm:text-sm">
+              <button type="button" onClick={() => void playOnly()} disabled={!word} className="min-h-9 rounded-xl border bg-white text-xs sm:min-h-11 font-black text-slate-700 disabled:opacity-40 sm:text-sm">
                 この単語だけ再生
               </button>
             </div>
@@ -423,7 +423,7 @@ export default function ListenPanel({
 
         {!isPaid ? <p className="px-1 text-xs font-bold leading-5 text-slate-500">無料会員でも、選んだ範囲の全語を再生できます。Personalでは詳細設定も使えます。</p> : null}
 
-        <div className="max-h-72 overflow-auto rounded-2xl border bg-white">
+        <div className="max-h-52 overflow-auto rounded-2xl border bg-white sm:max-h-72">
           {playlist.map((item, i) => (
             <button
               key={`${item.no}-${item.english}`}
@@ -434,7 +434,7 @@ export default function ListenPanel({
                 setPhase(0);
                 setManualReveal(false);
               }}
-              className={`flex w-full items-center gap-3 border-b px-3 py-2.5 text-left last:border-b-0 ${i === index ? "bg-blue-50" : "hover:bg-slate-50"}`}
+              className={`flex w-full items-center gap-3 border-b px-3 py-1.5 text-left last:border-b-0 sm:py-2.5 ${i === index ? "bg-blue-50" : "hover:bg-slate-50"}`}
             >
               <span className="w-9 flex-none text-xs font-black text-slate-400">{item.no}</span>
               <span className="min-w-0 flex-1">
