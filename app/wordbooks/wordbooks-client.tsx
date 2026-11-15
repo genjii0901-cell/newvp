@@ -621,7 +621,7 @@ export default function WordbooksClient({
                   <button type="button" onClick={() => setExpanded(section.key)} className="text-xs font-black text-blue-700 hover:underline">すべて見る（{section.books.length}）</button>
                 ) : null}
               </div>
-              <div className={`mt-2 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 ${section.flat ? "" : "grid-rows-1 auto-rows-[0] overflow-hidden"}`}>
+              <div className={`mt-2 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 ${section.flat ? "" : "[&>*:nth-child(n+4)]:hidden sm:[&>*:nth-child(n+4)]:block sm:[&>*:nth-child(n+5)]:hidden lg:[&>*:nth-child(n+5)]:block lg:[&>*:nth-child(n+7)]:hidden"}`}>
                 {section.books.map(renderCard)}
               </div>
             </section>

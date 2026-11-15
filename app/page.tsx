@@ -2743,11 +2743,8 @@ export default function Home() {
         <section className="mt-4 rounded-2xl border bg-white p-3 shadow-sm sm:mt-6 sm:rounded-3xl sm:p-5">
           <div className="flex items-center justify-between gap-2 sm:flex-wrap sm:items-end sm:gap-3">
             <div>
-              <p className="hidden text-xs font-bold text-blue-700 sm:block sm:text-sm">みんなの単語帳</p>
               <h3 className="text-sm font-black text-slate-900 sm:text-2xl">使いたい単語帳を選ぶ</h3>
-              <p className="mt-1 hidden text-sm text-slate-500 sm:block">
-                スマホでは教材アプリのように小さく探して、単語帳ページから印刷・聞き流しを選べます。
-              </p>
+              
             </div>
           </div>
 
@@ -2920,22 +2917,8 @@ export default function Home() {
 
         {user && (
           <div className="mt-6 space-y-3">
-            <p className="rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">
-              ログイン中：{user.email}
-            </p>
+            <p className="text-xs font-bold text-slate-400">ログイン中：{user.email}　<Link href="/overlap" className="text-blue-700 underline">かぶり調査</Link></p>
             <div className="flex flex-wrap gap-2">
-              <Link href="/wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                みんなの単語帳
-              </Link>
-              <Link href="/my-wordbooks" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                マイ単語帳
-              </Link>
-              <Link href="/overlap" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                かぶり調査
-              </Link>
-              <Link href="/pricing" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-                料金プラン
-              </Link>
               {role === "admin" && (
                 <Link href="/admin" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
                   管理者画面

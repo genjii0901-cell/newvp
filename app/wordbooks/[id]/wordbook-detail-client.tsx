@@ -1108,6 +1108,7 @@ export default function WordbookDetailPage({
     );
   }
 
+  const hasUnits = visibleWords.some((word) => word.unit && word.unit.trim() !== "");
   const tabs: Array<{ key: DetailTab; label: string; hint: string }> = [
     { key: "overview", label: "概要", hint: "単語一覧" },
     { key: "test", label: "単語テスト印刷", hint: "印刷・PDF" },
@@ -1122,12 +1123,12 @@ export default function WordbookDetailPage({
       </Link>
 
       <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
-        <div className="grid gap-0 md:grid-cols-[320px_1fr]">
-          <div className="relative h-28 bg-slate-100 sm:h-44 md:h-full">
+        <div className="grid grid-cols-[88px_1fr] gap-0 sm:grid-cols-[160px_1fr] md:grid-cols-[220px_1fr]">
+          <div className="relative self-start bg-slate-100">
             {book.coverImage ? (
-              <img src={book.coverImage} alt={book.title} className="h-full w-full object-cover" />
+              <img src={book.coverImage} alt={book.title} className="block h-auto w-full" />
             ) : (
-              <div className="flex h-full items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-4xl font-black text-blue-600">
+              <div className="flex aspect-[3/4] items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-4xl font-black text-blue-600">
                 VP
               </div>
             )}
@@ -1136,10 +1137,10 @@ export default function WordbookDetailPage({
             </div>
           </div>
 
-          <div className="p-3.5 sm:p-7">
-            <p className="text-xs font-black text-blue-700">{planCopy(book.requiredPlan)}</p>
-            <h1 className="mt-1.5 line-clamp-3 text-xl font-black leading-tight text-slate-950 sm:mt-2 sm:text-4xl">{book.title}</h1>
-            <p className={`mt-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
+          <div className="min-w-0 p-2.5 sm:p-5">
+            <p className="hidden text-xs font-black text-blue-700 sm:block">{planCopy(book.requiredPlan)}</p>
+            <h1 className="line-clamp-3 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
+            <p className={`mt-1 text-[11px] leading-4 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
               {popularizeText(book.description) || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>
             {(book.description?.length ?? 0) > 90 ? (
@@ -1147,12 +1148,12 @@ export default function WordbookDetailPage({
                 {showFullDescription ? "説明を閉じる" : "続きを読む"}
               </button>
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
+            <div className="mt-1.5 flex flex-wrap gap-1 text-[10px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:flex sm:flex-wrap">
+            <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
               <button
                 type="button"
                 onClick={saveOfficialToMyWordbooks}
@@ -1287,14 +1288,14 @@ export default function WordbookDetailPage({
             </div>
           </div>
           <div className="max-h-[620px] overflow-auto select-none">
-            <table className="w-full min-w-[620px] table-fixed border-collapse text-sm">
+            <table className="w-full table-fixed border-collapse text-xs sm:text-sm">
               <thead className="sticky top-0 bg-white text-slate-500">
                 <tr>
-                  <th className="w-14 border-b p-3 text-center">復習</th>
-                  <th className="w-16 border-b p-3 text-center">番号</th>
-                  <th className="w-28 border-b p-3 text-left">Unit</th>
-                  <th className="w-1/3 border-b p-3 text-left">単語</th>
-                  <th className="border-b p-3 text-left">意味</th>
+                  <th className="w-8 border-b p-1.5 text-center sm:w-14 sm:p-3">★</th>
+                  <th className="w-9 border-b p-1.5 text-center sm:w-16 sm:p-3">番号</th>
+                  {hasUnits ? <th className="hidden w-28 border-b p-3 text-left sm:table-cell">Unit</th> : null}
+                  <th className="w-[38%] border-b p-1.5 text-left sm:w-1/3 sm:p-3">単語</th>
+                  <th className="border-b p-1.5 text-left sm:p-3">意味</th>
                 </tr>
               </thead>
               <tbody>
@@ -1303,7 +1304,7 @@ export default function WordbookDetailPage({
                   const marked = markedKeys.has(key);
                   return (
                   <tr key={key} className={`border-b last:border-0 ${marked ? "bg-amber-50/60" : ""}`}>
-                    <td className="p-3 text-center">
+                    <td className="p-1.5 text-center sm:p-3">
                       <button
                         type="button"
                         onClick={() => toggleMarked(word)}
@@ -1313,10 +1314,10 @@ export default function WordbookDetailPage({
                         {marked ? "★" : "☆"}
                       </button>
                     </td>
-                    <td className="p-3 text-center font-bold text-slate-400">{word.label ?? word.no}</td>
-                    <td className="p-3 text-slate-500">{word.unit ?? "-"}</td>
-                    <td className="p-3 font-bold text-slate-900">{word.english}</td>
-                    <td className="p-3 text-slate-600">{word.japanese}</td>
+                    <td className="p-1.5 text-center font-bold text-slate-400 sm:p-3">{word.label ?? word.no}</td>
+                    {hasUnits ? <td className="hidden p-3 text-slate-500 sm:table-cell">{word.unit ?? "-"}</td> : null}
+                    <td className="break-words p-1.5 font-bold text-slate-900 sm:p-3">{word.english}</td>
+                    <td className="break-words p-1.5 text-slate-600 sm:p-3">{word.japanese}</td>
                   </tr>
                   );
                 })}
