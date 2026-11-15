@@ -46,14 +46,14 @@ export default function WordbookShelf({
           {open ? "閉じる ▴" : "すべて見る ▾"}
         </button>
       </div>
-      <div className={`mt-1.5 grid grid-cols-4 gap-x-2 gap-y-3 sm:grid-cols-6 sm:gap-x-3 lg:grid-cols-8 ${open ? "" : "[&>*:nth-child(n+5)]:hidden sm:[&>*:nth-child(n+5)]:block sm:[&>*:nth-child(n+7)]:hidden lg:[&>*:nth-child(n+7)]:block lg:[&>*:nth-child(n+9)]:hidden"}`}>
+      <div className={`mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-5 sm:gap-3 lg:grid-cols-7 ${open ? "" : "[&>*:nth-child(n+4)]:hidden sm:[&>*:nth-child(n+4)]:block sm:[&>*:nth-child(n+6)]:hidden lg:[&>*:nth-child(n+6)]:block lg:[&>*:nth-child(n+8)]:hidden"}`}>
         {books.map((book, index) => (
           <a
             key={book.id}
             href={book.href}
-            className="block min-w-0 active:scale-[0.98]"
+            className={`block min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] ${book.id === selectedId ? "border-blue-500 ring-2 ring-blue-300" : "border-slate-200"}`}
           >
-            <div className={`relative aspect-[3/4] w-full overflow-hidden rounded-lg border bg-slate-100 shadow-sm ${book.id === selectedId ? "border-blue-500 ring-2 ring-blue-300" : "border-slate-200"}`}>
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-slate-100">
               <img src={book.cover} alt={book.title} loading="lazy" className="h-full w-full object-cover" />
               {ranked ? (
                 <span className={`absolute left-0 top-0 rounded-br-lg px-1.5 text-sm font-black leading-6 text-white sm:text-lg sm:leading-7 ${index === 0 ? "bg-amber-500" : index === 1 ? "bg-slate-400" : index === 2 ? "bg-orange-700" : "bg-slate-800/80"}`}>
@@ -68,8 +68,10 @@ export default function WordbookShelf({
                 {usersLabel(book.users)}
               </span>
             </div>
-            <p className="mt-1 line-clamp-2 text-[10px] font-black leading-tight text-slate-900 sm:text-xs">{book.title}</p>
-            <p className="truncate text-[9px] font-bold text-slate-400 sm:text-[11px]">{book.wordCount.toLocaleString()}語</p>
+            <div className="p-1.5 sm:p-2">
+              <p className="line-clamp-2 min-h-[2.1rem] text-[11px] font-black leading-tight text-slate-900 sm:text-xs">{book.title}</p>
+              <p className="mt-0.5 truncate text-[10px] font-bold text-slate-400">{book.wordCount.toLocaleString()}語</p>
+            </div>
           </a>
         ))}
       </div>

@@ -79,6 +79,7 @@ export default function MyWordbooksHub() {
   const [books, setBooks] = useState<MyBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
+  const [viewing, setViewing] = useState(false);
   const [tab, setTab] = useState<Tab>("study");
   const [studyEpoch, setStudyEpoch] = useState(0);
   const [startWithDue, setStartWithDue] = useState(false);
@@ -336,7 +337,10 @@ export default function MyWordbooksHub() {
 
   return (
     <main className="mx-auto max-w-6xl px-2.5 py-4 sm:px-5 sm:py-8">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      {viewing && book ? (
+        <button type="button" onClick={() => setViewing(false)} className="flex items-center gap-1 rounded-lg border bg-white px-3 py-1.5 text-sm font-black text-blue-700">← マイ単語帳の一覧へ</button>
+      ) : null}
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${viewing ? "hidden" : ""}`}>
         <div>
           <p className="text-xs font-black text-blue-700">Vocab Print Pro</p>
           <h1 className="text-2xl font-black text-slate-950">マイ単語帳</h1>
@@ -349,7 +353,7 @@ export default function MyWordbooksHub() {
 
       {notice && !book ? <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">{notice}</p> : null}
 
-      {duplicateIds.size > 0 ? (
+      {!viewing && duplicateIds.size > 0 ? (
         <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">
           <span>同じ単語帳が{duplicateIds.size}冊重複しています（本棚には1冊だけ表示しています）。</span>
           <button type="button" disabled={cleaning} onClick={() => void removeDuplicates()} className="min-h-10 rounded-lg bg-amber-500 px-3 text-xs font-black text-white disabled:opacity-60">
@@ -359,7 +363,7 @@ export default function MyWordbooksHub() {
       ) : null}
 
       {/* 本棚 */}
-      <section className="mt-4" aria-label="自分の単語帳">
+      <section className={`mt-4 ${viewing ? "hidden" : ""}`} aria-label="自分の単語帳">
         {loading ? (
           <p className="rounded-2xl border bg-white p-6 text-center text-sm font-bold text-slate-400">読み込み中…</p>
         ) : books.length === 0 ? (
@@ -381,6 +385,8 @@ export default function MyWordbooksHub() {
                   type="button"
                   onClick={() => {
                     setSelectedId(item.id);
+                    setViewing(true);
+                    window.scrollTo({ top: 0 });
                     openTab("study");
                     setNotice("");
                   }}
@@ -408,7 +414,7 @@ export default function MyWordbooksHub() {
         )}
       </section>
 
-      {book && summary ? (
+      {viewing && book && summary ? (
         <>
           {/* 今日の状況 */}
           <section className="mt-3 rounded-3xl border bg-white p-4 shadow-sm sm:p-6">

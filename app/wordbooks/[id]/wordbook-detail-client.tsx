@@ -1123,7 +1123,7 @@ export default function WordbookDetailPage({
       </Link>
 
       <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
-        <div className="grid grid-cols-[88px_1fr] gap-0 sm:grid-cols-[160px_1fr] md:grid-cols-[220px_1fr]">
+        <div className="grid grid-cols-[120px_1fr] gap-0 sm:grid-cols-[180px_1fr] md:grid-cols-[240px_1fr]">
           <div className="relative self-start bg-slate-100">
             {book.coverImage ? (
               <img src={book.coverImage} alt={book.title} className="block h-auto w-full" />
@@ -1153,21 +1153,21 @@ export default function WordbookDetailPage({
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-5 sm:gap-2">
+            <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-2">
               <button
                 type="button"
                 onClick={saveOfficialToMyWordbooks}
                 disabled={savingToMyBook}
                 className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-2xl sm:px-4 sm:text-sm"
               >
-                {savingToMyBook ? "追加中..." : "マイ単語帳に追加"}
+                {savingToMyBook ? "追加中..." : "マイ追加"}
               </button>
               <button
                 type="button"
                 onClick={() => void shareWordbook()}
                 className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm"
               >
-                🔗 共有する
+                🔗 共有
               </button>
               <button
                 type="button"
@@ -1176,7 +1176,7 @@ export default function WordbookDetailPage({
               >
                 CSV出力 🔒
               </button>
-              {shareMessage ? <span role="status" className="col-span-2 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
+              {shareMessage ? <span role="status" className="col-span-3 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
             </div>
           </div>
         </div>
@@ -1224,13 +1224,13 @@ export default function WordbookDetailPage({
           </p>
         </div>
 
-        <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:gap-3">
-          <div>
+        <div className={`mt-3 grid gap-2 sm:mt-4 sm:gap-3 ${units.length > 0 ? "grid-cols-3" : "grid-cols-2"}`}>
+          {units.length > 0 ? <div>
             <label className="text-xs font-bold sm:text-sm">ユニット</label>
             <select
               value={selectedUnit}
               onChange={(event) => setSelectedUnit(event.target.value)}
-              className="mt-1 w-full rounded-xl border px-2 py-2 text-xs sm:px-3 sm:py-3 sm:text-sm"
+              className="mt-1 h-10 w-full min-w-0 rounded-xl border bg-white px-2 text-sm sm:px-3"
             >
               <option value="all">すべて</option>
               {units.map((unit) => (
@@ -1239,7 +1239,7 @@ export default function WordbookDetailPage({
                 </option>
               ))}
             </select>
-          </div>
+          </div> : null}
           <div>
             <label className="text-xs font-bold sm:text-sm">
               開始番号{numbersLocked ? <span className="ml-1 text-[11px] font-black text-amber-600">🔒</span> : null}

@@ -330,7 +330,7 @@ export default function ListenPanel({
             </span>
             <span className="flex items-center gap-2">
               {markedInList > 0 ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">★ {markedInList}語</span> : null}
-              <button type="button" onClick={() => setShowSettings((value) => !value)} className="rounded-full border px-3 py-1.5 text-slate-700 lg:hidden">
+              <button type="button" onClick={() => setShowSettings((value) => !value)} className="rounded-full border border-blue-300 bg-blue-50 px-3 py-1.5 text-blue-700 lg:hidden">
                 ⚙ 設定
               </button>
             </span>
@@ -408,12 +408,9 @@ export default function ListenPanel({
                 次へ ⏭
               </button>
             </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
+            <div className="mt-2 grid grid-cols-1 gap-2">
               <button type="button" onClick={() => setManualReveal((value) => !value)} disabled={!word} className="min-h-9 rounded-xl border bg-white text-xs sm:min-h-11 font-black text-slate-700 disabled:opacity-40 sm:text-sm">
                 {manualReveal ? "答えを隠す" : "答えを見る"}
-              </button>
-              <button type="button" onClick={() => void playOnly()} disabled={!word} className="min-h-9 rounded-xl border bg-white text-xs sm:min-h-11 font-black text-slate-700 disabled:opacity-40 sm:text-sm">
-                この単語だけ再生
               </button>
             </div>
             <p className="mt-2 hidden text-center text-[11px] font-bold text-slate-400 lg:block">Space=再生/停止 ・ ←→=前後 ・ Enter=答え</p>
@@ -447,7 +444,11 @@ export default function ListenPanel({
         </div>
       </div>
 
-      <aside className={`min-w-0 space-y-2 lg:sticky lg:top-3 ${showSettings ? "block" : "hidden"} lg:block`}>
+      <aside className={`min-w-0 space-y-2 lg:sticky lg:top-3 ${showSettings ? "fixed inset-0 z-[60] block overflow-auto bg-slate-50 p-3 pb-24 lg:static lg:z-auto lg:overflow-visible lg:bg-transparent lg:p-0" : "hidden"} lg:block`}>
+        <div className="sticky top-0 z-10 -mx-3 -mt-3 mb-1 flex items-center justify-between border-b bg-white px-3 py-2.5 lg:hidden">
+          <p className="text-base font-black text-slate-900">⚙ 聞き流しの設定</p>
+          <button type="button" onClick={() => setShowSettings(false)} className="rounded-full bg-blue-600 px-4 py-1.5 text-sm font-black text-white">完了</button>
+        </div>
         <div className="flex items-center justify-between px-1">
           <p className="text-xs font-black text-slate-500">設定（タップで開閉）</p>
           <button type="button" onClick={toggleAll} className="rounded-full border bg-white px-3 py-1.5 text-xs font-black text-slate-600 hover:bg-slate-50">{openAll ? "すべて閉じる" : "すべて開く"}</button>
@@ -520,8 +521,8 @@ export default function ListenPanel({
           <Field label="読み上げ速度">
             <Slider value={settings.speed} min={0.5} max={2} step={0.05} unit="倍" onChange={(speed) => update({ speed })} left="0.5倍 ゆっくり" right="2倍 はやい" />
           </Field>
-          <Field label="単語と単語の間">
-            <Slider value={settings.gapMs} min={0} max={10000} step={100} scale={1000} unit="秒" onChange={(gapMs) => update({ gapMs })} left="間なし" right="10秒" />
+          <Field label="単語と単語の間" locked={!isPaid}>
+            <Slider value={settings.gapMs} min={0} max={10000} step={100} scale={1000} unit="秒" onChange={(gapMs) => update({ gapMs })} left="間なし" right="10秒" locked={!isPaid} onLocked={onLocked} />
           </Field>
           <Field label="問題と答えの間" hint="考える時間。長くすると暗記チェックに使えます" locked={!isPaid}>
             <Slider value={settings.innerGapMs} min={0} max={15000} step={100} scale={1000} unit="秒" onChange={(innerGapMs) => update({ innerGapMs })} left="すぐ" right="15秒" locked={!isPaid} onLocked={onLocked} />

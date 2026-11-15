@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { formatMeaning } from "@/lib/meaning";
 import { speakText } from "@/lib/speech";
 import { buildClozePrintDocument, buildClozeQuestion, isClozeEligibleWord, isClozePilotBook } from "@/lib/cloze-quiz";
-import { Field, Section, Seg, Toggle } from "./study-ui";
+import { Field, Section, Seg, Slider, Toggle } from "./study-ui";
 import { getStudyQuestionCount, type StudyQuestionCount } from "@/lib/study-question-count";
 
 type QuizWord = { no: number; english: string; japanese: string };
@@ -265,11 +265,11 @@ export default function QuizPanel({
     return () => window.clearInterval(id);
   }, [choosing, index, runSettings.timer, answered]);
 
-  // 自動発音: 問題が英語なら出題時に、日本語→英語なら回答後に英語を読む
+  // 発音: 問題が英語なら出題時に必ず1回（全員）。日本語→英語は回答後に読む（自動発音ON時）
   useEffect(() => {
-    if (!started || finished || !current || !runSettings.autoSpeak) return;
+    if (!started || finished || !current) return;
     if (runMode !== "cloze" && dir === "en-ja") speak(current.english, true);
-  }, [started, finished, current, dir, runMode, runSettings.autoSpeak, speak]);
+  }, [started, finished, current, dir, runMode, speak]);
   useEffect(() => {
     if (!answered || !current || !runSettings.autoSpeak) return;
     if (runMode !== "cloze" && dir === "ja-en") speak(current.english, true);
@@ -368,35 +368,19 @@ export default function QuizPanel({
 
         <Section key={`b${epoch}`} open={openAll} title="出題" summary={`${questionTotal}問・${settings.order === "random" ? "シャッフル" : "単語帳順"}${settings.scope === "marked" ? "・★のみ" : ""}`}>
           <Field label="出題数" hint={isPaid ? undefined : "無料会員でも、選んだ範囲すべてを出題できます"}>
-            <Seg
-              value={settings.count}
-              onChange={(count) => update({ count, customCount: 0 })}
-              onLocked={onLocked}
-              columns={4}
-              options={[
-                { value: "10" as QuestionCount, label: "10問" },
-                { value: "20" as QuestionCount, label: "20問" },
-                { value: "50" as QuestionCount, label: "50問" },
-                { value: "all" as QuestionCount, label: `全${scopeWords.length}問` },
-              ]}
+            <Slider
+              value={Math.min(settings.customCount > 0 ? settings.customCount : getStudyQuestionCount(scopeWords.length, settings.count), Math.max(1, Math.min(100, scopeWords.length)))}
+              min={1}
+              max={Math.max(1, Math.min(100, scopeWords.length))}
+              step={1}
+              unit="問"
+              onChange={(value) => update({ customCount: value })}
+              left="1問"
+              right={`${Math.min(100, scopeWords.length)}問`}
             />
-            <label className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-600">
-              自由に指定
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                max={Math.max(scopeWords.length, 1)}
-                value={settings.customCount > 0 ? settings.customCount : ""}
-                placeholder="例: 30"
-                onChange={(event) => {
-                  const value = Math.floor(Number(event.target.value));
-                  update({ customCount: Number.isFinite(value) && value > 0 ? Math.min(value, Math.max(scopeWords.length, 1)) : 0 });
-                }}
-                className="min-h-10 w-24 rounded-lg border px-2 text-center text-sm font-black text-slate-900"
-              />
-              問（入力すると上のボタンより優先）
-            </label>
+            {scopeWords.length > 100 ? (
+              <button type="button" onClick={() => update({ count: "all", customCount: 0 })} className="mt-2 rounded-lg border px-3 py-1.5 text-xs font-black text-slate-700">全{scopeWords.length}問を出題</button>
+            ) : null}
           </Field>
           <Field label="出題順" locked={!isPaid}>
             <Seg
@@ -443,7 +427,7 @@ export default function QuizPanel({
               options={[0, 5, 10, 15].map((n) => ({ value: n, label: n === 0 ? "なし" : `${n}秒`, locked: !isPaid && n !== 0 }))}
             />
           </Field>
-          <Toggle checked={settings.autoSpeak} label="英語を自動で発音" hint="出題時（英→日）または回答後（日→英）に読み上げ" locked={!isPaid} onChange={(autoSpeak) => update({ autoSpeak })} onLocked={onLocked} />
+          <Toggle checked={settings.autoSpeak} label="回答後にも英語を発音" hint="日→英の出題では回答後に英語を読み上げ（英→日は常に出題時に1回発音）" locked={!isPaid} onChange={(autoSpeak) => update({ autoSpeak })} onLocked={onLocked} />
           <Toggle checked={settings.autoNext} label="正解したら自動で次へ" hint="間違えたときは止まって正解を確認できます" locked={!isPaid} onChange={(autoNext) => update({ autoNext })} onLocked={onLocked} />
         </Section>
 
