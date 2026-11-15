@@ -1161,15 +1161,19 @@ export default function WordbookDetailPage({
               >
                 {savingToMyBook ? "追加中..." : "マイ単語帳に追加"}
               </button>
-              <Link href="/my-wordbooks" className="rounded-xl border bg-white px-3 py-2 text-center text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm">
-                マイ単語帳を見る
-              </Link>
               <button
                 type="button"
                 onClick={() => void shareWordbook()}
                 className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm"
               >
                 🔗 共有する
+              </button>
+              <button
+                type="button"
+                onClick={() => (isLoggedIn ? showUpgrade("CSV出力はTeacherプランで使えます。") : guideToRegister("CSV出力はTeacherプランの機能です。"))}
+                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-slate-600 sm:rounded-2xl sm:px-4 sm:text-sm"
+              >
+                CSV出力 🔒
               </button>
               {shareMessage ? <span role="status" className="col-span-2 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
             </div>
@@ -1186,10 +1190,6 @@ export default function WordbookDetailPage({
               key={tab.key}
               type="button"
               onClick={() => {
-                if (tabLocked) {
-                  guideToRegister(`「${tab.label}」機能は無料会員登録をすると使えます。`);
-                  return;
-                }
                 setActiveTab(tab.key);
               }}
               className={`min-w-0 rounded-xl border px-1.5 py-2 text-center transition sm:rounded-2xl sm:px-3 sm:text-left ${

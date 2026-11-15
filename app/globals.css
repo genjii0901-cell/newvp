@@ -149,3 +149,6 @@
     }
   }
 }
+
+/* 日本語の不自然な折り返しを防ぐ（文節単位で改行） */
+body { word-break: auto-phrase; overflow-wrap: anywhere; }

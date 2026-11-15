@@ -341,28 +341,9 @@ export default function MyWordbooksHub() {
           <p className="text-xs font-black text-blue-700">Vocab Print Pro</p>
           <h1 className="text-2xl font-black text-slate-950">マイ単語帳</h1>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setAdderOpen(true)} className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-black text-white hover:bg-blue-700">＋ 単語帳を追加</button>
-          <Link href="/wordbooks?tab=my" className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50">自作・公開</Link>
-          {csvAllowed ? (
-            <button
-              type="button"
-              onClick={() => {
-                const current = books.find((item) => item.id === selectedId);
-                if (!current) { alert("CSV出力する単語帳を選んでください。"); return; }
-                if (current.copied === true) { alert(`${OWN_WORDBOOK_ONLY_MESSAGE}
-
-自作の単語帳を選んでから、もう一度押してください。`); return; }
-                if (current.words.length === 0) { alert("この単語帳には単語がありません。"); return; }
-                downloadWordbookCsv(current.title, current.words);
-              }}
-              className="flex min-h-11 items-center rounded-xl border bg-white px-4 text-sm font-black text-slate-700 hover:bg-slate-50"
-            >
-              CSV出力
-            </button>
-          ) : (
-            <LockedFeatureButton label="CSV出力" href="/teacher#teacher-csv-title" description="自作の単語帳をCSVで書き出し、列名も変更できます。" />
-          )}
+        <div className="flex gap-1.5">
+          <button type="button" onClick={() => setAdderOpen(true)} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-black text-white hover:bg-blue-700">＋ 追加</button>
+          <Link href="/wordbooks?tab=my" className="flex items-center rounded-lg border bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50">自作公開</Link>
         </div>
       </div>
 
@@ -389,7 +370,7 @@ export default function MyWordbooksHub() {
             <button type="button" onClick={() => setAdderOpen(true)} className="mt-4 min-h-12 rounded-2xl bg-blue-600 px-6 text-base font-black text-white">単語帳を選んで追加</button>
           </div>
         ) : (
-          <div className="-mx-2.5 flex snap-x gap-3 overflow-x-auto px-2.5 pb-2 sm:mx-0 sm:px-0">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-6">
             {shelfBooks.map((item) => {
               const itemProgress = progressByBook[item.id] ?? {};
               const s = summarize(item.words, itemProgress, now);
@@ -403,24 +384,24 @@ export default function MyWordbooksHub() {
                     openTab("study");
                     setNotice("");
                   }}
-                  className={`w-44 flex-none snap-start overflow-hidden rounded-2xl border bg-white text-left shadow-sm transition sm:w-52 ${active ? "border-blue-500 ring-2 ring-blue-100" : "hover:-translate-y-0.5 hover:shadow-md"}`}
+                  className={`min-w-0 overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${active ? "border-blue-500 ring-2 ring-blue-100" : "hover:-translate-y-0.5 hover:shadow-md"}`}
                 >
-                  <img src={coverFor(item, covers)} alt="" className="h-20 w-full object-cover" />
-                  <div className="p-3">
-                    <p className="line-clamp-2 min-h-[2.4rem] text-sm font-black leading-snug text-slate-900">{item.title}</p>
-                    <div className="mt-2 flex items-center justify-between text-[11px] font-black">
+                  <img src={coverFor(item, covers)} alt="" className="aspect-[4/3] w-full object-cover" />
+                  <div className="p-1.5 sm:p-2">
+                    <p className="line-clamp-2 min-h-[2rem] text-[11px] font-black leading-snug text-slate-900 sm:text-xs">{item.title}</p>
+                    <div className="mt-1 flex items-center justify-between text-[10px] font-black">
                       <span className="text-slate-400">{item.wordCount}語</span>
-                      <span className="text-blue-700">記憶度 {s.memoryPercent}%</span>
+                      <span className="text-blue-700">{s.memoryPercent}%</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full bg-blue-500" style={{ width: `${s.memoryPercent}%` }} />
                     </div>
-                    {s.dueCount > 0 ? <p className="mt-2 rounded-full bg-amber-100 px-2 py-0.5 text-center text-[11px] font-black text-amber-800">復習 {s.dueCount}語</p> : null}
+                    {s.dueCount > 0 ? <p className="mt-1 rounded-full bg-amber-100 px-1 py-0.5 text-center text-[10px] font-black text-amber-800">復習 {s.dueCount}語</p> : null}
                   </div>
                 </button>
               );
             })}
-            <button type="button" onClick={() => setAdderOpen(true)} className="flex w-32 flex-none snap-start flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-300 bg-white/60 text-sm font-black text-slate-500 hover:bg-white">
+            <button type="button" onClick={() => setAdderOpen(true)} className="flex min-h-24 flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-white/60 text-sm font-black text-slate-500 hover:bg-white">
               <span className="text-2xl">＋</span>追加
             </button>
           </div>

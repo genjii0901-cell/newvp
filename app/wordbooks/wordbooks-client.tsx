@@ -247,6 +247,50 @@ export default function WordbooksClient({
     });
   }, [officialBooks, communityBooks, communityFilter, officialFilter, officialSearch, popularity]);
 
+  const [showFilters, setShowFilters] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState<"all" | CommunitySubject>("all");
+  const [expanded, setExpanded] = useState("");
+  const filterActive = communityFilter !== "all" || subjectFilter !== "all" || officialFilter !== "all";
+
+  function subjectOf(book: OfficialWordbook): CommunitySubject {
+    if (book.subject) return book.subject;
+    return /古文|漢文|漢字|国語|現代文|四字熟語|ことわざ/.test(book.title) ? "国語" : "英語";
+  }
+
+  const sections = useMemo(() => {
+    const all = filteredOfficialBooks.filter((book) => subjectFilter === "all" || subjectOf(book) === subjectFilter);
+    const searching = officialSearch.trim().length > 0 || filterActive;
+    if (searching) return [{ key: "result", title: `検索結果 ${all.length}件`, books: all, flat: true }];
+    const defs = [
+      { key: "popular", title: "🔥 人気ランキング", books: all },
+      { key: "english", title: "英語", books: all.filter((book) => subjectOf(book) === "英語") },
+      { key: "japanese", title: "国語", books: all.filter((book) => subjectOf(book) === "国語") },
+    ].filter((section) => section.books.length > 0);
+    return defs.map((section) => ({ ...section, flat: expanded === section.key }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredOfficialBooks, subjectFilter, officialSearch, filterActive, expanded]);
+
+  function renderCard(book: OfficialWordbook) {
+    const words = Array.isArray(book.words) ? book.words : [];
+    const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
+    const detailPath = book.community ? `/shared/${encodeURIComponent(book.id)}` : buildWordbookPath(book.id, book.title);
+    const users = popularity[String(book.id)] ?? 0;
+    return (
+      <Link key={book.id} href={detailPath} prefetch={false} className="block min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] hover:border-blue-300">
+        <div className="relative aspect-[4/3] w-full">
+          <img src={book.coverImage || defaultCommunityCover(book.subject ?? "その他")} alt="" loading="lazy" className="h-full w-full object-cover" />
+          <span className="absolute bottom-1 left-1 rounded-full bg-slate-900/75 px-1.5 py-0.5 text-[9px] font-black text-white">
+            {users >= POPULARITY_DISPLAY_MIN ? `👤約${users.toLocaleString()}人` : "新着"}
+          </span>
+        </div>
+        <div className="p-1.5 sm:p-2">
+          <h3 className="line-clamp-2 min-h-[2.1rem] text-[11px] font-black leading-snug text-slate-900 sm:text-xs">{book.title}</h3>
+          <p className="mt-0.5 text-[10px] text-slate-400">{wordCount}語 · {book.community ? "共有" : planLabel(book.requiredPlan)}</p>
+        </div>
+      </Link>
+    );
+  }
+
   function updateRow(index: number, field: keyof EditableRow, value: string | number) {
     setEditorRows((prev) =>
       prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
@@ -507,152 +551,81 @@ export default function WordbooksClient({
 
   return (
     <main className="mx-auto max-w-6xl px-3 py-5 sm:px-5 sm:py-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-blue-700">Vocab Print Pro</p>
-          <h1 className="text-2xl font-black text-slate-900">単語帳</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            教材を探す「みんなの単語帳」と、自分で保存する「マイ単語帳」をここで管理できます。
-          </p>
-        </div>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl font-black text-slate-900 sm:text-2xl">単語帳</h1>
         <div className="flex gap-2">
-          <Link href="/" className="rounded-xl border bg-white px-4 py-2 text-sm font-bold">
-            自由作成
-          </Link>
+          {tab === "my" ? (
+            <button onClick={() => setTab("official")} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold sm:text-sm">← 一覧へ</button>
+          ) : (
+            <button onClick={() => setTab("my")} className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold sm:text-sm">自作・編集</button>
+          )}
+          <Link href="/" className="rounded-lg border bg-white px-3 py-1.5 text-xs font-bold sm:text-sm">自由作成</Link>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
-        <button
-          onClick={() => setTab("official")}
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
-            tab === "official" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-          }`}
-        >
-          みんなの単語帳
-        </button>
-        <button
-          onClick={() => setTab("my")}
-          className={`rounded-full px-4 py-2 text-sm font-bold ${
-            tab === "my" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-          }`}
-        >
-          マイ単語帳
-        </button>
-      </div>
-
-      {error && <div className="mt-5 rounded-2xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+      {error && <div className="mt-4 rounded-2xl bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {tab === "official" ? (
         <>
-          <div className="mt-5 flex flex-wrap gap-2" aria-label="単語帳の種類">
-            {([["all", "すべて"], ["official", "人気教材"], ["community", "みんなの投稿"]] as const).map(([value, text]) => (
-              <button key={value} type="button" onClick={() => setCommunityFilter(value)} className={`rounded-lg px-3 py-2 text-sm font-bold ${communityFilter === value ? "bg-slate-900 text-white" : "border bg-white text-slate-700"}`}>{text}</button>
-            ))}
-          </div>
-          <div className="mt-5 flex gap-2 overflow-x-auto pb-1 sm:mt-6 sm:flex-wrap sm:overflow-visible sm:pb-0">
-            {(["all", "free", "personal", "teacher"] as const).map((value) => (
-              <button
-                key={value}
-                onClick={() => setOfficialFilter(value)}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold ${
-                  officialFilter === value ? "bg-blue-600 text-white" : "border bg-white text-slate-700"
-                }`}
-              >
-                {value === "all" ? "すべて" : planLabel(value)}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4">
-            <label className="block text-sm font-bold text-slate-700">単語帳を検索</label>
+          <div className="mt-3 flex gap-2">
             <input
               value={officialSearch}
               onChange={(event) => setOfficialSearch(event.target.value)}
-              placeholder="単語帳名・説明・作成者で検索"
-              className="mt-1 w-full rounded-xl border px-3 py-3 text-sm"
+              placeholder="単語帳名・作成者で検索"
+              aria-label="単語帳を検索"
+              className="min-w-0 flex-1 rounded-xl border bg-white px-3 py-2.5 text-sm"
             />
-            {officialSearch && (
-              <p className="mt-1 text-xs font-bold text-slate-400">{filteredOfficialBooks.length}件見つかりました</p>
-            )}
+            <button
+              type="button"
+              onClick={() => setShowFilters((value) => !value)}
+              className={`shrink-0 rounded-xl border px-3 py-2.5 text-sm font-bold ${showFilters || filterActive ? "border-blue-600 bg-blue-50 text-blue-700" : "bg-white text-slate-700"}`}
+            >
+              条件{filterActive ? "●" : ""}
+            </button>
           </div>
-
-          {loadingOfficial ? (
-            <div className="mt-16 text-center text-slate-400">読み込み中...</div>
-          ) : filteredOfficialBooks.length === 0 ? (
-            <div className="mt-16 rounded-3xl border bg-white p-10 text-center">
-              <p className="text-lg font-black text-slate-700">表示できる単語帳がまだありません</p>
-            </div>
-          ) : (
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:mt-6 sm:gap-4 lg:grid-cols-3">
-              {filteredOfficialBooks.map((book) => {
-                const words = Array.isArray(book.words) ? book.words : [];
-                const units =
-                  typeof book.unitCount === "number"
-                    ? book.unitCount
-                    : new Set(words.map((word) => word.unit).filter(Boolean)).size;
-                const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
-                const firstWord = book.firstWord ?? words[0]?.english ?? "";
-                const detailPath = book.community ? `/shared/${encodeURIComponent(book.id)}` : buildWordbookPath(book.id, book.title);
-                return (
-                  <article
-                    key={book.id}
-                    onClick={() => {
-                      window.location.href = detailPath;
-                    }}
-                    className="flex h-[255px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white shadow-sm transition active:scale-[0.99] hover:border-blue-200 sm:h-[390px] sm:rounded-3xl sm:hover:-translate-y-0.5 sm:hover:shadow-md"
-                  >
-                    <div className="relative h-24 w-full shrink-0 sm:h-40">
-                      <img src={book.coverImage || defaultCommunityCover(book.subject ?? "その他")} alt={`${book.title}の表紙`} loading="lazy" className="h-full w-full object-cover" />
-                      <span className="absolute bottom-1 left-1 rounded-full bg-slate-900/75 px-1.5 py-0.5 text-[9px] font-black text-white sm:text-xs">
-                        {(popularity[String(book.id)] ?? 0) >= POPULARITY_DISPLAY_MIN ? `👤 約${(popularity[String(book.id)] ?? 0).toLocaleString()}人` : "新着"}
-                      </span>
-                    </div>
-                    <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-5">
-                      <div className="flex items-center justify-between gap-1.5">
-                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700 sm:px-3 sm:py-1 sm:text-xs">
-                          {book.community ? `${book.subject ?? "その他"} · 共有` : planLabel(book.requiredPlan)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 sm:text-xs">{wordCount}語</span>
-                      </div>
-                      <h2 className="mt-1 line-clamp-2 min-h-[2.35rem] text-xs font-black leading-snug text-slate-900 sm:mt-3 sm:min-h-[3.5rem] sm:text-xl">{book.title}</h2>
-                      <p className="mt-1 hidden truncate text-xs font-bold text-slate-400 sm:block">
-                        作成者: {displayCreatorName(book.creator)}
-                      </p>
-                      <div className="mt-1 hidden sm:mt-2 sm:block">
-                        <p className={`text-xs leading-5 text-slate-500 sm:text-sm sm:leading-6 ${expandedDescriptionId === book.id ? "" : "line-clamp-3"}`}>{popularizeText(book.description) || (book.community ? "みんなが作成した単語帳です。" : "人気の単語帳です。")}</p>
-                        {(book.description?.length ?? 0) > 90 ? <button type="button" onClick={(event) => { event.stopPropagation(); setExpandedDescriptionId((value) => value === book.id ? "" : book.id); }} className="mt-1 text-xs font-black text-blue-700 hover:underline">{expandedDescriptionId === book.id ? "閉じる" : "続きを読む"}</button> : null}
-                      </div>
-                      <div className="mt-2 hidden gap-4 text-xs text-slate-500 sm:mt-4 sm:flex">
-                        {units > 0 ? <span>{units}ユニット</span> : null}
-                        {firstWord ? <span>最初: {firstWord}</span> : null}
-                      </div>
-                      <div className="mt-auto grid gap-1.5 pt-1.5 sm:flex sm:flex-wrap sm:gap-2 sm:pt-4">
-                        <Link
-                          href={detailPath}
-                          prefetch={false}
-                          onClick={(event) => event.stopPropagation()}
-                          className="rounded-lg bg-blue-600 px-2 py-1.5 text-center text-[11px] font-bold text-white hover:bg-blue-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
-                        >
-                          開く
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void addOfficialToMyWordbooks(book);
-                          }}
-                          disabled={savingOfficialId === book.id}
-                          className="rounded-lg border px-2 py-1.5 text-[11px] font-bold text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm"
-                        >
-                          {savingOfficialId === book.id ? "追加中..." : "マイ追加"}
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
+          {showFilters && (
+            <div className="mt-2 grid gap-2 rounded-xl border bg-white p-3 text-xs">
+              {([
+                ["種類", [["all", "すべて"], ["official", "人気教材"], ["community", "みんなの投稿"]] as const, communityFilter, setCommunityFilter],
+                ["教科", [["all", "すべて"], ["英語", "英語"], ["国語", "国語"], ["その他", "その他"]] as const, subjectFilter, setSubjectFilter],
+                ["プラン", [["all", "すべて"], ["free", "Free"], ["personal", "Personal"], ["teacher", "Teacher"]] as const, officialFilter, setOfficialFilter],
+              ] as const).map(([label, options, current, setter]) => (
+                <div key={label} className="flex flex-wrap items-center gap-1.5">
+                  <span className="w-12 font-black text-slate-500">{label}</span>
+                  {options.map(([value, text]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => (setter as (v: never) => void)(value as never)}
+                      className={`rounded-full px-3 py-1 font-bold ${current === value ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              ))}
             </div>
           )}
+
+          {loadingOfficial ? (
+            <div className="mt-12 text-center text-slate-400">読み込み中...</div>
+          ) : filteredOfficialBooks.length === 0 ? (
+            <div className="mt-12 rounded-2xl border bg-white p-8 text-center">
+              <p className="font-black text-slate-700">条件に合う単語帳がありません</p>
+            </div>
+          ) : sections.map((section) => (
+            <section key={section.key} className="mt-5">
+              <div className="flex items-end justify-between gap-2">
+                <h2 className="text-base font-black text-slate-900 sm:text-lg">{section.title}</h2>
+                {!section.flat && section.books.length > 0 ? (
+                  <button type="button" onClick={() => setExpanded(section.key)} className="text-xs font-black text-blue-700 hover:underline">すべて見る（{section.books.length}）</button>
+                ) : null}
+              </div>
+              <div className={`mt-2 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 ${section.flat ? "" : "grid-rows-1 auto-rows-[0] overflow-hidden"}`}>
+                {section.books.map(renderCard)}
+              </div>
+            </section>
+          ))}
           {hasMoreCommunity && communityFilter !== "official" ? <button type="button" onClick={() => { void loadCommunityBooks(communityPage + 1); }} className="mx-auto mt-6 block rounded-xl border bg-white px-5 py-2 text-sm font-bold text-blue-700">みんなの投稿をもっと見る</button> : null}
         </>
       ) : (

@@ -355,7 +355,7 @@ export default function AccountPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-2xl px-5 py-8">
+      <main className="mx-auto max-w-2xl px-3 py-5 sm:px-5 sm:py-8">
         <div className="rounded-3xl border bg-white p-6 text-sm text-slate-500 shadow-sm">
           アカウント情報を読み込んでいます...
         </div>
@@ -379,7 +379,7 @@ export default function AccountPage() {
   const isError = isErrorMessage(msg);
 
   return (
-    <main className="mx-auto max-w-2xl px-5 py-8">
+    <main className="mx-auto max-w-2xl px-3 py-5 sm:px-5 sm:py-8">
       <h1 className="text-2xl font-black text-slate-900">アカウント設定</h1>
 
       {msg && (
@@ -388,10 +388,10 @@ export default function AccountPage() {
         </div>
       )}
 
-      <section className="mt-6 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-6 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">現在のプラン</h2>
-        <div className="mt-4 flex items-center gap-4">
-          <span className={`rounded-2xl px-4 py-2 text-lg font-black ${info.color}`}>{info.label}</span>
+        <div className="mt-3 flex flex-col items-start gap-2 sm:mt-4 sm:flex-row sm:items-center sm:gap-4">
+          <span className={`rounded-xl px-3 py-1.5 text-base font-black break-keep ${info.color}`}>{info.label}</span>
           <div>
             <p className="font-bold text-slate-700">{info.price}</p>
             <p className="text-sm text-slate-500">{info.limit}</p>
@@ -421,7 +421,7 @@ export default function AccountPage() {
         )}
       </section>
 
-      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-4 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black text-slate-900">アカウント・契約管理</h2>
         <p className="mt-2 text-sm leading-6 text-slate-500">
           支払い方法、契約の解約、アカウント削除などの重要な手続きはこちらにまとめています。
@@ -716,7 +716,7 @@ export default function AccountPage() {
         </section>
       )}
 
-      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-4 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">アカウント情報</h2>
         <div className="mt-4">
           <label className="text-sm font-bold text-slate-500">メールアドレス</label>
@@ -728,7 +728,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-4 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">メールアドレスを変更</h2>
         <p className="mt-2 text-sm text-slate-500">
           新しいメールアドレスに確認メールを送信します。確認後にVocab Print Proへ反映されます。
@@ -751,7 +751,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-4 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">パスワードを変更</h2>
         <div className="mt-4 flex gap-2">
           <input
@@ -779,7 +779,7 @@ export default function AccountPage() {
         </div>
       </section>
 
-      <section className="mt-4 rounded-3xl border bg-white p-6 shadow-sm">
+      <section className="mt-4 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">クイックリンク</h2>
         <div className="mt-4 grid grid-cols-2 gap-3">
           <Link href="/" className="rounded-xl border py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">
