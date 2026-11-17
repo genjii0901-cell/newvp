@@ -48,3 +48,7 @@ create table if not exists public.question_items (
 create index if not exists question_items_set_idx on public.question_items(set_id, sort_order);
 create index if not exists question_items_pool_idx on public.question_items(set_id, pool_tag);
 alter table public.question_items enable row level security;
+
+-- 4) 数学・物理など他教科の教材にも使えるよう、教科の欄を足し、種類の制限をゆるめる。
+alter table public.question_sets add column if not exists subject text not null default '';
+alter table public.question_sets drop constraint if exists question_sets_kind_check;

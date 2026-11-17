@@ -108,10 +108,26 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
   const [qText, setQText] = useState("");
   const [qBusy, setQBusy] = useState(false);
   const [qResult, setQResult] = useState<Result | null>(null);
-  const [sets, setSets] = useState<Array<{ id: string; title: string; kind: string; itemCount: number }>>([]);
+  const [sets, setSets] = useState<Array<{ id: string; title: string; kind: string; subject?: string; itemCount: number }>>([]);
   const [setId, setSetId] = useState("");
   const [newTitle, setNewTitle] = useState("");
   const [kind, setKind] = useState("grammar");
+  const [subject, setSubject] = useState("");
+  const [backupBusy, setBackupBusy] = useState(false);
+
+  async function downloadBackup() {
+    setBackupBusy(true);
+    try {
+      const res = await fetch("/api/admin/content-backup", { headers: await getHeaders(), cache: "no-store" });
+      if (!res.ok) { window.alert((await res.json().catch(() => ({ message: "失敗しました。" }))).message); return; }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `content-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } finally { setBackupBusy(false); }
+  }
 
   async function call(url: string, init?: RequestInit) {
     const headers = await getHeaders();
@@ -149,7 +165,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
     if (mode === "save" && !setId && !newTitle.trim()) { setQResult({ ok: false, message: "追加先の問題セットを選ぶか、新しい名前を入れてください。" }); return; }
     setQBusy(true);
     try {
-      const d = await call("/api/admin/question-sets", { method: "POST", body: JSON.stringify({ text: qText, mode, setId, title: newTitle, kind }) });
+      const d = await call("/api/admin/question-sets", { method: "POST", body: JSON.stringify({ text: qText, mode, setId, title: newTitle, kind, subject }) });
       setQResult(d);
       if (mode === "save" && d.ok) { setNewTitle(""); await loadSets(); }
     } finally { setQBusy(false); }
@@ -159,6 +175,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
     <div className="space-y-5">
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold leading-relaxed text-amber-900">
         例文・問題の保存先は、Supabaseで docs/migrations/add-examples-and-question-sets.sql を1回実行すると使えます。保存したものは「下書き」で、画面にはまだ出ません。
+        <button type="button" disabled={backupBusy} onClick={downloadBackup} className="ml-2 rounded-lg border border-amber-400 bg-white px-3 py-1 font-black text-amber-900 disabled:opacity-40">💾 バックアップを自分のPCに保存</button>
       </div>
 
       <Importer
@@ -201,7 +218,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
             追加先の問題セット
             <select value={setId} onChange={(e) => setSetId(e.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
               <option value="">（新しく作る）</option>
-              {sets.map((s) => <option key={s.id} value={s.id}>{s.title}（{s.itemCount}問）</option>)}
+              {sets.map((s) => <option key={s.id} value={s.id}>{s.subject ? `[${s.subject}] ` : ""}{s.title}（{s.itemCount}問）</option>)}
             </select>
           </label>
           {!setId ? (
@@ -212,8 +229,9 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
                 <select value={kind} onChange={(e) => setKind(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
                   <option value="grammar">文法</option>
                   <option value="qa">一問一答</option>
-                  <option value="other">その他</option>
+                  <option value="other">その他（解説つき問題など）</option>
                 </select>
+                <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="教科 例: 数学" className="h-10 w-24 rounded-lg border border-slate-300 px-2 text-sm font-bold" />
               </span>
             </label>
           ) : null}

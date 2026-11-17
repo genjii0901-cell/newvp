@@ -9,6 +9,7 @@ const MAX_TEXT = 3_000_000;
 const CHUNK = 500;
 const NO_TABLE = "問題の保存先がまだありません。docs/migrations/add-examples-and-question-sets.sql を Supabase の SQL Editor で1回実行してください。";
 const KINDS = ["grammar", "qa", "other"] as const;
+const subjectOf = (value: unknown) => (typeof value === "string" ? value.trim().slice(0, 40) : "");
 
 function isMissingTable(message: string) {
   return /question_sets|question_items|does not exist|schema cache/i.test(message);
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   if (unauthorized) return unauthorized;
   if (!isSupabaseServerConfigured()) return NextResponse.json({ ok: false, message: "Supabase が未設定です。" }, { status: 503 });
   const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.from("question_sets").select("id,title,kind,status,created_at").order("created_at", { ascending: false }).limit(200);
+  const { data, error } = await supabase.from("question_sets").select("id,title,kind,subject,status,created_at").order("created_at", { ascending: false }).limit(200);
   if (error) return NextResponse.json({ ok: false, message: isMissingTable(error.message) ? NO_TABLE : error.message }, { status: 500 });
   const sets = await Promise.all(
     (data ?? []).map(async (set: { id: string }) => {
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
   const unauthorized = await requireAdmin(request);
   if (unauthorized) return unauthorized;
   if (!isSupabaseServerConfigured()) return NextResponse.json({ ok: false, message: "Supabase が未設定です。" }, { status: 503 });
-  const body = (await request.json().catch(() => ({}))) as { text?: unknown; mode?: unknown; title?: unknown; kind?: unknown; setId?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { text?: unknown; mode?: unknown; title?: unknown; kind?: unknown; setId?: unknown; subject?: unknown };
   const text = typeof body.text === "string" ? body.text : "";
   if (!text.trim()) return NextResponse.json({ ok: false, message: "貼り付けた表が必要です。" }, { status: 400 });
   if (text.length > MAX_TEXT) return NextResponse.json({ ok: false, message: "表が大きすぎます。分けて取り込んでください。" }, { status: 413 });
@@ -60,7 +61,7 @@ export async function POST(request: Request) {
     const title = typeof body.title === "string" ? body.title.trim().slice(0, 120) : "";
     if (!title) return NextResponse.json({ ok: false, message: "新しい問題セットの名前が必要です。" }, { status: 400 });
     const kind = KINDS.find((k) => k === body.kind) ?? "grammar";
-    const { data, error } = await supabase.from("question_sets").insert({ title, kind, status: "draft" }).select("id").single();
+    const { data, error } = await supabase.from("question_sets").insert({ title, kind, subject: subjectOf(body.subject), status: "draft" }).select("id").single();
     if (error || !data) return NextResponse.json({ ok: false, message: isMissingTable(error?.message ?? "") ? NO_TABLE : error?.message ?? "作成に失敗しました。" }, { status: 500 });
     setId = String(data.id);
   }
