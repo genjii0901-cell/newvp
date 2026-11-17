@@ -2973,7 +2973,7 @@ export default function Home() {
             <div className="flex items-center justify-between gap-2">
               <div>
                 <h3 className="text-lg font-black">単語テスト印刷</h3>
-                {usageUsers >= 10 ? <p className="text-[11px] font-bold text-slate-400">直近30日で{usageUsers.toLocaleString()}人が利用</p> : null}
+                {usageUsers >= 100 ? <p className="text-[11px] font-bold text-slate-400">直近30日で{usageUsers.toLocaleString()}回利用されています</p> : null}
               </div>
               {plan === "teacher" || role === "admin" ? (
                 <button type="button" onClick={exportOwnBookCsv} title="選択中の自作単語帳をCSVで書き出します" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50">CSV出力</button>
