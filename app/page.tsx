@@ -509,6 +509,12 @@ export default function Home() {
   const [books, setBooks] = useState<WordBook[]>([]);
   const [expandedBookDescriptionId, setExpandedBookDescriptionId] = useState("");
   const [booksLoaded, setBooksLoaded] = useState(false);
+  const [booksLoadFailed, setBooksLoadFailed] = useState(false);
+  const [usageUsers, setUsageUsers] = useState(0);
+  useEffect(() => {
+    fetch("/api/stats/usage").then((res) => res.json()).then((data) => { if (typeof data?.users === "number") setUsageUsers(data.users); }).catch(() => {});
+  }, []);
+  const [booksReloadKey, setBooksReloadKey] = useState(0);
   const [bookId, setBookId] = useState("");
   const [bookSearch, setBookSearch] = useState("");
   const [bookPickerOpen, setBookPickerOpen] = useState(false);
@@ -836,8 +842,10 @@ export default function Home() {
       const response = await fetch("/api/wordbooks/official");
       const result = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(result.wordbooks) || result.wordbooks.length === 0) {
+        setBooksLoadFailed(true);
         return;
       }
+      setBooksLoadFailed(false);
 
       const officialBooks = result.wordbooks
         .filter((book: { id?: unknown; title?: unknown }) =>
@@ -898,11 +906,12 @@ export default function Home() {
     }
 
     loadOfficialWordbooks().catch(() => {
+      setBooksLoadFailed(true);
       setBooks(sharedInitialBooks);
       setBookId(sharedInitialBooks[0].id);
       setBooksLoaded(true);
     });
-  }, []);
+  }, [booksReloadKey]);
 
   useEffect(() => {
     async function loadMyWordbooks() {
@@ -1140,11 +1149,14 @@ export default function Home() {
     }));
     // 人気順（同じ人数なら元の並び）
     const byPopularity = [...items].sort((a, b) => b.users - a.users);
+    const ranking = byPopularity.filter((item) => item.users > 0).slice(0, 10);
+    const rankingIds = new Set(ranking.map((item) => item.id));
     return {
-      ranking: byPopularity.filter((item) => item.users > 0).slice(0, 10),
-      english: byPopularity.filter((item) => item.category === "english"),
-      japanese: byPopularity.filter((item) => item.category === "japanese"),
-      languages: byPopularity.filter((item) => item.category === "languages"),
+      ranking,
+      // 人気ランキングに載っている単語帳は、英語・国語の棚には重ねて出さない
+      english: byPopularity.filter((item) => item.category === "english" && !rankingIds.has(item.id)),
+      japanese: byPopularity.filter((item) => item.category === "japanese" && !rankingIds.has(item.id)),
+      languages: byPopularity.filter((item) => item.category === "languages" && !rankingIds.has(item.id)),
     };
   }, [books, popularity]);
   const searchableBooks = useMemo(() => {
@@ -2749,6 +2761,21 @@ export default function Home() {
           </div>
 
           {/* 漫画アプリのように、小さな表紙を横に流れる棚で並べる（人気順） */}
+          {booksLoadFailed && !booksLoaded ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm font-bold text-amber-800">
+              単語帳を読み込めませんでした。
+              <button type="button" onClick={() => { setBooksLoadFailed(false); setBooksReloadKey((value) => value + 1); }} className="ml-2 rounded-lg bg-white px-3 py-1.5 text-blue-700 shadow-sm">もう一度読み込む</button>
+            </div>
+          ) : !booksLoaded ? (
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-7" aria-label="読み込み中">
+              {Array.from({ length: 7 }, (_, i) => (
+                <div key={i} className="animate-pulse overflow-hidden rounded-xl border bg-white">
+                  <div className="aspect-[4/3] bg-slate-200" />
+                  <div className="space-y-1.5 p-2"><div className="h-3 rounded bg-slate-200" /><div className="h-3 w-1/2 rounded bg-slate-100" /></div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <WordbookShelf title="人気ランキング" books={shelves.ranking} ranked selectedId={bookId} />
           <WordbookShelf title="英語" books={shelves.english} rows={2} selectedId={bookId} moreHref="/wordbooks" />
           <WordbookShelf title="古文・国語" books={shelves.japanese} rows={2} selectedId={bookId} moreHref="/wordbooks" />
@@ -2944,7 +2971,10 @@ export default function Home() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[400px_1fr]">
           <section id="pdf-builder" className="rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-lg font-black">単語テスト印刷</h3>
+              <div>
+                <h3 className="text-lg font-black">単語テスト印刷</h3>
+                {usageUsers >= 10 ? <p className="text-[11px] font-bold text-slate-400">直近30日で{usageUsers.toLocaleString()}人が利用</p> : null}
+              </div>
               {plan === "teacher" || role === "admin" ? (
                 <button type="button" onClick={exportOwnBookCsv} title="選択中の自作単語帳をCSVで書き出します" className="flex min-h-9 items-center rounded-lg border bg-white px-3 text-xs font-black text-slate-700 hover:bg-slate-50">CSV出力</button>
               ) : (

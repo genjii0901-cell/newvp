@@ -380,13 +380,13 @@ export default function WordbooksClient({
     setUploadingCover(true);
     setMyMessage("");
     try {
-      if (!file.type.startsWith("image/")) throw new Error("画像ファイルを選んでください。");
+      if (file.type && !file.type.startsWith("image/")) throw new Error("画像ファイルを選んでください。");
       const objectUrl = URL.createObjectURL(file);
       const image = new Image();
       try {
         await new Promise<void>((resolve, reject) => {
           image.onload = () => resolve();
-          image.onerror = () => reject(new Error("画像を読み込めませんでした。"));
+          image.onerror = () => reject(new Error("この形式の画像は読み込めませんでした。JPEG・PNGの写真を選ぶか、スクリーンショットで保存した画像をお試しください。"));
           image.src = objectUrl;
         });
         const ratio = Math.min(1, 1000 / Math.max(image.width, image.height));
@@ -396,7 +396,12 @@ export default function WordbooksClient({
         const context = canvas.getContext("2d");
         if (!context) throw new Error("画像を加工できませんでした。");
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.78);
+        // 1MB以下に収まるまで画質を下げる（スマホの大きな写真でも登録できるように）
+        let dataUrl = "";
+        for (const quality of [0.82, 0.7, 0.58, 0.45]) {
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+          if (dataUrl.length < 1_300_000) break;
+        }
         const response = await fetch("/api/community/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -834,10 +839,10 @@ export default function WordbooksClient({
               <label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" checked={editorAnonymous} onChange={(event) => setEditorAnonymous(event.target.checked)} />作成者名を非公開にする</label>
               <div className="mt-4 flex flex-wrap items-center gap-3">
                 <img src={editorCoverImage || defaultCommunityCover(editorSubject)} alt="公開用の表紙プレビュー" className="h-20 w-28 rounded-lg border object-cover" />
-                <label className={`rounded-lg border bg-white px-3 py-2 text-sm font-bold ${selectedMyBookId ? "cursor-pointer text-blue-700" : "cursor-not-allowed text-slate-400"}`}>{uploadingCover ? "画像を登録中..." : "表紙画像を選ぶ"}
-                  <input type="file" accept="image/jpeg,image/png,image/webp" disabled={uploadingCover || !selectedMyBookId} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadCover(file); event.target.value = ""; }} className="sr-only" />
+                <label className="cursor-pointer rounded-lg border bg-white px-3 py-2 text-sm font-bold text-blue-700">{uploadingCover ? "画像を登録中..." : "📷 写真を選ぶ"}
+                  <input type="file" accept="image/*" disabled={uploadingCover} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadCover(file); event.target.value = ""; }} className="sr-only" />
                 </label>
-                <span className="text-xs text-slate-500">先に単語帳を保存してください。画像がなければ教科別の表紙を自動設定します。</span>
+                <span className="text-xs text-slate-500">写真は撮影・ライブラリのどちらからでも選べます（自動で小さく加工します）。画像がなければ教科別の表紙を自動設定します。</span>
               </div>
               <label className="mt-4 flex items-start gap-2 text-xs leading-5 text-slate-700"><input type="checkbox" checked={rightsConfirmed} onChange={(event) => setRightsConfirmed(event.target.checked)} className="mt-1" />自分で作った内容で、公開してよいことを確認しました。市販教材などのコピーは公開しません。</label>
               <div className="mt-4 flex flex-wrap gap-2">
