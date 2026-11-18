@@ -113,6 +113,56 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
   const [newTitle, setNewTitle] = useState("");
   const [kind, setKind] = useState("grammar");
   const [subject, setSubject] = useState("");
+  const [aiFrom, setAiFrom] = useState(1);
+  const [aiCount, setAiCount] = useState(50);
+  const [aiPerWord, setAiPerWord] = useState(2);
+  const [aiMessage, setAiMessage] = useState("");
+  const [qTopic, setQTopic] = useState("");
+
+  async function copyText(text: string, done: string) {
+    try { await navigator.clipboard.writeText(text); setAiMessage(done); }
+    catch { window.prompt("コピーできませんでした。下の文を手でコピーしてください。", text); }
+  }
+
+  async function copyExamplePrompt() {
+    if (!bookId) { setAiMessage("先に単語帳を選んでください。"); return; }
+    const d = (await call(`/api/admin/all-wordbooks?id=${encodeURIComponent(bookId)}&includeWords=1`)) as unknown as { wordbooks?: Array<{ words: Array<{ no: number; english: string; japanese: string }> }> };
+    const words = d.wordbooks?.[0]?.words ?? [];
+    const part = words.slice(aiFrom - 1, aiFrom - 1 + aiCount);
+    if (part.length === 0) { setAiMessage("その範囲に単語がありません。"); return; }
+    const list = part.map((w) => [w.no, w.english, w.japanese].join("\t")).join("\n");
+    const prompt = [
+      `次の英単語それぞれに、自然で短い英語の例文を${aiPerWord}個ずつ作り、日本語訳を付けてください。`,
+      "条件:",
+      "- 例文はオリジナル（市販の本や辞書からの引用は禁止）。その単語の意味・用法が分かる文にする。",
+      "- 難易度は単語帳の水準に合わせ、例文の中の他の単語は易しくする。",
+      "- 単語の形が変わってもよいが、元の単語が分かること。",
+      "- 出力は、タブ区切りの表だけ（説明文・コードブロック記号は不要）。1行目は見出し行: 番号<TAB>英語<TAB>例文<TAB>訳（<TAB>はタブ文字）",
+      `- 同じ単語の例文は、同じ番号の行を繰り返す（例文が${aiPerWord}個なら${aiPerWord}行）。`,
+      "",
+      "単語（番号 / 英語 / 日本語）:",
+      list,
+    ].join("\n");
+    await copyText(prompt, `${part.length}語分の依頼文をコピーしました。ChatGPT や Claude に貼り付け、返ってきた表を下の枠に貼ってください。`);
+  }
+
+  async function copyQuestionPrompt() {
+    const prompt = [
+      "次のテーマで、問題集の問題を作ってください。",
+      `テーマ: ${qTopic || "（ここにテーマを書く 例: 高校英文法 時制 / 数学I 2次関数）"}`,
+      "条件:",
+      "- すべてオリジナルの問題にする（市販の問題集・過去問の文章の引用は禁止）。",
+      "- 出力は、タブ区切りの表だけ（説明文・コードブロック記号は不要）。1行目は次の見出し行（<TAB>はタブ文字）:",
+      "種類<TAB>問題<TAB>答え<TAB>誤答1<TAB>誤答2<TAB>誤答3<TAB>選択肢方式<TAB>タグ<TAB>解説",
+      "- 種類は 4択／穴埋め／下線／一問一答 のどれか。",
+      "- 穴埋めの問題文には（　）か ___ を入れる。下線の問題文は <u>下線にする語</u> の形で書く。",
+      "- 4択は、誤答を3個書き、選択肢方式は「固定」にする。誤答は、まぎらわしいが明確に誤りのものにする。",
+      "- タグには、同じ文法項目・単元を表す短い言葉を書く。",
+      "- 解説は、なぜその答えになるのかを1〜2文で書く。",
+      "- 問題数: 20問",
+    ].join("\n");
+    await copyText(prompt, "依頼文をコピーしました。AIに貼り付け、返ってきた表を下の枠に貼ってください。");
+  }
   const [backupBusy, setBackupBusy] = useState(false);
 
   async function downloadBackup() {
@@ -200,6 +250,17 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
           <input type="checkbox" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
           保存するとき、取り込み済みの例文を先に消して入れ替える
         </label>
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs font-bold text-violet-900">
+          <p className="font-black">🤖 AIに例文を作ってもらう（APIなし・月額プランのチャットでOK）</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <label>番号 <input type="number" min={1} value={aiFrom} onChange={(e) => setAiFrom(Math.max(1, Number(e.target.value) || 1))} className="h-8 w-16 rounded border border-violet-300 px-1" /> から</label>
+            <label><input type="number" min={1} max={100} value={aiCount} onChange={(e) => setAiCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} className="h-8 w-14 rounded border border-violet-300 px-1" /> 語ぶん</label>
+            <label>1語に <input type="number" min={1} max={5} value={aiPerWord} onChange={(e) => setAiPerWord(Math.min(5, Math.max(1, Number(e.target.value) || 1)))} className="h-8 w-12 rounded border border-violet-300 px-1" /> 個</label>
+            <button type="button" onClick={copyExamplePrompt} className="rounded-lg bg-violet-700 px-3 py-2 font-black text-white">依頼文をコピー</button>
+          </div>
+          <p className="mt-2 font-bold text-violet-800">コピーした文をAIに貼る → 返ってきた表を下の枠に貼る → ①確認する → ②保存。一度に50語くらいずつが安定します。</p>
+          {aiMessage ? <p className="mt-1 font-black">{aiMessage}</p> : null}
+        </div>
       </Importer>
       {exResult ? <ResultBox result={exResult} /> : null}
 
@@ -213,6 +274,14 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         busy={qBusy}
         onRun={runQuestions}
       >
+        <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs font-bold text-violet-900">
+          <p className="font-black">🤖 AIに問題を作ってもらう（APIなし）</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <input value={qTopic} onChange={(e) => setQTopic(e.target.value)} placeholder="テーマ 例: 高校英文法 時制" className="h-8 min-w-0 flex-1 rounded border border-violet-300 px-2" />
+            <button type="button" onClick={copyQuestionPrompt} className="rounded-lg bg-violet-700 px-3 py-2 font-black text-white">依頼文をコピー</button>
+          </div>
+          <p className="mt-1 font-bold text-violet-800">AIが作った問題は、内容に誤りがないか確認してから保存してください。</p>
+        </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="block text-xs font-black text-slate-600">
             追加先の問題セット
