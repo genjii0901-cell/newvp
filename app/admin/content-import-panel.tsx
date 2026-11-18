@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import SavedContentEditor from "./saved-content-editor";
 
 type Headers = () => Promise<Record<string, string>>;
 type BookOption = { id: string; title: string };
@@ -15,6 +16,7 @@ type Result = {
   unmatched?: string[];
   unmatchedCount?: number;
   saved?: number;
+  setId?: string;
   sample?: Array<Record<string, unknown>>;
 };
 
@@ -61,6 +63,7 @@ function Importer({
   title: string; help: string; template: string; templateName: string; children?: React.ReactNode;
   onRun: (mode: "preview" | "save") => void; busy: boolean; text: string; setText: (v: string) => void;
 }) {
+  const [fileError, setFileError] = useState("");
   function download() {
     const blob = new Blob(["\uFEFF" + template.replace(/\t/g, ",").split("\n").map((l) => l).join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
@@ -77,11 +80,12 @@ function Importer({
       <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
         <label className="cursor-pointer rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50">
           📄 Excel / CSV ファイルを選ぶ
-          <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setText(await fileToText(f)); e.target.value = ""; }} />
+          <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; setFileError(""); try { setText(await fileToText(f)); } catch { setFileError("ファイルを読み取れませんでした。Excelの表をコピーして貼り付ける方法も使えます。"); } }} />
         </label>
         <button type="button" onClick={() => setText(template)} className="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50">見本を入れる</button>
         <button type="button" onClick={download} className="rounded-lg border border-slate-300 px-3 py-2 hover:bg-slate-50">見本のCSVを保存</button>
       </div>
+      {fileError ? <p role="alert" className="mt-2 text-xs font-bold text-red-700">{fileError}</p> : null}
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -96,9 +100,16 @@ function Importer({
   );
 }
 
-export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers }) {
+export default function ContentImportPanel({ getHeaders, initialBookId = "", onDirtyChange }: { getHeaders: Headers; initialBookId?: string; onDirtyChange?: (dirty: boolean) => void }) {
   const [books, setBooks] = useState<BookOption[]>([]);
-  const [bookId, setBookId] = useState("");
+  const [bookId, setBookId] = useState(initialBookId);
+  const [exRevision, setExRevision] = useState(0);
+  const [qRevision, setQRevision] = useState(0);
+  const [exDirty, setExDirty] = useState(false);
+  const [qDirty, setQDirty] = useState(false);
+  const [exEditorBusy, setExEditorBusy] = useState(false);
+  const [qEditorBusy, setQEditorBusy] = useState(false);
+  useEffect(() => { onDirtyChange?.(exDirty || qDirty || exEditorBusy || qEditorBusy); return () => onDirtyChange?.(false); }, [exDirty, qDirty, exEditorBusy, qEditorBusy, onDirtyChange]);
   const [replace, setReplace] = useState(false);
   const [exText, setExText] = useState("");
   const [exBusy, setExBusy] = useState(false);
@@ -180,9 +191,11 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
   }
 
   async function call(url: string, init?: RequestInit) {
-    const headers = await getHeaders();
-    const res = await fetch(url, { ...init, headers: { ...headers, ...(init?.body ? { "Content-Type": "application/json" } : {}) }, cache: "no-store" });
-    return (await res.json().catch(() => ({ ok: false, message: "応答を読み取れませんでした。" }))) as Result & { wordbooks?: Array<{ id: string | number; title: string }>; sets?: typeof sets; count?: number };
+    try {
+      const headers = await getHeaders();
+      const res = await fetch(url, { ...init, headers: { ...headers, ...(init?.body ? { "Content-Type": "application/json" } : {}) }, cache: "no-store" });
+      return (await res.json().catch(() => ({ ok: false, message: "応答を読み取れませんでした。" }))) as Result & { wordbooks?: Array<{ id: string | number; title: string }>; sets?: typeof sets; count?: number };
+    } catch { return { ok: false, message: "通信に失敗しました。入力を残したまま、もう一度試してください。" }; }
   }
 
   useEffect(() => {
@@ -197,17 +210,22 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
   }
 
   useEffect(() => {
-    setSavedCount(null);
+    let active = true;
     if (!bookId) return;
-    call(`/api/admin/examples?wordbookId=${encodeURIComponent(bookId)}`).then((d) => setSavedCount(d.ok ? d.count ?? 0 : null));
+    call(`/api/admin/examples?wordbookId=${encodeURIComponent(bookId)}`).then((d) => { if (active) setSavedCount(d.ok ? d.count ?? 0 : null); });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookId, exResult?.saved]);
+  }, [bookId, exRevision]);
 
   async function runExamples(mode: "preview" | "save") {
     if (!bookId) { setExResult({ ok: false, message: "先に単語帳を選んでください。" }); return; }
     if (mode === "save" && replace && !window.confirm("この単語帳の「取り込み済みの例文」を全部消して、貼り付けた内容に入れ替えます。よろしいですか？")) return;
     setExBusy(true);
-    try { setExResult(await call("/api/admin/examples", { method: "POST", body: JSON.stringify({ wordbookId: bookId, text: exText, mode, replace }) })); }
+    try {
+      const d = await call("/api/admin/examples", { method: "POST", body: JSON.stringify({ wordbookId: bookId, text: exText, mode, replace }) });
+      setExResult(d);
+      if (mode === "save" && d.ok) setExRevision((v) => v + 1);
+    }
     finally { setExBusy(false); }
   }
 
@@ -217,7 +235,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
     try {
       const d = await call("/api/admin/question-sets", { method: "POST", body: JSON.stringify({ text: qText, mode, setId, title: newTitle, kind, subject }) });
       setQResult(d);
-      if (mode === "save" && d.ok) { setNewTitle(""); await loadSets(); }
+      if (mode === "save" && d.ok) { setNewTitle(""); if (d.setId) setSetId(d.setId); setQRevision((v) => v + 1); await loadSets(); }
     } finally { setQBusy(false); }
   }
 
@@ -235,12 +253,12 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         templateName="例文取り込み_見本.csv"
         text={exText}
         setText={setExText}
-        busy={exBusy}
+        busy={exBusy || exEditorBusy || exDirty}
         onRun={runExamples}
       >
         <label className="block text-xs font-black text-slate-600">
           どの単語帳の例文か
-          <select value={bookId} onChange={(e) => setBookId(e.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
+          <select value={bookId} disabled={exBusy || exEditorBusy} onChange={(e) => { if (exDirty && !window.confirm("編集中の例文の変更を破棄して、単語帳を切り替えますか？")) return; setBookId(e.target.value); setSavedCount(null); setExResult(null); }} className="mt-1 block h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
             <option value="">選んでください</option>
             {books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
           </select>
@@ -263,6 +281,8 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         </div>
       </Importer>
       {exResult ? <ResultBox result={exResult} /> : null}
+      {exDirty ? <p className="text-xs font-bold text-amber-700">編集中の例文を保存するかキャンセルすると、表の取り込みを使えます。</p> : null}
+      {bookId ? <SavedContentEditor key={`example-${bookId}`} kind="example" parentId={bookId} getHeaders={getHeaders} revision={exRevision} onDirtyChange={setExDirty} onBusyChange={setExEditorBusy} onChanged={() => setExRevision((v) => v + 1)} /> : null}
 
       <Importer
         title="🧩 文法・一問一答・4択の問題を取り込む"
@@ -271,7 +291,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         templateName="問題取り込み_見本.csv"
         text={qText}
         setText={setQText}
-        busy={qBusy}
+        busy={qBusy || qEditorBusy || qDirty}
         onRun={runQuestions}
       >
         <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 text-xs font-bold text-violet-900">
@@ -285,7 +305,7 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="block text-xs font-black text-slate-600">
             追加先の問題セット
-            <select value={setId} onChange={(e) => setSetId(e.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
+            <select value={setId} disabled={qBusy || qEditorBusy} onChange={(e) => { if (qDirty && !window.confirm("編集中の問題の変更を破棄して、問題セットを切り替えますか？")) return; setSetId(e.target.value); setQResult(null); }} className="mt-1 block h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
               <option value="">（新しく作る）</option>
               {sets.map((s) => <option key={s.id} value={s.id}>{s.subject ? `[${s.subject}] ` : ""}{s.title}（{s.itemCount}問）</option>)}
             </select>
@@ -293,9 +313,9 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
           {!setId ? (
             <label className="block text-xs font-black text-slate-600">
               新しいセットの名前と種類
-              <span className="mt-1 flex gap-2">
-                <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="例: 英文法 基本50問" className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 px-2 text-sm font-bold" />
-                <select value={kind} onChange={(e) => setKind(e.target.value)} className="h-10 rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
+              <span className="mt-1 flex flex-wrap gap-2">
+                <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="例: 英文法 基本50問" className="h-10 min-w-0 flex-1 basis-full rounded-lg border border-slate-300 px-2 text-sm font-bold" />
+                <select value={kind} onChange={(e) => setKind(e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2 text-sm font-bold">
                   <option value="grammar">文法</option>
                   <option value="qa">一問一答</option>
                   <option value="other">その他（解説つき問題など）</option>
@@ -307,6 +327,8 @@ export default function ContentImportPanel({ getHeaders }: { getHeaders: Headers
         </div>
       </Importer>
       {qResult ? <ResultBox result={qResult} /> : null}
+      {qDirty ? <p className="text-xs font-bold text-amber-700">編集中の問題を保存するかキャンセルすると、表の取り込みを使えます。</p> : null}
+      {setId ? <SavedContentEditor key={`question-${setId}`} kind="question" parentId={setId} getHeaders={getHeaders} revision={qRevision} onDirtyChange={setQDirty} onBusyChange={setQEditorBusy} onChanged={() => { setQRevision((v) => v + 1); void loadSets(); }} /> : null}
     </div>
   );
 }

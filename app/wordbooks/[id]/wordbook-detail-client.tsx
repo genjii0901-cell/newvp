@@ -1140,6 +1140,7 @@ export default function WordbookDetailPage({
           <div className="min-w-0 p-2.5 sm:p-5">
             <p className="hidden text-xs font-black text-blue-700 sm:block">{planCopy(book.requiredPlan)}</p>
             <h1 className="line-clamp-3 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
+            {adminAccess ? <Link href={`/admin?tab=content&wordbookId=${encodeURIComponent(String(book.id))}`} className="mt-2 inline-block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">📝 例文を追加・編集（管理者）</Link> : null}
             <p className={`mt-1 text-[11px] leading-4 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
               {popularizeText(book.description) || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>

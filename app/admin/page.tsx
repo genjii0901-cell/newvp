@@ -783,6 +783,17 @@ export default function AdminPage() {
   const [twoFaOk, setTwoFaOk] = useState(false);
 
   const [tab, setTab] = useState<"dashboard" | "create" | "manage" | "pdf" | "materials" | "quiz" | "licenses" | "email" | "export" | "users" | "content">("dashboard");
+  const [contentBookId, setContentBookId] = useState("");
+  const [contentDirty, setContentDirty] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "content") {
+      // URLから受け取った編集対象を初回表示へ同期する。
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setContentBookId(params.get("wordbookId") ?? "");
+      setTab("content");
+    }
+  }, []);
 
   /* create */
   const [title, setTitle] = useState("Official Sample Wordbook");
@@ -2069,7 +2080,7 @@ export default function AdminPage() {
           ] as const).map(([t, label]) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => { if (tab === "content" && t !== "content" && contentDirty && !window.confirm("保存していない変更、または保存中の処理があります。取り込み画面を離れますか？")) return; setTab(t); }}
               className={`rounded-xl px-5 py-2 text-sm font-bold transition-colors ${tab === t ? "bg-white shadow text-blue-600" : "text-slate-500 hover:text-slate-700"}`}
             >
               {label}
@@ -2864,6 +2875,7 @@ export default function AdminPage() {
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button onClick={() => startEdit(book, "meta")} className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">✏️ 基本情報編集</button>
                             <button onClick={() => startEdit(book, "words")} className="rounded-xl border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">📋 単語を更新</button>
+                            <button onClick={() => { setContentBookId(String(book.id)); setTab("content"); }} className="rounded-xl border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-50">📝 例文を追加・編集</button>
                             <button onClick={() => { setPdfBookId(book.id); setTab("pdf"); }} className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700">📄 単語テスト印刷</button>
                             <button onClick={() => deleteBook(book.id, book.title)} className="rounded-xl border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50">🗑️ 削除</button>
                           </div>
@@ -3310,7 +3322,7 @@ export default function AdminPage() {
         {tab === "licenses" && <LicenseAdminPanel books={books} />}
         {tab === "email" && <MarketingEmailPanel />}
         {tab === "users" && <UserLookupPanel getHeaders={getAdminHeaders} />}
-        {tab === "content" && <ContentImportPanel getHeaders={getAdminHeaders} />}
+        {tab === "content" && <ContentImportPanel key={contentBookId} getHeaders={getAdminHeaders} initialBookId={contentBookId} onDirtyChange={setContentDirty} />}
         {tab === "export" && <DataExportPanel books={books} getHeaders={getAdminHeaders} />}
       </div>
       {showLayoutEditor && selectedPdfBook && pdfOutputWords.length > 0 && (() => {
