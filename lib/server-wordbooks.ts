@@ -47,7 +47,7 @@ export type LiveWordbook = {
 };
 
 function publicCoverImage(id: string, coverImage: string | null | undefined, deferDataCoverImages: boolean) {
-  if (deferDataCoverImages) {
+  if (deferDataCoverImages && coverImage && /^data:image\//i.test(coverImage)) {
     return `/api/wordbooks/cover?id=${encodeURIComponent(id)}`;
   }
   if (!coverImage) return null;
