@@ -22,7 +22,7 @@ export const loadCachedPublicCatalog = unstable_cache(
         deferDataCoverImages: true,
       })
     ),
-  ["official-wordbooks-catalog-v1"],
+  ["official-wordbooks-catalog-v2"],
   { revalidate: OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
@@ -35,7 +35,7 @@ export const loadCachedPublicWordbookSummary = unstable_cache(
         deferDataCoverImages: true,
       })
     ),
-  ["official-wordbook-summary-v1"],
+  ["official-wordbook-summary-v2"],
   { revalidate: OFFICIAL_WORDBOOKS_REVALIDATE_SECONDS, tags: [OFFICIAL_WORDBOOKS_CACHE_TAG] }
 );
 
