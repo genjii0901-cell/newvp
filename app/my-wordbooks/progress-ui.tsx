@@ -1,6 +1,6 @@
 "use client";
 
-import type { BookSummary } from "@/lib/srs";
+import { forecast, retention, summarize, wordKey, type BookProgress, type BookSummary } from "@/lib/srs";
 
 export function MemoryRing({ percent, size = 96, label = "記憶度" }: { percent: number; size?: number; label?: string }) {
   const radius = 42;
@@ -90,5 +90,63 @@ export function ForecastChart({ points }: { points: Array<{ day: number; percent
         このまま復習しないと…今日 {at(0)}% → 7日後 {at(7)}% → 30日後 {at(30)}%
       </p>
     </div>
+  );
+}
+
+type ReviewWord = { no: number; english: string; japanese: string };
+
+export function MemoryReviewPanel({
+  words, progress, isPaid, onReview, onLocked,
+}: {
+  words: ReviewWord[];
+  progress: BookProgress;
+  isPaid: boolean;
+  onReview: () => void;
+  onLocked: (message: string) => void;
+}) {
+  const now = Date.now();
+  const summary = summarize(words, progress, now);
+  const learned = words
+    .filter((word) => progress[wordKey(word)])
+    .map((word) => ({ ...word, percent: Math.round(retention(progress[wordKey(word)], now) * 100) }))
+    .sort((a, b) => a.percent - b.percent);
+
+  return (
+    <section className="mt-3 space-y-3">
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-black text-slate-950">今日の復習 <span className="ml-1 text-sm text-slate-500">{summary.dueCount}語</span></h2>
+          {summary.dueCount > 0 && (
+            <button type="button" onClick={isPaid ? onReview : () => onLocked("今日の復習はPersonalで使えます。")} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
+              {isPaid ? "復習する" : "🔒 復習する"}
+            </button>
+          )}
+        </div>
+        <div className="mt-3"><StatusBar summary={summary} /></div>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="rounded-2xl border bg-white p-4">
+          <h3 className="text-sm font-black text-slate-950">忘却曲線の予測</h3>
+          {isPaid ? (
+            learned.length > 0 ? <ForecastChart points={forecast(words, progress, 30, now)} /> : <p className="mt-2 text-sm text-slate-500">学習記録はまだありません</p>
+          ) : (
+            <button type="button" onClick={() => onLocked("忘却曲線の予測はPersonalで使えます。")} className="mt-2 text-sm font-bold text-blue-700">🔒 Personalで見る</button>
+          )}
+        </section>
+        <section className="rounded-2xl border bg-white p-4">
+          <h3 className="text-sm font-black text-slate-950">苦手な単語</h3>
+          {learned.length > 0 ? (
+            <ul className="mt-2 max-h-64 divide-y overflow-auto">
+              {learned.slice(0, 50).map((word) => (
+                <li key={wordKey(word)} className="flex items-center gap-3 py-2 text-sm">
+                  <span className="min-w-0 flex-1 break-words text-slate-800">{word.english} <span className="text-xs text-slate-500">{word.japanese}</span></span>
+                  <span className="shrink-0 font-bold text-blue-700">{word.percent}%</span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-2 text-sm text-slate-500">学習記録はまだありません</p>}
+        </section>
+      </div>
+    </section>
   );
 }

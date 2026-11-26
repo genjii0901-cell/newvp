@@ -11,13 +11,16 @@ import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import { popularizeText } from "@/lib/display-text";
 import QuizPanel from "./quiz-panel";
+import { MemoryReviewPanel } from "../../my-wordbooks/progress-ui";
+import { WordbookCover, WordbookMemoryBadge } from "@/components/wordbook-cover";
+import { applyAnswer, dueWords, loadProgress, saveProgress, summarize, wordKey, type BookProgress } from "@/lib/srs";
 import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
 import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
 import { personalOfferText } from "@/lib/personal-pricing";
 
 type Plan = "free" | "personal" | "teacher";
-type DetailTab = "overview" | "test" | "quiz" | "listen";
+type DetailTab = "overview" | "test" | "quiz" | "listen" | "memory";
 type TestType = "list" | "test" | "answer";
 type TestDirection = "en-ja" | "ja-en" | "spelling";
 type PrintStyle = "standard" | "blank-english" | "blank-japanese" | "red-english" | "red-japanese";
@@ -430,6 +433,31 @@ export default function WordbookDetailPage({
   const [savingToMyBook, setSavingToMyBook] = useState(false);
   const [upgradePrompt, setUpgradePrompt] = useState<string | null>(null);
   const [shareMessage, setShareMessage] = useState("");
+  const [reviewStart, setReviewStart] = useState<number | null>(null);
+  const [storedProgress, setStoredProgress] = useState<{ key: string; records: BookProgress } | null>(null);
+  const progressBookId = book ? String(book.id) : "";
+  const progressKey = authUserId && progressBookId ? `${authUserId}:${progressBookId}` : "";
+  const progress = progressKey && storedProgress?.key === progressKey ? storedProgress.records : {};
+  useEffect(() => {
+    if (!authUserId || !progressBookId) return;
+    const refresh = () => setStoredProgress({ key: progressKey, records: loadProgress(authUserId, progressBookId) });
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [authUserId, progressBookId, progressKey]);
+
+  function recordAnswer(word: { no: number; english: string }, correct: boolean) {
+    if (!authUserId || !progressBookId) return;
+    const records = loadProgress(authUserId, progressBookId);
+    const key = wordKey(word);
+    const next = { ...records, [key]: applyAnswer(records[key], correct) };
+    saveProgress(authUserId, progressBookId, next);
+    setStoredProgress({ key: progressKey, records: next });
+  }
   const markStorageKey = book && authUserId ? `vpp-word-marks:${authUserId}:${book.id}` : "";
 
   // 聞き流し・単語チェックは無料会員登録が必須。詳細設定はPersonal限定。
@@ -463,7 +491,7 @@ export default function WordbookDetailPage({
   useEffect(() => {
     primeSpeechVoices();
     const tab = new URLSearchParams(window.location.search).get("tab");
-    if (tab === "test" || tab === "quiz" || tab === "listen") setActiveTab(tab);
+    if (tab === "test" || tab === "quiz" || tab === "listen" || tab === "memory") setActiveTab(tab);
     if (tab === "words") setActiveTab("overview");
   }, []);
 
@@ -1114,6 +1142,7 @@ export default function WordbookDetailPage({
     { key: "test", label: "単語テスト印刷", hint: "印刷・PDF" },
     { key: "quiz", label: "単語チェック", hint: "4択・カード" },
     { key: "listen", label: "聞き流し", hint: "音声学習" },
+    { key: "memory", label: "記憶度・復習", hint: "" },
   ];
 
   return (
@@ -1123,15 +1152,9 @@ export default function WordbookDetailPage({
       </Link>
 
       <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
-        <div className="grid grid-cols-[120px_1fr] gap-0 sm:grid-cols-[180px_1fr] md:grid-cols-[240px_1fr]">
-          <div className="relative self-start bg-slate-100">
-            {book.coverImage ? (
-              <img src={book.coverImage} alt={book.title} className="block h-auto w-full" />
-            ) : (
-              <div className="flex aspect-[3/4] items-center justify-center bg-gradient-to-br from-blue-100 to-slate-100 text-4xl font-black text-blue-600">
-                VP
-              </div>
-            )}
+        <div className="grid grid-cols-[100px_1fr] gap-0 sm:grid-cols-[144px_1fr]">
+          <div className="relative m-2.5 self-start sm:m-4">
+            <WordbookCover title={book.title} image={book.coverImage} />
             <div className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-xs">
               {planLabel(book.requiredPlan)}
             </div>
@@ -1151,6 +1174,7 @@ export default function WordbookDetailPage({
             ) : null}
             <div className="mt-1.5 flex flex-wrap gap-1 text-[10px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
+              {isLoggedIn && <WordbookMemoryBadge percent={summarize(book.words, progress).memoryPercent} />}
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>
             </div>
@@ -1184,14 +1208,15 @@ export default function WordbookDetailPage({
       </section>
 
       <section className="sticky top-0 z-10 mt-3 border-y bg-slate-50/95 py-1.5 backdrop-blur sm:static sm:mt-4 sm:border-0 sm:bg-transparent sm:py-0">
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-5 gap-1 sm:gap-2">
           {tabs.map((tab) => {
-            const tabLocked = !isLoggedIn && (tab.key === "quiz" || tab.key === "listen");
+            const tabLocked = !isLoggedIn && (tab.key === "quiz" || tab.key === "listen" || tab.key === "memory");
             return (
             <button
               key={tab.key}
               type="button"
               onClick={() => {
+                setReviewStart(null);
                 setActiveTab(tab.key);
               }}
               className={`min-w-0 rounded-xl border px-1.5 py-2 text-center transition sm:rounded-2xl sm:px-3 sm:text-left ${
@@ -1212,7 +1237,7 @@ export default function WordbookDetailPage({
         </div>
       </section>
 
-      <section className="mt-3 rounded-2xl border bg-white p-3 shadow-sm sm:mt-4 sm:rounded-3xl sm:p-5">
+      <section hidden={activeTab === "memory" || (activeTab === "quiz" && reviewStart !== null)} className="mt-3 rounded-2xl border bg-white p-3 shadow-sm sm:mt-4 sm:rounded-3xl sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-black sm:text-lg">使う範囲を選ぶ</h2>
@@ -1963,11 +1988,29 @@ export default function WordbookDetailPage({
         </section>
       )}
 
+      {activeTab === "memory" && (isLoggedIn ? (
+        <MemoryReviewPanel
+          words={book.words}
+          progress={progress}
+          isPaid={isPaid}
+          onLocked={showUpgrade}
+          onReview={() => { setReviewStart(Date.now()); setActiveTab("quiz"); }}
+        />
+      ) : (
+        <section className="mt-3 rounded-2xl border bg-white p-4">
+          <button type="button" onClick={() => guideToRegister("記憶度を見るには無料会員登録が必要です。")} className="text-sm font-bold text-blue-700">ログインして記憶度を見る</button>
+        </section>
+      ))}
+
       {activeTab === "quiz" && isLoggedIn && (
         <section className="mt-3 mx-auto max-w-2xl">
           <QuizPanel
+            key={reviewStart ?? "normal"}
             bookTitle={book.title}
-            words={visibleWords.map((word) => ({
+            onAnswer={recordAnswer}
+            dueKeys={new Set(dueWords(book.words, progress).map(wordKey))}
+            initialScope={reviewStart === null ? undefined : "due"}
+            words={(reviewStart === null ? visibleWords : book.words).map((word) => ({
               no: word.no,
               english: word.english,
               japanese: word.japanese,

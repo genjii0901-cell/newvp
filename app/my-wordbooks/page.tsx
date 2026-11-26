@@ -8,19 +8,16 @@ import { downloadWordbookCsv, OWN_WORDBOOK_ONLY_MESSAGE } from "@/lib/teacher-cs
 import {
   applyAnswer,
   dueWords,
-  forecast,
   loadProgress,
-  nextDueInDays,
-  retention,
   saveProgress,
-  statusOf,
   summarize,
   wordKey,
   type BookProgress,
 } from "@/lib/srs";
 import QuizPanel from "../wordbooks/[id]/quiz-panel";
 import ListenPanel from "../wordbooks/[id]/listen-panel";
-import { ForecastChart, MemoryRing, StatusBar } from "./progress-ui";
+import { MemoryReviewPanel } from "./progress-ui";
+import { WordbookCover, WordbookMemoryBadge } from "@/components/wordbook-cover";
 
 type MyWord = { no: number; english: string; japanese: string; unit: string | null };
 type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null };
@@ -30,8 +27,8 @@ type Tab = "study" | "listen" | "memory";
 
 
 // 画像がない単語帳は、タイトルから色を決めた表紙を自分で描く（外部サービスに頼らない）。
-function coverFor(book: { title: string; coverImage: string | null }, covers?: Record<string, string>) {
-  const image = book.coverImage || covers?.[book.title];
+function coverFor(book: { title: string; coverImage: string | null }) {
+  const image = book.coverImage;
   if (image) return image;
   const label = book.title.slice(0, 14).replace(/&/g, "&amp;").replace(/</g, "&lt;");
   let hue = 0;
@@ -162,11 +159,12 @@ export default function MyWordbooksHub() {
       })
       .catch(() => undefined);
   }, []);
-  const covers = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const item of catalog) if (item.coverImage) map[item.title] = item.coverImage;
-    return map;
-  }, [catalog]);
+  function displayCover(book: MyBook) {
+    const original = book.sourceId
+      ? catalog.find((item) => item.id === book.sourceId)
+      : book.copied ? catalog.find((item) => item.title === book.title) : undefined;
+    return original?.coverImage || book.coverImage;
+  }
 
   // 初めて使う人には、機能が伝わるよう単語帳を1冊だけ自動で入れる（1人1回だけ。消しても入れ直さない）。
   useEffect(() => {
@@ -198,9 +196,18 @@ export default function MyWordbooksHub() {
   // 学習記録の読み込み（端末に保存）
   useEffect(() => {
     if (!userId || books.length === 0) return;
-    const next: Record<string, BookProgress> = {};
-    for (const book of books) next[book.id] = loadProgress(userId, syncId(book));
-    setProgressByBook(next);
+    const refresh = () => {
+      const next: Record<string, BookProgress> = {};
+      for (const book of books) next[book.id] = loadProgress(userId, syncId(book));
+      setProgressByBook(next);
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", refresh);
+    };
   }, [userId, books, syncId]);
 
   // 同じ単語帳（同じタイトル）は1冊だけ。学習記録がある本、なければ語数の多い本を残す。
@@ -258,8 +265,6 @@ export default function MyWordbooksHub() {
   const summary = useMemo(() => (book ? summarize(book.words, progress, now) : null), [book, progress, now]);
   const due = useMemo(() => (book ? dueWords(book.words, progress, now) : []), [book, progress, now]);
   const dueKeys = useMemo(() => new Set(due.map(wordKey)), [due]);
-  const points = useMemo(() => (book ? forecast(book.words, progress, 30, now) : []), [book, progress, now]);
-  const nextDue = book ? nextDueInDays(book.words, progress, now) : null;
 
   // ★の保存（聞き流し・単語チェックと共通のキー）
   const markKey = userId && book ? `vpp-word-marks:${userId}:${syncId(book)}` : "";
@@ -290,13 +295,12 @@ export default function MyWordbooksHub() {
   function recordAnswer(word: { no: number; english: string }, correct: boolean) {
     if (!userId || !book) return;
     const bookId = book.id;
-    setProgressByBook((all) => {
-      const current = all[bookId] ?? {};
-      const key = wordKey(word);
-      const nextBook = { ...current, [key]: applyAnswer(current[key], correct) };
-      saveProgress(userId, syncId(book), nextBook);
-      return { ...all, [bookId]: nextBook };
-    });
+    const sourceId = syncId(book);
+    const current = loadProgress(userId, sourceId);
+    const key = wordKey(word);
+    const next = { ...current, [key]: applyAnswer(current[key], correct) };
+    saveProgress(userId, sourceId, next);
+    setProgressByBook((all) => ({ ...all, [bookId]: next }));
   }
 
   function startDue() {
@@ -392,12 +396,12 @@ export default function MyWordbooksHub() {
                   }}
                   className={`min-w-0 overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${active ? "border-blue-500 ring-2 ring-blue-100" : "hover:-translate-y-0.5 hover:shadow-md"}`}
                 >
-                  <img src={coverFor(item, covers)} alt="" className="aspect-[4/3] w-full object-cover" />
+                  <div className="mx-auto w-16 p-1 sm:w-20"><WordbookCover title={item.title} image={displayCover(item)} lazy /></div>
                   <div className="p-1.5 sm:p-2">
                     <p className="line-clamp-2 min-h-[2rem] text-[11px] font-black leading-snug text-slate-900 sm:text-xs">{item.title}</p>
                     <div className="mt-1 flex items-center justify-between text-[10px] font-black">
                       <span className="text-slate-400">{item.wordCount}語</span>
-                      <span className="text-blue-700">{s.memoryPercent}%</span>
+                      <span className="text-blue-700">記憶度 {s.memoryPercent}%</span>
                     </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
                       <div className="h-full rounded-full bg-blue-500" style={{ width: `${s.memoryPercent}%` }} />
@@ -416,37 +420,18 @@ export default function MyWordbooksHub() {
 
       {viewing && book && summary ? (
         <>
-          {/* 今日の状況 */}
-          <section className="mt-3 rounded-3xl border bg-white p-4 shadow-sm sm:p-6">
-            <div className="flex items-center gap-4">
-              <MemoryRing percent={summary.memoryPercent} />
-              <div className="min-w-0 flex-1">
-                <h2 className="line-clamp-2 text-lg font-black leading-snug text-slate-950">{book.title}</h2>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  {summary.total}語 ・ {summary.newCount === summary.total ? "まだ学習していません" : `定着 ${summary.masteredCount}語`}
-                </p>
-                <p className="mt-1 text-xs font-bold text-slate-500">
-                  {summary.dueCount > 0
-                    ? `今日の復習: ${summary.dueCount}語`
-                    : nextDue === null
-                      ? "単語チェックを解くと、記憶度が記録されます"
-                      : `次の復習まで約${nextDue < 1 ? "数時間" : `${Math.ceil(nextDue)}日`}`}
-                </p>
+          <section className="mt-3 flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm sm:gap-5 sm:p-5">
+            <div className="w-20 shrink-0 sm:w-28"><WordbookCover title={book.title} image={displayCover(book)} /></div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-lg font-black text-slate-950 sm:text-2xl">{book.title}</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
+                <span>{summary.total}語</span>
+                <WordbookMemoryBadge percent={summary.memoryPercent} />
               </div>
+              <button type="button" onClick={() => void deleteBook(book)} className="mt-3 text-xs font-bold text-slate-500 hover:text-red-700">単語帳を削除</button>
             </div>
-            <div className="mt-4">
-              <StatusBar summary={summary} />
-            </div>
-            <div className="mt-3 flex justify-end">
-              <button type="button" onClick={() => void deleteBook(book)} className="min-h-9 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-black text-red-700 hover:bg-red-100">この単語帳を削除</button>
-            </div>
-            <div className="mt-4">
-              <button type="button" onClick={startDue} className={`min-h-14 w-full rounded-2xl px-4 text-base font-black shadow-lg ${summary.dueCount > 0 ? "bg-amber-500 text-white shadow-amber-500/30 hover:bg-amber-600" : "bg-blue-600 text-white shadow-blue-600/20 hover:bg-blue-700"}`}>
-                {isPaid ? "" : "🔒 "}今日の復習を始める（{summary.dueCount}語）
-              </button>
-            </div>
-            {notice ? <p role="status" className="mt-3 rounded-xl bg-slate-50 p-3 text-sm font-bold text-slate-600">{notice}</p> : null}
           </section>
+          {notice ? <p role="status" className="mt-3 text-sm text-slate-600">{notice}</p> : null}
 
           {/* タブ */}
           <div className="mt-3 grid grid-cols-3 gap-1.5" role="tablist">
@@ -489,55 +474,9 @@ export default function MyWordbooksHub() {
             <ListenPanel key={book.id} words={book.words} isPaid={isPaid} markedKeys={marked} onToggleMark={toggleMark} onLocked={setUpgrade} />
           ) : null}
 
-          {tab === "memory" ? (
-            <section className="mt-3 grid gap-3 lg:grid-cols-2">
-              <div className="rounded-3xl border bg-white p-4 shadow-sm sm:p-5">
-                <h3 className="text-base font-black text-slate-950">忘却曲線の予測</h3>
-                <p className="mt-1 text-xs font-bold text-slate-500">学習した単語が、復習しないとどれだけ忘れていくかの目安です。</p>
-                <div className="relative mt-3">
-                  <div className={isPaid ? "" : "pointer-events-none select-none opacity-40 blur-[2px]"}>
-                    <ForecastChart points={points} />
-                  </div>
-                  {!isPaid ? (
-                    <button type="button" onClick={() => setUpgrade("忘却曲線の予測グラフと復習スケジュールはPersonalプランで使えます。")} className="absolute inset-0 m-auto h-fit w-fit rounded-2xl bg-white px-4 py-3 text-sm font-black text-amber-800 shadow-lg ring-1 ring-amber-200">
-                      🔒 Personalで予測を見る
-                    </button>
-                  ) : null}
-                </div>
-                <ul className="mt-3 space-y-1 text-xs font-bold text-slate-500">
-                  <li>・正解すると復習間隔が 1→2→4→7→15→30→60日 と伸びます</li>
-                  <li>・間違えると10分後にもう一度。記憶度が下がった単語から出題します</li>
-                </ul>
-              </div>
-
-              <div className="rounded-3xl border bg-white p-4 shadow-sm sm:p-5">
-                <h3 className="text-base font-black text-slate-950">苦手な単語</h3>
-                <p className="mt-1 text-xs font-bold text-slate-500">記憶度が低い順に表示しています（学習した単語のみ）。</p>
-                <ul className="mt-3 max-h-80 divide-y overflow-auto rounded-2xl border">
-                  {book.words
-                    .filter((word) => progress[wordKey(word)])
-                    .sort((a, b) => retention(progress[wordKey(a)], now) - retention(progress[wordKey(b)], now))
-                    .slice(0, 50)
-                    .map((word) => {
-                      const record = progress[wordKey(word)];
-                      const percent = Math.round(retention(record, now) * 100);
-                      const status = statusOf(record, now);
-                      return (
-                        <li key={wordKey(word)} className="flex items-center gap-3 px-3 py-2.5">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-black text-slate-900">{word.english}</p>
-                            <p className="truncate text-xs font-bold text-slate-500">{word.japanese}</p>
-                          </div>
-                          <span className={`flex-none rounded-full px-2 py-0.5 text-[11px] font-black ${status === "mastered" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>{percent}%</span>
-                        </li>
-                      );
-                    })}
-                  {Object.keys(progress).length === 0 ? <li className="p-6 text-center text-sm font-bold text-slate-400">まだ学習記録がありません。単語チェックを解いてみましょう。</li> : null}
-                </ul>
-                <p className="mt-2 text-[11px] font-bold text-slate-400">学習記録はこの端末に保存されます。</p>
-              </div>
-            </section>
-          ) : null}
+          {tab === "memory" && (
+            <MemoryReviewPanel words={book.words} progress={progress} isPaid={isPaid} onReview={startDue} onLocked={setUpgrade} />
+          )}
         </>
       ) : null}
 

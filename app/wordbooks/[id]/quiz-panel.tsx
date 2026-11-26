@@ -124,18 +124,22 @@ export default function QuizPanel({
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) setSaved({ ...DEFAULTS, ...(JSON.parse(raw) as Partial<QuizSettings>) });
+      if (raw) {
+        const prior = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<QuizSettings>) };
+        setSaved({ ...prior, scope: prior.scope === "due" ? "all" : prior.scope });
+      }
     } catch {
       // 既定値のまま
     }
   }, []);
   useEffect(() => {
+    if (initialScope === "due") return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(saved));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, scope: saved.scope === "due" ? "all" : saved.scope }));
     } catch {
       // 無視
     }
-  }, [saved]);
+  }, [initialScope, saved]);
 
   useEffect(() => {
     if (initialScope === "due") setSaved((current) => ({ ...current, scope: "due", count: "all", customCount: 0 }));
@@ -147,8 +151,9 @@ export default function QuizPanel({
   const canUseCloze = clozeWords.length >= 4 && isClozePilotBook(bookTitle);
   const scopeWords = settings.scope === "due" && dueKeys ? dueList : settings.scope === "marked" ? markedWords : words;
 
-  const distinctEnJa = useMemo(() => uniqueChoices(scopeWords.map((word) => compactMeaning(word.japanese))).length, [scopeWords]);
-  const distinctJaEn = useMemo(() => uniqueChoices(scopeWords.map((word) => word.english)).length, [scopeWords]);
+  const choicePool = settings.scope === "due" ? words : scopeWords;
+  const distinctEnJa = useMemo(() => uniqueChoices(choicePool.map((word) => compactMeaning(word.japanese))).length, [choicePool]);
+  const distinctJaEn = useMemo(() => uniqueChoices(choicePool.map((word) => word.english)).length, [choicePool]);
   const distinctMin = settings.direction === "en-ja" ? distinctEnJa : settings.direction === "ja-en" ? distinctJaEn : Math.min(distinctEnJa, distinctJaEn);
   const canUseChoice = distinctMin >= settings.choiceCount;
 
@@ -204,7 +209,7 @@ export default function QuizPanel({
     const picked = ordered.slice(0, limit);
     setRunSettings(settings);
     setRunMode(nextMode);
-    setQuestionPool(nextMode === "cloze" ? clozeWords : scopeWords);
+    setQuestionPool(nextMode === "cloze" ? clozeWords : choicePool);
     setOrder(picked);
     setDirs(picked.map(() => (settings.direction === "mixed" ? (Math.random() < 0.5 ? "en-ja" : "ja-en") : settings.direction)));
     setIndex(0);

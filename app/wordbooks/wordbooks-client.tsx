@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { defaultCommunityCover, type CommunitySubject } from "@/lib/community-wordbook-types";
 import { POPULARITY_DISPLAY_MIN } from "@/lib/wordbook-popularity";
+import { WordbookCover } from "@/components/wordbook-cover";
+import { loadProgress, retention, summarize } from "@/lib/srs";
 
 type Plan = "free" | "personal" | "teacher";
 type Word = { no: number; english: string; japanese: string; unit: string | null };
@@ -81,6 +83,7 @@ export default function WordbooksClient({
   const [officialSearch, setOfficialSearch] = useState("");
   const [expandedDescriptionId, setExpandedDescriptionId] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
+  const [viewerId, setViewerId] = useState("");
   const [selectedMyBookId, setSelectedMyBookId] = useState("");
   const [editorTitle, setEditorTitle] = useState("マイ単語帳");
   const [editorDescription, setEditorDescription] = useState("");
@@ -147,11 +150,13 @@ export default function WordbooksClient({
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
       setLoggedIn(false);
+      setViewerId("");
       setMyBooks([]);
       setLoadingMine(false);
       return;
     }
     setLoggedIn(true);
+    setViewerId(userData.user.id);
 
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
@@ -275,17 +280,26 @@ export default function WordbooksClient({
     const wordCount = typeof book.wordCount === "number" ? book.wordCount : words.length;
     const detailPath = book.community ? `/shared/${encodeURIComponent(book.id)}` : buildWordbookPath(book.id, book.title);
     const users = popularity[String(book.id)] ?? 0;
+    const progress = viewerId ? loadProgress(viewerId, String(book.id)) : {};
+    const memory = viewerId && wordCount > 0
+      ? words.length === wordCount
+        ? summarize(words, progress).memoryPercent
+        : Math.min(100, Math.round(Object.values(progress).reduce((sum, record) => sum + retention(record), 0) / wordCount * 100))
+      : null;
     return (
       <Link key={book.id} href={detailPath} prefetch={false} className="block min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] hover:border-blue-300">
-        <div className="relative aspect-[4/3] w-full">
-          <img src={book.coverImage || defaultCommunityCover(book.subject ?? "その他")} alt="" loading="lazy" className="h-full w-full object-cover" />
+        <div className="relative">
+          <div className="mx-auto w-16 p-1 sm:w-20"><WordbookCover title={book.title} image={book.coverImage} lazy /></div>
           <span className="absolute bottom-1 left-1 rounded-full bg-slate-900/75 px-1.5 py-0.5 text-[9px] font-black text-white">
             {users >= POPULARITY_DISPLAY_MIN ? `👤約${users.toLocaleString()}人` : "新着"}
           </span>
         </div>
         <div className="p-1.5 sm:p-2">
           <h3 className="line-clamp-2 min-h-[2.1rem] text-[11px] font-black leading-snug text-slate-900 sm:text-xs">{book.title}</h3>
-          <p className="mt-0.5 text-[10px] text-slate-400">{wordCount}語 · {book.community ? "共有" : planLabel(book.requiredPlan)}</p>
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-1 text-[10px] font-bold">
+            <span className="text-slate-500">{wordCount}語 · {book.community ? "共有" : planLabel(book.requiredPlan)}</span>
+            {memory !== null && <span className="text-blue-700">記憶度 {memory}%</span>}
+          </div>
         </div>
       </Link>
     );
