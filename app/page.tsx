@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PrintPageCount from "@/components/print-page-count";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { Eye, EyeOff } from "lucide-react";
@@ -3051,15 +3052,12 @@ export default function Home() {
               </button>
             ) : null}
 
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
               <NumberInput label="開始" value={startNo} onChange={setStartNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="終了" value={endNo} onChange={setEndNo} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
               <NumberInput label="問題数" value={count} onChange={setCount} locked={numbersLocked} onLockedClick={() => guideToRegister("開始・終了・問題数を自由に変えるには無料会員登録が必要です。")} />
-              <div className="col-span-3 flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-1.5 sm:col-span-1 sm:block sm:py-2">
-                <p className="text-xs font-bold text-slate-500">ページ数</p>
-                <p className="text-base font-black text-slate-900 sm:mt-1 sm:text-lg">{outputPageCount}ページ</p>
-              </div>
             </div>
+            <PrintPageCount pages={outputPageCount} />
             <p className="mt-2 text-xs font-bold leading-5 text-slate-500">
               50語ごとに1ページとして自動計算します。{!user ? "印刷時に利用条件と料金を確認できます。" : typeof currentMaxPages === "number" ? `${planLabel(accessPlan)}は1回${currentMaxPages}ページまでで、超えた分は印刷前に制限案内を表示します。` : "Teacherは大きな範囲もまとめて作成できます。"}
             </p>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PrintPageCount from "@/components/print-page-count";
 import { useParams } from "next/navigation";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -1182,11 +1183,11 @@ export default function WordbookDetailPage({
             </div>
           </div>
 
-          <div className="min-w-0 p-2.5 sm:p-5">
+          <div className="relative min-w-0 p-2.5 sm:p-5 sm:pr-36">
             <p className="hidden text-xs font-black text-blue-700 sm:block">{planCopy(book.requiredPlan)}</p>
             <div className="flex items-start justify-between gap-2">
               <h1 className="min-w-0 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
-              {isLoggedIn && <MemoryRing percent={summarize(book.words, progress).memoryPercent} size={108} />}
+              {isLoggedIn && <div className="sm:absolute sm:right-5 sm:top-1/2 sm:-translate-y-1/2"><MemoryRing percent={summarize(book.words, progress).memoryPercent} size={108} /></div>}
             </div>
             {adminAccess && !savedBook ? <Link href={`/admin?tab=content&wordbookId=${encodeURIComponent(String(book.id))}`} className="mt-2 inline-block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">📝 例文を追加・編集（管理者）</Link> : null}
             <p className={`mt-1 text-[11px] leading-4 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
@@ -1401,7 +1402,7 @@ export default function WordbookDetailPage({
             />
             {accessPlan !== "teacher" ? <p className="mt-1 text-[11px] font-bold text-amber-600">🔒 印刷タイトルの変更はTeacherプランの機能です。</p> : null}
 
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:mt-4">
               <label className="block">
                 <span className="text-xs font-bold text-slate-500">開始</span>
                 <input
@@ -1436,11 +1437,8 @@ export default function WordbookDetailPage({
                   className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm ${numbersLocked ? "cursor-pointer border-amber-200 bg-amber-50 text-slate-400" : ""}`}
                 />
               </label>
-              <div className="col-span-3 flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-1.5 sm:col-span-1 sm:block sm:py-2">
-                <p className="text-xs font-bold text-slate-500">ページ数</p>
-                <p className="text-base font-black text-slate-900 sm:mt-1 sm:text-lg">{previewPageCount}ページ</p>
-              </div>
             </div>
+            <PrintPageCount pages={previewPageCount} />
             <p className={`mt-2 text-xs font-bold leading-5 ${freePrintBlocked ? "text-amber-700" : "text-slate-500"}`}>
               50語ごとに1ページとして自動計算します。{!isLoggedIn ? "印刷時に利用条件と料金を確認できます。" : accessPlan === "teacher" ? "Teacherは大きな範囲もまとめて作成できます。" : isPaid ? "Personalは1回20ページまでで、超えた分は印刷前に制限案内を表示します。" : "印刷は1ページ50円の都度購入、またはPersonalで利用できます。"}
             </p>
