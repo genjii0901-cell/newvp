@@ -555,10 +555,15 @@ export default function AccountPage() {
 
             {accountManagementView === "cancel-confirm" && (
               <>
-                <h3 className="font-black text-red-700">契約を終了しますか？</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
-                  最初の7日間（無料期間・初回料金の期間）に解約すると、その時点でPersonal機能が終了し、都度購入のアカウントに戻ります。
-                  すでに月額料金の支払いが完了している場合は、支払い済み期間の終了まで現在のプランを利用できます。
+                <h3 className="text-xl font-black text-red-900">契約を終了しますか？</h3>
+                {plan === "personal" && (
+                  <div className="mt-3 rounded-2xl border-2 border-red-300 bg-red-50 p-4 text-red-950">
+                    <p className="text-base font-black sm:text-lg">無料体験中に解約すると、すぐにPersonalが終了します</p>
+                    <p className="mt-1 text-sm leading-6">残りの日数は使えなくなります。無料期間中に解約すれば、月額料金はかかりません。</p>
+                  </div>
+                )}
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  支払い済みの月額・年額契約は、契約期間の終了まで使えます。初回の有料お試し期間中は、解約した時点でPersonalが終了します。
                 </p>
                 <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">
                   選択した理由: {cancellationReasons.find((reason) => reason.value === cancellationReason)?.label ?? "回答しない"}

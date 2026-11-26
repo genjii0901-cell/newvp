@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type MessageKind = "service" | "marketing";
 type RecipientMode = "all" | "selected";
-type FreeAccount = { id: string; email: string; marketingEmailOptIn: boolean };
+type FreeAccount = { id: string; email: string; marketingEmailOptIn: boolean; firstTrialEligible: boolean };
 type Summary = {
   freeUsers: number;
   optedInUsers: number;
@@ -22,17 +22,22 @@ const serviceTemplate = `Vocab Print Proをご利用いただき、ありがと�
 
 const marketingTemplate = `Vocab Print Proをご利用いただき、ありがとうございます。
 
-単語帳を選ぶだけで、単語テストの印刷・聞き流し・単語チェックができます。
+Personalの月額プランを、初回7日間0円でお試しいただけます。単語帳の範囲を選んで単語テストを印刷したり、聞き流しや忘却曲線に沿った復習を使ったりできます。
 
-アカウント登録は無料です。印刷は1ページ50円の都度購入、またはPersonalプランをご利用いただけます。Personalは7日間アクセス380円、以降は月1,580円で自動更新します。印刷回数を気にせず使いたい方におすすめです。
+対象は、Personalの初回特典をまだ利用していない方です。お申込みにはカードの登録が必要です。解約しない場合、7日間の終了後に月額1,580円（税込）で自動更新されます。
 
-https://www.vocabprint.com/
-https://www.vocabprint.com/pricing`;
+無料期間中にアカウント画面で解約すると、月額料金はかからず、Personalはその時点で終了します。
+
+お申込み・料金の確認はこちら
+https://www.vocabprint.com/pricing
+
+Vocab Print Pro`;
 
 export default function MarketingEmailPanel() {
   const supabase = useMemo(() => createClient(), []);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [messageKind, setMessageKind] = useState<MessageKind>("service");
+  const [firstTrialOnly, setFirstTrialOnly] = useState(false);
   const [recipientMode, setRecipientMode] = useState<RecipientMode>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -67,7 +72,8 @@ export default function MarketingEmailPanel() {
     setConfirmation("");
     setServiceNoticeConfirmed(false);
     setContent(next === "service" ? serviceTemplate : marketingTemplate);
-    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "Vocab Print Proをご利用ありがとうございます");
+    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【初回7日間0円】Vocab Print Pro Personalをお試しください");
+    setFirstTrialOnly(next === "marketing");
     if (next === "marketing") setRecipientMode("all");
   }
 
@@ -76,8 +82,8 @@ export default function MarketingEmailPanel() {
   }
 
   const eligibleAccounts = useMemo(
-    () => (summary?.freeAccounts ?? []).filter((account) => messageKind === "service" || account.marketingEmailOptIn),
-    [summary, messageKind]
+    () => (summary?.freeAccounts ?? []).filter((account) => messageKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
+    [summary, messageKind, firstTrialOnly]
   );
   const filteredAccounts = useMemo(
     () => eligibleAccounts.filter((account) => account.email.toLowerCase().includes(query.trim().toLowerCase())),
@@ -93,7 +99,7 @@ export default function MarketingEmailPanel() {
     const response = await fetch("/api/admin/marketing-email", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(await headers()) },
-      body: JSON.stringify({ action, subject, content, testEmail, confirmation, messageKind, recipientMode, selectedProfileIds: selectedIds, serviceNoticeConfirmed }),
+      body: JSON.stringify({ action, subject, content, testEmail, confirmation, messageKind, recipientMode, firstTrialOnly, selectedProfileIds: selectedIds, serviceNoticeConfirmed }),
     }).catch(() => null);
     const result = await response?.json().catch(() => ({}));
     setMessage(result?.message ?? "送信処理を完了できませんでした。");
@@ -130,6 +136,7 @@ export default function MarketingEmailPanel() {
               </div>
 
               <h3 className="mt-6 font-black">2. 配信先</h3>
+              {messageKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setRecipientMode("all")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "all" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>対象者へ一斉送信 ({eligibleAccounts.length}名)</button>
                 <button type="button" onClick={() => setRecipientMode("selected")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "selected" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>会員を選んで送信</button>

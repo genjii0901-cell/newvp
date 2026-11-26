@@ -6,7 +6,7 @@ function envInt(raw: string | undefined, fallback: number, min: number, max: num
 }
 
 export const PERSONAL_INTRO_DAYS = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_DAYS, 7, 1, 30);
-export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_JPY, 380, 50, 100_000);
+export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_CAMPAIGN_INTRO_JPY, 0, 0, 100_000);
 export const PERSONAL_MONTHLY_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_MONTHLY_JPY, 1580, 50, 100_000);
 export const PRINT_PAGE_JPY = 50;
 
@@ -38,7 +38,7 @@ export function appendPersonalCheckoutPrices(
 ) {
   const invalid = (id: string | null | undefined) => typeof id === "string" && !id.startsWith("price_");
   if (invalid(prices.monthly) || invalid(prices.intro) ||
-      (introductoryWeek && prices.intro === undefined) || prices.monthly === undefined) {
+      (introductoryWeek && PERSONAL_INTRO_JPY > 0 && prices.intro === undefined) || prices.monthly === undefined) {
     throw new Error("Personalの料金設定を確認できませんでした。");
   }
   if (prices.monthly) {
@@ -52,24 +52,32 @@ export function appendPersonalCheckoutPrices(
   body.set("line_items[0][quantity]", "1");
   body.set("payment_method_collection", "always");
   body.set("locale", "ja");
-  body.set("metadata[billing_version]", "personal-380-1580-v1");
-  body.set("subscription_data[metadata][billing_version]", "personal-380-1580-v1");
+  const billingVersion = `personal-${PERSONAL_INTRO_JPY}-${PERSONAL_MONTHLY_JPY}-v1`;
+  body.set("metadata[billing_version]", billingVersion);
+  body.set("subscription_data[metadata][billing_version]", billingVersion);
 
   if (introductoryWeek) {
-    if (prices.intro) {
-      body.set("line_items[1][price]", prices.intro);
-    } else {
-      body.set("line_items[1][price_data][currency]", "jpy");
-      body.set("line_items[1][price_data][unit_amount]", String(PERSONAL_INTRO_PRICE.amount));
-      body.set("line_items[1][price_data][product_data][name]", PERSONAL_INTRO_PRICE.name);
-    }
-    body.set("line_items[1][quantity]", "1");
     body.set("subscription_data[trial_period_days]", String(PERSONAL_INTRO_DAYS));
-    body.set("metadata[intro_paid_week]", "1");
-    body.set("subscription_data[metadata][intro_paid_week]", "1");
+    if (PERSONAL_INTRO_JPY === 0) {
+      body.set("metadata[trial]", "1");
+      body.set("metadata[trial_offer]", "first");
+      body.set("subscription_data[metadata][trial]", "1");
+      body.set("subscription_data[metadata][trial_offer]", "first");
+    } else {
+      if (prices.intro) {
+        body.set("line_items[1][price]", prices.intro);
+      } else {
+        body.set("line_items[1][price_data][currency]", "jpy");
+        body.set("line_items[1][price_data][unit_amount]", String(PERSONAL_INTRO_PRICE.amount));
+        body.set("line_items[1][price_data][product_data][name]", PERSONAL_INTRO_PRICE.name);
+      }
+      body.set("line_items[1][quantity]", "1");
+      body.set("metadata[intro_paid_week]", "1");
+      body.set("subscription_data[metadata][intro_paid_week]", "1");
+    }
   }
   body.set("custom_text[submit][message]", introductoryWeek
-    ? `申込時に${PERSONAL_INTRO_JPY}円。最初の${PERSONAL_INTRO_DAYS}日間の後は月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。更新前に解約できます。`
+    ? `申込時に${PERSONAL_INTRO_JPY}円。最初の${PERSONAL_INTRO_DAYS}日間の後は月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
     : `月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。更新前に解約できます。`);
 }
 
@@ -97,12 +105,12 @@ export function personalOfferText(introEligible: boolean) {
     };
   }
   return {
-    badge: `${PERSONAL_INTRO_DAYS}日間アクセス`,
+    badge: PERSONAL_INTRO_JPY === 0 ? `初回${PERSONAL_INTRO_DAYS}日間無料` : `${PERSONAL_INTRO_DAYS}日間アクセス`,
     price: `${PERSONAL_INTRO_DAYS}日間アクセス ¥${yen(PERSONAL_INTRO_JPY)}`,
     after: `以降 ${monthly}（自動更新）`,
     summary: `最初の${PERSONAL_INTRO_DAYS}日間アクセスは${PERSONAL_INTRO_JPY}円、以降は${monthly}（税込）で自動更新します。`,
     cta: `${PERSONAL_INTRO_DAYS}日間${PERSONAL_INTRO_JPY}円で始める`,
-    payNote: `申込時に${PERSONAL_INTRO_JPY}円を決済し、${PERSONAL_INTRO_DAYS}日間アクセスできます。その後は自動で${monthly}の更新に移ります。更新前に解約できます。`,
+    payNote: `申込時は${PERSONAL_INTRO_JPY}円です。${PERSONAL_INTRO_DAYS}日間の終了後は${monthly}（税込）で自動更新します。初回期間中に解約すると、その時点でPersonalは終了します。`,
   };
 }
 

@@ -10,7 +10,7 @@ async function checkPersonalCatalog(key: string) {
   try {
     const [monthly, intro] = await Promise.all([
       findStripeCatalogPrice(key, PERSONAL_MONTHLY_PRICE),
-      findStripeCatalogPrice(key, PERSONAL_INTRO_PRICE),
+      PERSONAL_INTRO_PRICE.amount === 0 ? Promise.resolve(true) : findStripeCatalogPrice(key, PERSONAL_INTRO_PRICE),
     ]);
     catalogCache = { key, expires: Date.now() + 30_000, ready: Boolean(monthly && intro), verified: true };
   } catch {

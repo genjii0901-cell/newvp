@@ -7,7 +7,7 @@ import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/l
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-type Recipient = { id: string; email: string; marketingEmailOptIn: boolean };
+type Recipient = { id: string; email: string; marketingEmailOptIn: boolean; firstTrialEligible: boolean };
 type MessageKind = "marketing" | "service";
 type RecipientMode = "all" | "selected";
 
@@ -34,21 +34,21 @@ async function loadFreeRecipients() {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id,email,marketing_email_opt_in")
+    .select("id,email,marketing_email_opt_in,trial_used")
     .eq("plan", "free")
     .limit(1000);
   if (error) throw error;
 
   const seen = new Set<string>();
-  return ((data ?? []) as Array<{ id?: string; email?: string | null; marketing_email_opt_in?: boolean | null }>)
-    .filter((row): row is { id: string; email: string; marketing_email_opt_in?: boolean | null } => Boolean(row.id) && validEmail(row.email))
+  return ((data ?? []) as Array<{ id?: string; email?: string | null; marketing_email_opt_in?: boolean | null; trial_used?: boolean | null }>)
+    .filter((row): row is { id: string; email: string; marketing_email_opt_in?: boolean | null; trial_used?: boolean | null } => Boolean(row.id) && validEmail(row.email))
     .filter((row) => {
       const email = row.email.toLowerCase();
       if (seen.has(email)) return false;
       seen.add(email);
       return true;
     })
-    .map((row) => ({ id: row.id, email: row.email.toLowerCase(), marketingEmailOptIn: row.marketing_email_opt_in === true }));
+    .map((row) => ({ id: row.id, email: row.email.toLowerCase(), marketingEmailOptIn: row.marketing_email_opt_in === true, firstTrialEligible: !row.trial_used }));
 }
 
 async function loadSummary() {
@@ -61,7 +61,7 @@ async function loadSummary() {
   return {
     freeUsers: recipients.length,
     optedInUsers: recipients.filter((recipient) => recipient.marketingEmailOptIn).length,
-    freeAccounts: recipients.map((recipient) => ({ id: recipient.id, email: recipient.email, marketingEmailOptIn: recipient.marketingEmailOptIn })),
+    freeAccounts: recipients.map((recipient) => ({ id: recipient.id, email: recipient.email, marketingEmailOptIn: recipient.marketingEmailOptIn, firstTrialEligible: recipient.firstTrialEligible })),
     recentCampaigns: campaignsResult.data ?? [],
   };
 }
@@ -148,8 +148,9 @@ export async function POST(request: Request) {
     const admin = await resolveAdminUserFromBearerToken(request);
 
     const freeRecipients = await loadFreeRecipients();
+    const firstTrialOnly = messageKind === "marketing" && body.firstTrialOnly === true;
     const eligibleRecipients = messageKind === "marketing"
-      ? freeRecipients.filter((recipient) => recipient.marketingEmailOptIn)
+      ? freeRecipients.filter((recipient) => recipient.marketingEmailOptIn && (!firstTrialOnly || recipient.firstTrialEligible))
       : freeRecipients;
     const recipients = recipientMode === "selected"
       ? eligibleRecipients.filter((recipient) => selectedIds.has(recipient.id))
