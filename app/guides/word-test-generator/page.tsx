@@ -43,10 +43,10 @@ export default function WordTestGeneratorGuidePage() {
           <h1 className="mt-3 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
             単語帳やExcelから、
             <br />
-            A4の英単語テストPDFを作成。
+            英単語テストを印刷。聞き流しで復習。
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
-            Vocab Print Proは、英単語・日本語訳・番号をもとに、学校や塾で配りやすい単語テストを作るサービスです。
+            単語帳からA4の英単語テストPDFを作れます。同じ単語帳で、英語と日本語の音声を聞き流して復習できます。
             英語空欄、日本語空欄、ランダム順、赤字表示、解答プリント、一覧プリントまで、同じ画面で切り替えられます。
           </p>
           <div className="mt-7 flex flex-wrap gap-3">

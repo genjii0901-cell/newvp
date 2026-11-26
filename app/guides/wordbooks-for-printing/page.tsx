@@ -37,10 +37,10 @@ export default function WordbooksForPrintingGuidePage() {
           <h1 className="mt-3 text-3xl font-black leading-tight text-slate-950 sm:text-5xl">
             単語帳を選んで、
             <br />
-            範囲別の単語テストを作成。
+            範囲別のテスト印刷も、聞き流しも。
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
-            Vocab Print Proでは、単語帳ごとの専用ページから、単語一覧、単語テスト印刷、聞き流し、単語チェックを使えます。
+            いつもの単語帳を選べば、そのまま音声で聞き流しができます。単語一覧や4択チェックも使えます。
             小テストや復習に使う範囲を番号で選び、問題と解答を印刷できます。
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
