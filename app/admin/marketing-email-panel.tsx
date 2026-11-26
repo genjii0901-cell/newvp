@@ -22,14 +22,14 @@ const serviceTemplate = `Vocab Print Proをご利用いただき、ありがと�
 
 const marketingTemplate = `Vocab Print Proをご利用いただき、ありがとうございます。
 
-Personalの月額プランを、初回7日間0円でお試しいただけます。単語帳の範囲を選んで単語テストを印刷したり、聞き流しや忘却曲線に沿った復習を使ったりできます。
+期間限定で、Personalの月額プランを初回7日間0円でお試しいただけます。単語帳の範囲を選んで単語テストを印刷したり、聞き流しや忘却曲線に沿った復習を使ったりできます。
 
 対象は、Personalの初回特典をまだ利用していない方です。お申込みにはカードの登録が必要です。解約しない場合、7日間の終了後に月額1,580円（税込）で自動更新されます。
 
 無料期間中にアカウント画面で解約すると、月額料金はかからず、Personalはその時点で終了します。
 
 お申込み・料金の確認はこちら
-https://www.vocabprint.com/pricing
+https://www.vocabprint.com/pricing#personal
 
 Vocab Print Pro`;
 
@@ -72,7 +72,7 @@ export default function MarketingEmailPanel() {
     setConfirmation("");
     setServiceNoticeConfirmed(false);
     setContent(next === "service" ? serviceTemplate : marketingTemplate);
-    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【初回7日間0円】Vocab Print Pro Personalをお試しください");
+    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【期間限定】Personalが初回7日間0円");
     setFirstTrialOnly(next === "marketing");
     if (next === "marketing") setRecipientMode("all");
   }

@@ -105,7 +105,7 @@ export function personalOfferText(introEligible: boolean) {
     };
   }
   return {
-    badge: PERSONAL_INTRO_JPY === 0 ? `初回${PERSONAL_INTRO_DAYS}日間無料` : `${PERSONAL_INTRO_DAYS}日間アクセス`,
+    badge: PERSONAL_INTRO_JPY === 0 ? `期間限定・初回${PERSONAL_INTRO_DAYS}日間無料` : `${PERSONAL_INTRO_DAYS}日間アクセス`,
     price: `${PERSONAL_INTRO_DAYS}日間アクセス ¥${yen(PERSONAL_INTRO_JPY)}`,
     after: `以降 ${monthly}（自動更新）`,
     summary: `最初の${PERSONAL_INTRO_DAYS}日間アクセスは${PERSONAL_INTRO_JPY}円、以降は${monthly}（税込）で自動更新します。`,

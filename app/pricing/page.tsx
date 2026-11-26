@@ -324,11 +324,14 @@ export default function PricingPage() {
             <Link href="/?print_auth=free" className="mt-5 block rounded-lg bg-slate-100 px-4 py-2 text-center text-sm font-bold">無料会員で始める（印刷は<AutoRenewText text="都度課金" />）</Link>
           </div>
 
-          <div className="order-1 rounded-lg border border-blue-400 bg-white p-4 shadow-sm ring-2 ring-blue-100 sm:p-5 md:order-2">
+          <div id="personal" className="order-1 scroll-mt-20 rounded-lg border border-blue-400 bg-white p-4 shadow-sm ring-2 ring-blue-100 sm:p-5 md:order-2">
             <h2 className="text-base font-black sm:text-xl">Personal</h2>
             {introEligible ? (
               <>
-                <p className="mt-2 text-sm font-bold text-slate-500">{PERSONAL_INTRO_DAYS}日間アクセス</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {PERSONAL_INTRO_JPY === 0 && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">期間限定</span>}
+                  <p className="text-sm font-bold text-slate-600">初回{PERSONAL_INTRO_DAYS}日間</p>
+                </div>
                 <p className="text-3xl font-black text-blue-600 sm:text-4xl">{yen(PERSONAL_INTRO_JPY)}</p>
                 <p className="mt-1 text-xs font-bold text-slate-600">以降 月{yen(PERSONAL_MONTHLY_JPY)}（自動更新・税込）</p>
               </>

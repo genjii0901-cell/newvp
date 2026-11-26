@@ -66,7 +66,12 @@ export function buildMarketingEmailHtml(
   body: string,
   options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null }
 ) {
-  const content = escapeHtml(body).replace(/\r?\n/g, "<br />");
+  const personalLink = "https://www.vocabprint.com/pricing#personal";
+  const content = body.split(/\r?\n/).map((line) =>
+    options.kind === "marketing" && line.trim() === personalLink
+      ? `<a href="${personalLink}" style="display:inline-block;border-radius:8px;background:#1d4ed8;padding:10px 16px;color:#fff;font-weight:700;text-decoration:none">Personalの料金・申込みを確認する</a>`
+      : escapeHtml(line)
+  ).join("<br />");
   const footer = options.kind === "marketing" && options.unsubscribeUrl
     ? `このメールは、Vocab Print Proのお知らせを受け取る設定をした方へお送りしています。<br /><a href="${escapeHtml(options.unsubscribeUrl)}" style="color:#475569">お知らせメールの配信を停止する</a>`
     : "このメールは、Vocab Print Proの登録ユーザーへお送りする運営・アカウントに関するお知らせです。";
