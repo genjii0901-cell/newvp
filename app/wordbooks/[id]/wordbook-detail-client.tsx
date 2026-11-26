@@ -11,13 +11,14 @@ import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath, extractWordbookIdFromSlug } from "@/lib/wordbook-slug";
 import { popularizeText } from "@/lib/display-text";
 import QuizPanel from "./quiz-panel";
-import { MemoryReviewPanel } from "../../my-wordbooks/progress-ui";
-import { WordbookCover, WordbookMemoryBadge } from "@/components/wordbook-cover";
+import { MemoryReviewPanel, MemoryRing } from "../../my-wordbooks/progress-ui";
+import { WordbookCover } from "@/components/wordbook-cover";
 import { applyAnswer, dueWords, loadProgress, saveProgress, summarize, wordKey, type BookProgress } from "@/lib/srs";
 import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
 import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
 import { personalOfferText } from "@/lib/personal-pricing";
+import { downloadWordbookCsv } from "@/lib/teacher-csv";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen" | "memory";
@@ -324,15 +325,24 @@ export default function WordbookDetailPage({
   preservePath = false,
   temporaryLicensed = false,
   source = "official",
+  savedBook,
 }: {
   bookIdOverride?: string;
   preservePath?: boolean;
   temporaryLicensed?: boolean;
   source?: "official" | "community";
+  savedBook?: {
+    data: OfficialWordbook;
+    progressId: string;
+    copied: boolean;
+    onBack: () => void;
+    onRemove: () => void;
+    notice?: string;
+  };
 } = {}) {
   const params = useParams();
   const slug = String(params.id ?? "");
-  const lookupId = bookIdOverride ?? extractWordbookIdFromSlug(slug);
+  const lookupId = savedBook?.data.id ?? bookIdOverride ?? extractWordbookIdFromSlug(slug);
 
   const supabase = useMemo(() => createClient(), []);
   const [userPlan, setUserPlan] = useState<Plan>("free");
@@ -355,7 +365,7 @@ export default function WordbookDetailPage({
     if (printGateOpen && pricingVariant) trackPricingEvent("view", pricingVariant);
   }, [printGateOpen, pricingVariant]);
   const accessPlan: Plan = adminAccess ? "teacher" : userPlan;
-  const isPaid = temporaryLicensed || accessPlan === "personal" || accessPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(String(lookupId));
+  const isPaid = temporaryLicensed || accessPlan === "personal" || accessPlan === "teacher" || hasPersonalLicense || licenseWordbookIds.includes(savedBook?.progressId ?? String(lookupId));
   const FREE_WORD_LIMIT = 50;
   // 設定とプレビューは自由。実際の印刷時にプラン上限を確認する。
   const maxWords = Number.MAX_SAFE_INTEGER;
@@ -381,13 +391,14 @@ export default function WordbookDetailPage({
     setTestType("answer");
   }
 
-  const [book, setBook] = useState<OfficialWordbook | null>(null);
+  const [loadedBook, setBook] = useState<OfficialWordbook | null>(null);
+  const book = savedBook?.data ?? loadedBook;
   const [showFullDescription, setShowFullDescription] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!savedBook);
   const [error, setError] = useState("");
   const [selectedUnit, setSelectedUnit] = useState("all");
-  const [rangeStart, setRangeStart] = useState("");
-  const [rangeEnd, setRangeEnd] = useState("");
+  const [rangeStart, setRangeStart] = useState(() => savedBook ? String(savedBook.data.words[0]?.no ?? 1) : "");
+  const [rangeEnd, setRangeEnd] = useState(() => savedBook ? String(savedBook.data.words.at(-1)?.no ?? savedBook.data.words.length) : "");
   const [activeTab, setActiveTab] = useState<DetailTab>("test");
   const [testType, setTestType] = useState<TestType>("test");
   const [testDirection, setTestDirection] = useState<TestDirection>("en-ja");
@@ -435,7 +446,7 @@ export default function WordbookDetailPage({
   const [shareMessage, setShareMessage] = useState("");
   const [reviewStart, setReviewStart] = useState<number | null>(null);
   const [storedProgress, setStoredProgress] = useState<{ key: string; records: BookProgress } | null>(null);
-  const progressBookId = book ? String(book.id) : "";
+  const progressBookId = savedBook?.progressId ?? (book ? String(book.id) : "");
   const progressKey = authUserId && progressBookId ? `${authUserId}:${progressBookId}` : "";
   const progress = progressKey && storedProgress?.key === progressKey ? storedProgress.records : {};
   useEffect(() => {
@@ -458,7 +469,7 @@ export default function WordbookDetailPage({
     saveProgress(authUserId, progressBookId, next);
     setStoredProgress({ key: progressKey, records: next });
   }
-  const markStorageKey = book && authUserId ? `vpp-word-marks:${authUserId}:${book.id}` : "";
+  const markStorageKey = progressBookId && authUserId ? `vpp-word-marks:${authUserId}:${progressBookId}` : "";
 
   // 聞き流し・単語チェックは無料会員登録が必須。詳細設定はPersonal限定。
   function showUpgrade(reason: string) {
@@ -515,7 +526,9 @@ export default function WordbookDetailPage({
     window.localStorage.setItem(markStorageKey, JSON.stringify(Array.from(markedKeys)));
   }, [markStorageKey, markedKeys]);
 
+  const isSavedBook = Boolean(savedBook);
   useEffect(() => {
+    if (isSavedBook) return;
     async function loadBook() {
       setLoading(true);
       setError("");
@@ -552,7 +565,7 @@ export default function WordbookDetailPage({
       setError("単語帳を読み込めませんでした。");
       setLoading(false);
     });
-  }, [lookupId, preservePath, source]);
+  }, [lookupId, preservePath, source, isSavedBook]);
 
   // ログインユーザーのプランを取得（無料は50語まで／Personal以上は制限なし）
   useEffect(() => {
@@ -809,7 +822,7 @@ export default function WordbookDetailPage({
         body: JSON.stringify({
           type: testType,
           wordCount: effectiveCount,
-          wordbookId: book ? String(book.id) : null,
+          wordbookId: progressBookId || null,
         }),
       });
     } catch {
@@ -845,7 +858,7 @@ export default function WordbookDetailPage({
         const response = await fetch("/api/usage/check", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ wordCount: effectiveCount, pageCount: pages, wordbookId: String(book.id) }),
+          body: JSON.stringify({ wordCount: effectiveCount, pageCount: pages, wordbookId: progressBookId }),
         });
         const result = await response.json().catch(() => ({}));
         usageAllowed = response.ok && Boolean(result.ok);
@@ -1147,14 +1160,17 @@ export default function WordbookDetailPage({
 
   return (
     <main className="mx-auto max-w-6xl px-2.5 py-3 sm:px-5 sm:py-8">
-      <Link href="/wordbooks" className="text-sm font-bold text-blue-600 hover:underline">
-        ← 単語帳一覧へ
-      </Link>
+      {savedBook ? (
+        <button type="button" onClick={savedBook.onBack} className="text-sm font-bold text-blue-600 hover:underline">← マイ単語帳の一覧へ</button>
+      ) : (
+        <Link href="/wordbooks" className="text-sm font-bold text-blue-600 hover:underline">← 単語帳一覧へ</Link>
+      )}
+      {savedBook?.notice && <p role="status" className="mt-2 text-sm text-slate-600">{savedBook.notice}</p>}
 
       <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
-        <div className="grid grid-cols-[100px_1fr] gap-0 sm:grid-cols-[144px_1fr]">
-          <div className="relative m-2.5 self-start sm:m-4">
-            <WordbookCover title={book.title} image={book.coverImage} />
+        <div className="grid grid-cols-[110px_1fr] gap-0 sm:grid-cols-[180px_1fr]">
+          <div className="relative self-start overflow-hidden rounded-br-xl">
+            <WordbookCover title={book.title} image={book.coverImage} crop />
             <div className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-xs">
               {planLabel(book.requiredPlan)}
             </div>
@@ -1162,8 +1178,11 @@ export default function WordbookDetailPage({
 
           <div className="min-w-0 p-2.5 sm:p-5">
             <p className="hidden text-xs font-black text-blue-700 sm:block">{planCopy(book.requiredPlan)}</p>
-            <h1 className="line-clamp-3 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
-            {adminAccess ? <Link href={`/admin?tab=content&wordbookId=${encodeURIComponent(String(book.id))}`} className="mt-2 inline-block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">📝 例文を追加・編集（管理者）</Link> : null}
+            <div className="flex items-start justify-between gap-2">
+              <h1 className="min-w-0 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
+              {isLoggedIn && <MemoryRing percent={summarize(book.words, progress).memoryPercent} size={64} />}
+            </div>
+            {adminAccess && !savedBook ? <Link href={`/admin?tab=content&wordbookId=${encodeURIComponent(String(book.id))}`} className="mt-2 inline-block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">📝 例文を追加・編集（管理者）</Link> : null}
             <p className={`mt-1 text-[11px] leading-4 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
               {popularizeText(book.description) || "単語テスト・一覧プリント・聞き流しに使える単語帳です。"}
             </p>
@@ -1174,11 +1193,19 @@ export default function WordbookDetailPage({
             ) : null}
             <div className="mt-1.5 flex flex-wrap gap-1 text-[10px] font-bold text-slate-500 sm:mt-4 sm:gap-2 sm:text-xs">
               <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{book.wordCount ?? book.words.length}語</span>
-              {isLoggedIn && <WordbookMemoryBadge percent={summarize(book.words, progress).memoryPercent} />}
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>
+              {!savedBook && <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>}
             </div>
             <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-2">
+              {savedBook ? (
+                <>
+                  <button type="button" onClick={savedBook.onRemove} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-700 sm:text-sm">単語帳を削除</button>
+                  {!savedBook.copied && (
+                    <button type="button" onClick={() => accessPlan === "teacher" ? downloadWordbookCsv(book.title, book.words) : showUpgrade("CSV出力はTeacherプランで使えます。")} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-700 sm:text-sm">CSV出力{accessPlan === "teacher" ? "" : " 🔒"}</button>
+                  )}
+                </>
+              ) : (
+                <>
               <button
                 type="button"
                 onClick={saveOfficialToMyWordbooks}
@@ -1201,6 +1228,8 @@ export default function WordbookDetailPage({
               >
                 CSV出力 🔒
               </button>
+                </>
+              )}
               {shareMessage ? <span role="status" className="col-span-3 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
             </div>
           </div>
@@ -1227,7 +1256,7 @@ export default function WordbookDetailPage({
                     : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
               }`}
             >
-              <span className="block truncate text-[11px] font-black sm:text-sm">{tab.label}{tabLocked ? " 🔒" : ""}</span>
+              <span className="block break-words text-[10px] font-black leading-tight sm:text-sm">{tab.label}{tabLocked ? " 🔒" : ""}</span>
               <span className={`hidden text-[11px] font-bold sm:block ${activeTab === tab.key ? "text-blue-100" : tabLocked ? "text-amber-600" : "text-slate-400"}`}>
                 {tabLocked ? "無料登録で解放" : tab.hint}
               </span>
@@ -1371,6 +1400,7 @@ export default function WordbookDetailPage({
           <div id="pdf-builder" className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-lg font-black">単語テスト印刷</h3>
+              {!savedBook && (
               <button
                 type="button"
                 onClick={() => (isLoggedIn ? showUpgrade("CSV出力はTeacherプランで使えます。") : guideToRegister("CSV出力はTeacherプランの機能です。"))}
@@ -1378,6 +1408,7 @@ export default function WordbookDetailPage({
               >
                 CSV出力 🔒
               </button>
+              )}
             </div>
 
             <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>

@@ -289,7 +289,7 @@ export default function WordbooksClient({
     return (
       <Link key={book.id} href={detailPath} prefetch={false} className="block min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm active:scale-[0.98] hover:border-blue-300">
         <div className="relative">
-          <div className="mx-auto w-16 p-1 sm:w-20"><WordbookCover title={book.title} image={book.coverImage} lazy /></div>
+          <WordbookCover title={book.title} image={book.coverImage} lazy crop />
           <span className="absolute bottom-1 left-1 rounded-full bg-slate-900/75 px-1.5 py-0.5 text-[9px] font-black text-white">
             {users >= POPULARITY_DISPLAY_MIN ? `👤約${users.toLocaleString()}人` : "新着"}
           </span>

@@ -3,26 +3,13 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import LockedFeatureButton from "@/components/locked-feature-button";
-import { downloadWordbookCsv, OWN_WORDBOOK_ONLY_MESSAGE } from "@/lib/teacher-csv";
-import {
-  applyAnswer,
-  dueWords,
-  loadProgress,
-  saveProgress,
-  summarize,
-  wordKey,
-  type BookProgress,
-} from "@/lib/srs";
-import QuizPanel from "../wordbooks/[id]/quiz-panel";
-import ListenPanel from "../wordbooks/[id]/listen-panel";
-import { MemoryReviewPanel } from "./progress-ui";
-import { WordbookCover, WordbookMemoryBadge } from "@/components/wordbook-cover";
+import { loadProgress, summarize, type BookProgress } from "@/lib/srs";
+import WordbookDetail from "../wordbooks/[id]/wordbook-detail-client";
+import { WordbookCover } from "@/components/wordbook-cover";
 
 type MyWord = { no: number; english: string; japanese: string; unit: string | null };
-type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null };
+type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null; requiredPlan?: "free" | "personal" | "teacher" };
 type CatalogBook = { id: string; title: string; wordCount: number; coverImage: string | null; description: string; requiredPlan?: string };
-type Tab = "study" | "listen" | "memory";
 
 
 
@@ -70,20 +57,12 @@ export default function MyWordbooksHub() {
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [isPaid, setIsPaid] = useState(false);
-  // Teacher（または管理者）なら、選んでいる自作単語帳をその場でCSV出力できる。
-  const [csvAllowed, setCsvAllowed] = useState(false);
   const [books, setBooks] = useState<MyBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState("");
   const [viewing, setViewing] = useState(false);
-  const [tab, setTab] = useState<Tab>("study");
-  const [studyEpoch, setStudyEpoch] = useState(0);
-  const [startWithDue, setStartWithDue] = useState(false);
   const [progressByBook, setProgressByBook] = useState<Record<string, BookProgress>>({});
-  const [marked, setMarked] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
-  const [upgrade, setUpgrade] = useState<string | null>(null);
   const [adderOpen, setAdderOpen] = useState(false);
   const [catalog, setCatalog] = useState<CatalogBook[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -114,12 +93,8 @@ export default function MyWordbooksHub() {
     if (!token) return;
     setLoading(true);
     try {
-      const [booksRes, profileRes] = await Promise.all([
-        fetch("/api/me/wordbooks", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-        fetch("/api/me/profile", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }),
-      ]);
+      const booksRes = await fetch("/api/me/wordbooks", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const booksJson = await booksRes.json().catch(() => ({}));
-      const profileJson = await profileRes.json().catch(() => ({}));
       if (!booksRes.ok || !Array.isArray(booksJson.wordbooks)) {
         // 読み込みに失敗したときは、空に見せず今の表示を保ってエラーを知らせる。
         setNotice(booksJson.error ?? "マイ単語帳を読み込めませんでした。少し待ってから開き直してください。");
@@ -128,10 +103,10 @@ export default function MyWordbooksHub() {
       const list: MyBook[] = booksJson.wordbooks.map((book: MyBook) => ({ ...book, coverImage: book.coverImage ?? null, words: book.words ?? [] }));
       setBooks(list);
       setLoaded(true);
-      setSelectedId((current) => (list.some((book) => book.id === current) ? current : list[0]?.id ?? ""));
-      const plan = profileJson?.profile?.plan;
-      setIsPaid(plan === "personal" || plan === "teacher");
-      setCsvAllowed(plan === "teacher" || profileJson?.profile?.adminAccess === true);
+      const requested = new URLSearchParams(window.location.search).get("book");
+      const fromUrl = list.find((book) => book.id === requested);
+      setSelectedId((current) => fromUrl?.id ?? (list.some((book) => book.id === current) ? current : list[0]?.id ?? ""));
+      setViewing(Boolean(fromUrl));
     } finally {
       setLoading(false);
     }
@@ -255,72 +230,31 @@ export default function MyWordbooksHub() {
       setNotice(result.error ?? "削除できませんでした。");
       return;
     }
+    closeBook();
     setNotice(`「${target.title}」を削除しました。`);
     await loadBooks();
   }
 
   const book = books.find((item) => item.id === selectedId) ?? null;
-  const progress = (book && progressByBook[book.id]) || {};
   const now = Date.now();
-  const summary = useMemo(() => (book ? summarize(book.words, progress, now) : null), [book, progress, now]);
-  const due = useMemo(() => (book ? dueWords(book.words, progress, now) : []), [book, progress, now]);
-  const dueKeys = useMemo(() => new Set(due.map(wordKey)), [due]);
 
-  // ★の保存（聞き流し・単語チェックと共通のキー）
-  const markKey = userId && book ? `vpp-word-marks:${userId}:${syncId(book)}` : "";
-  useEffect(() => {
-    if (!markKey) return;
-    try {
-      const raw = window.localStorage.getItem(markKey);
-      setMarked(new Set(raw ? (JSON.parse(raw) as string[]).map(String) : []));
-    } catch {
-      setMarked(new Set());
-    }
-  }, [markKey]);
-  function toggleMark(word: { no: number; english: string }) {
-    const key = wordKey(word);
-    setMarked((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      try {
-        window.localStorage.setItem(markKey, JSON.stringify(Array.from(next)));
-      } catch {
-        // 無視
-      }
-      return next;
-    });
-  }
-
-  function recordAnswer(word: { no: number; english: string }, correct: boolean) {
-    if (!userId || !book) return;
-    const bookId = book.id;
-    const sourceId = syncId(book);
-    const current = loadProgress(userId, sourceId);
-    const key = wordKey(word);
-    const next = { ...current, [key]: applyAnswer(current[key], correct) };
-    saveProgress(userId, sourceId, next);
-    setProgressByBook((all) => ({ ...all, [bookId]: next }));
-  }
-
-  function startDue() {
-    if (!isPaid) {
-      setUpgrade("忘却曲線に沿った「今日の復習」はPersonalプランで使えます。無料でも、単語チェックの結果から記憶度は記録されます。");
-      return;
-    }
-    if (due.length === 0) {
-      setNotice("今日復習する単語はありません。間隔が来ると、ここに表示されます。");
-      return;
-    }
+  function openBook(item: MyBook) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("book", item.id);
+    window.history.replaceState(null, "", url);
+    setSelectedId(item.id);
+    setViewing(true);
+    window.scrollTo({ top: 0 });
     setNotice("");
-    setStartWithDue(true);
-    setStudyEpoch((value) => value + 1);
-    setTab("study");
   }
 
-  function openTab(next: Tab) {
-    setStartWithDue(false);
-    setTab(next);
+  function closeBook() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("book");
+    url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url);
+    setViewing(false);
+    if (userId && book) setProgressByBook((all) => ({ ...all, [book.id]: loadProgress(userId, syncId(book)) }));
   }
 
   /* ───── 表示 ───── */
@@ -339,12 +273,25 @@ export default function MyWordbooksHub() {
     );
   }
 
+  if (viewing && book && token) {
+    return (
+      <WordbookDetail
+        key={book.id}
+        savedBook={{
+          data: { ...book, coverImage: displayCover(book), requiredPlan: book.requiredPlan ?? "free" },
+          progressId: syncId(book),
+          copied: Boolean(book.copied),
+          onBack: closeBook,
+          onRemove: () => void deleteBook(book),
+          notice,
+        }}
+      />
+    );
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-2.5 py-4 sm:px-5 sm:py-8">
-      {viewing && book ? (
-        <button type="button" onClick={() => setViewing(false)} className="flex items-center gap-1 rounded-lg border bg-white px-3 py-1.5 text-sm font-black text-blue-700">← マイ単語帳の一覧へ</button>
-      ) : null}
-      <div className={`flex flex-wrap items-center justify-between gap-2 ${viewing ? "hidden" : ""}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-xs font-black text-blue-700">Vocab Print Pro</p>
           <h1 className="text-2xl font-black text-slate-950">マイ単語帳</h1>
@@ -355,9 +302,9 @@ export default function MyWordbooksHub() {
         </div>
       </div>
 
-      {notice && !book ? <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">{notice}</p> : null}
+      {notice ? <p role="alert" className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">{notice}</p> : null}
 
-      {!viewing && duplicateIds.size > 0 ? (
+      {duplicateIds.size > 0 ? (
         <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-800">
           <span>同じ単語帳が{duplicateIds.size}冊重複しています（本棚には1冊だけ表示しています）。</span>
           <button type="button" disabled={cleaning} onClick={() => void removeDuplicates()} className="min-h-10 rounded-lg bg-amber-500 px-3 text-xs font-black text-white disabled:opacity-60">
@@ -367,7 +314,7 @@ export default function MyWordbooksHub() {
       ) : null}
 
       {/* 本棚 */}
-      <section className={`mt-4 ${viewing ? "hidden" : ""}`} aria-label="自分の単語帳">
+      <section className="mt-4" aria-label="自分の単語帳">
         {loading ? (
           <p className="rounded-2xl border bg-white p-6 text-center text-sm font-bold text-slate-400">読み込み中…</p>
         ) : books.length === 0 ? (
@@ -387,16 +334,10 @@ export default function MyWordbooksHub() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => {
-                    setSelectedId(item.id);
-                    setViewing(true);
-                    window.scrollTo({ top: 0 });
-                    openTab("study");
-                    setNotice("");
-                  }}
+                  onClick={() => openBook(item)}
                   className={`min-w-0 overflow-hidden rounded-xl border bg-white text-left shadow-sm transition ${active ? "border-blue-500 ring-2 ring-blue-100" : "hover:-translate-y-0.5 hover:shadow-md"}`}
                 >
-                  <div className="mx-auto w-16 p-1 sm:w-20"><WordbookCover title={item.title} image={displayCover(item)} lazy /></div>
+                  <WordbookCover title={item.title} image={displayCover(item)} lazy crop />
                   <div className="p-1.5 sm:p-2">
                     <p className="line-clamp-2 min-h-[2rem] text-[11px] font-black leading-snug text-slate-900 sm:text-xs">{item.title}</p>
                     <div className="mt-1 flex items-center justify-between text-[10px] font-black">
@@ -417,81 +358,6 @@ export default function MyWordbooksHub() {
           </div>
         )}
       </section>
-
-      {viewing && book && summary ? (
-        <>
-          <section className="mt-3 flex items-center gap-3 rounded-2xl border bg-white p-3 shadow-sm sm:gap-5 sm:p-5">
-            <div className="w-20 shrink-0 sm:w-28"><WordbookCover title={book.title} image={displayCover(book)} /></div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-black text-slate-950 sm:text-2xl">{book.title}</h2>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-600">
-                <span>{summary.total}語</span>
-                <WordbookMemoryBadge percent={summary.memoryPercent} />
-              </div>
-              <button type="button" onClick={() => void deleteBook(book)} className="mt-3 text-xs font-bold text-slate-500 hover:text-red-700">単語帳を削除</button>
-            </div>
-          </section>
-          {notice ? <p role="status" className="mt-3 text-sm text-slate-600">{notice}</p> : null}
-
-          {/* タブ */}
-          <div className="mt-3 grid grid-cols-3 gap-1.5" role="tablist">
-            {([
-              ["study", "単語チェック"],
-              ["listen", "聞き流し"],
-              ["memory", "記憶度・復習"],
-            ] as Array<[Tab, string]>).map(([key, label]) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={tab === key}
-                type="button"
-                onClick={() => openTab(key)}
-                className={`min-h-11 rounded-xl border px-2 text-xs font-black sm:text-sm ${tab === key ? "border-blue-500 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {tab === "study" ? (
-            <section className="mx-auto mt-3 max-w-2xl">
-              <QuizPanel
-                key={`${book.id}-${studyEpoch}`}
-                bookTitle={book.title}
-                words={book.words}
-                markedKeys={marked}
-                onToggleMark={toggleMark}
-                isPaid={isPaid}
-                onLocked={setUpgrade}
-                onAnswer={recordAnswer}
-                dueKeys={dueKeys}
-                initialScope={startWithDue ? "due" : undefined}
-              />
-            </section>
-          ) : null}
-
-          {tab === "listen" ? (
-            <ListenPanel key={book.id} words={book.words} isPaid={isPaid} markedKeys={marked} onToggleMark={toggleMark} onLocked={setUpgrade} />
-          ) : null}
-
-          {tab === "memory" && (
-            <MemoryReviewPanel words={book.words} progress={progress} isPaid={isPaid} onReview={startDue} onLocked={setUpgrade} />
-          )}
-        </>
-      ) : null}
-
-      {upgrade ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-3 sm:items-center" onClick={() => setUpgrade(null)}>
-          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <p className="text-xs font-black text-amber-600">Personalで解放</p>
-            <h3 className="mt-1 text-lg font-black leading-snug text-slate-950">{upgrade}</h3>
-            <div className="mt-5 space-y-2">
-              <Link href="/pricing" className="block rounded-2xl bg-blue-600 px-4 py-3.5 text-center text-base font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700">Personalの内容を見る</Link>
-              <button type="button" onClick={() => setUpgrade(null)} className="w-full rounded-2xl border px-4 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50">今は無料のまま使う</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       {adderOpen && token ? (
         <BookAdder
