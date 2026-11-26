@@ -2,7 +2,7 @@ import Link from "next/link";
 import { loadCachedPublicCatalog } from "@/lib/cached-wordbooks";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 
-const featuredIds = ["83", "71", "102", "272", "80", "93", "310"];
+const featuredIds = ["83", "71", "102", "272", "80", "93"];
 
 export async function FeaturedWordbooks({ limit }: { limit: number }) {
   const catalog = await loadCachedPublicCatalog().catch(() => null);
