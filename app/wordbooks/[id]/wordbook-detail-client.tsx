@@ -683,15 +683,21 @@ export default function WordbookDetailPage({
   const printHtml = useMemo(() => {
     if (!book || testWords.length === 0) return "";
     const headingTitle = `${printTitle} ${testType === "list" ? "一覧" : testType === "answer" ? "解答" : "問題"}`;
+    const previewPlan: Plan = printOptionsUnlocked ? (accessPlan === "teacher" ? "teacher" : "personal") : "free";
+    const selectedWords = testWords.slice(0, effectiveCount);
+    const previewWords = previewPlan === "free"
+      ? selectedWords.map((word, index) => index < 50 ? word : { no: word.no, english: "", japanese: "" })
+      : selectedWords;
     return buildSharedPrintHtml({
       title: headingTitle,
-      words: testWords.slice(0, effectiveCount),
+      words: previewWords,
+      previewAllPages: true,
       type: testType,
       showPageNo,
       makeQuestion: (word) => makeSharedQuestion(word, testDirection),
       direction: testDirection,
       redSheet,
-      plan: printOptionsUnlocked ? (accessPlan === "teacher" ? "teacher" : "personal") : "free",
+      plan: previewPlan,
       printStyle,
       includeWatermark: printOptionsUnlocked ? includeWatermark : true,
       includeCredit: printOptionsUnlocked && accessPlan === "teacher" ? includeCredit : true,
