@@ -45,7 +45,7 @@ function describeSelection(selection: Selection, introEligible: boolean) {
       lines: [
         `今日のお支払い: ${yen(PERSONAL_INTRO_JPY)}（${PERSONAL_INTRO_DAYS}日間アクセス）`,
         `${PERSONAL_INTRO_DAYS + 1}日目から自動で月${yen(PERSONAL_MONTHLY_JPY)}（毎月自動更新）`,
-        "更新前ならいつでも解約できます",
+        "カード登録が必要です。初回期間中に解約すると、Personalはその時点で終了します。",
       ],
     };
   }
@@ -398,7 +398,7 @@ export default function PricingPage() {
           </button>
           <p className="text-xs text-slate-500">
             {introEligible
-              ? `${PERSONAL_INTRO_DAYS}日間アクセス${yen(PERSONAL_INTRO_JPY)}は申込時に決済。以降は自動で月${yen(PERSONAL_MONTHLY_JPY)}に移ります。解約しても初回料金は返金されません。既存の契約は現在の料金のまま継続します。`
+              ? `申込時のお支払いは${yen(PERSONAL_INTRO_JPY)}です。カード登録が必要です。${PERSONAL_INTRO_DAYS}日間の終了後は月${yen(PERSONAL_MONTHLY_JPY)}（税込）で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
               : "初回特典は利用済みです。既存の契約は現在の料金のまま継続します。"}
           </p>
         </div>
