@@ -6,7 +6,7 @@ function envInt(raw: string | undefined, fallback: number, min: number, max: num
 }
 
 export const PERSONAL_INTRO_DAYS = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_DAYS, 7, 1, 30);
-export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_CAMPAIGN_INTRO_JPY, 0, 0, 100_000);
+export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_JPY, 380, 50, 100_000);
 export const PERSONAL_MONTHLY_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_MONTHLY_JPY, 1580, 50, 100_000);
 export const PRINT_PAGE_JPY = 50;
 
@@ -35,10 +35,12 @@ export function appendPersonalCheckoutPrices(
   body: URLSearchParams,
   introductoryWeek: boolean,
   prices: { monthly: string | null; intro?: string | null },
+  emailOffer = false,
 ) {
+  const introAmount = emailOffer ? 0 : PERSONAL_INTRO_JPY;
   const invalid = (id: string | null | undefined) => typeof id === "string" && !id.startsWith("price_");
   if (invalid(prices.monthly) || invalid(prices.intro) ||
-      (introductoryWeek && PERSONAL_INTRO_JPY > 0 && prices.intro === undefined) || prices.monthly === undefined) {
+      (introductoryWeek && introAmount > 0 && prices.intro === undefined) || prices.monthly === undefined) {
     throw new Error("Personalの料金設定を確認できませんでした。");
   }
   if (prices.monthly) {
@@ -52,13 +54,13 @@ export function appendPersonalCheckoutPrices(
   body.set("line_items[0][quantity]", "1");
   body.set("payment_method_collection", "always");
   body.set("locale", "ja");
-  const billingVersion = `personal-${PERSONAL_INTRO_JPY}-${PERSONAL_MONTHLY_JPY}-v1`;
+  const billingVersion = `personal-${introAmount}-${PERSONAL_MONTHLY_JPY}-v1`;
   body.set("metadata[billing_version]", billingVersion);
   body.set("subscription_data[metadata][billing_version]", billingVersion);
 
   if (introductoryWeek) {
     body.set("subscription_data[trial_period_days]", String(PERSONAL_INTRO_DAYS));
-    if (PERSONAL_INTRO_JPY === 0) {
+    if (introAmount === 0) {
       body.set("metadata[trial]", "1");
       body.set("metadata[trial_offer]", "first");
       body.set("subscription_data[metadata][trial]", "1");
@@ -77,7 +79,7 @@ export function appendPersonalCheckoutPrices(
     }
   }
   body.set("custom_text[submit][message]", introductoryWeek
-    ? `申込時に${PERSONAL_INTRO_JPY}円。最初の${PERSONAL_INTRO_DAYS}日間の後は月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
+    ? `申込時に${introAmount}円。最初の${PERSONAL_INTRO_DAYS}日間の後は月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
     : `月額${PERSONAL_MONTHLY_JPY.toLocaleString("ja-JP")}円で自動更新します。更新前に解約できます。`);
 }
 
@@ -105,7 +107,7 @@ export function personalOfferText(introEligible: boolean) {
     };
   }
   return {
-    badge: PERSONAL_INTRO_JPY === 0 ? `期間限定・初回${PERSONAL_INTRO_DAYS}日間無料` : `${PERSONAL_INTRO_DAYS}日間アクセス`,
+    badge: `${PERSONAL_INTRO_DAYS}日間アクセス`,
     price: `${PERSONAL_INTRO_DAYS}日間アクセス ¥${yen(PERSONAL_INTRO_JPY)}`,
     after: `以降 ${monthly}（自動更新）`,
     summary: `最初の${PERSONAL_INTRO_DAYS}日間アクセスは${PERSONAL_INTRO_JPY}円、以降は${monthly}（税込）で自動更新します。`,

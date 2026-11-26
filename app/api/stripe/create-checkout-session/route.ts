@@ -6,6 +6,7 @@ import {
   tryEnsureProfile,
 } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
+import { isPersonalEmailOfferEligible } from "@/lib/personal-email-offer";
 import { appendInlinePlanPrice, appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
 
 type CheckoutPlan = "personal" | "teacher";
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     const auth = await requireSupabaseUser(request);
     if (auth.response) return auth.response;
 
-    const { plan, pricingVariant, interval: rawInterval } = (await request.json()) as { plan?: unknown; pricingVariant?: unknown; interval?: unknown };
+    const { plan, pricingVariant, interval: rawInterval, offer } = (await request.json()) as { plan?: unknown; pricingVariant?: unknown; interval?: unknown; offer?: unknown };
     const interval = rawInterval === "year" ? "year" : "month";
     if (!isCheckoutPlan(plan)) {
       return NextResponse.json({ ok: false, error: "Invalid plan." }, { status: 400 });
@@ -101,10 +102,23 @@ export async function POST(request: Request) {
     // Introductory pricing is once per account. Existing subscriptions keep their old Stripe price.
     const introductoryWeek = plan === "personal" && interval === "month" && Boolean(profile && getTrialOffer(profile) === "first");
 
+    const emailOffer = offer !== undefined;
+    if (emailOffer && (!introductoryWeek || !isPersonalEmailOfferEligible(offer, auth.user, profile))) {
+      return NextResponse.json(
+        { ok: false, error: "このメール限定特典を適用できません。メールを受け取ったアカウントでログインし、専用リンクからお申し込みください。" },
+        { status: 403 },
+      );
+    }
+
+    const cancelUrl = new URL("/pricing?checkout=cancel", appUrl);
+    if (emailOffer && typeof offer === "string") {
+      cancelUrl.searchParams.set("offer", offer);
+      cancelUrl.hash = "personal";
+    }
     const body = new URLSearchParams({
       mode: "subscription",
       success_url: `${appUrl}/?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/pricing?checkout=cancel`,
+      cancel_url: cancelUrl.toString(),
       client_reference_id: auth.user.id,
     });
 
@@ -113,7 +127,7 @@ export async function POST(request: Request) {
       appendInlinePlanPrice(body, plan, interval);
     } else if (plan === "personal") {
       // 料金は固定なので、Stripe側に料金を作らず、決済ページへ金額を直接渡す（IDの設定は不要）。
-      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly: null, intro: introductoryWeek ? null : undefined });
+      appendPersonalCheckoutPrices(body, introductoryWeek, { monthly: null, intro: introductoryWeek ? null : undefined }, emailOffer);
     }
     body.append("metadata[user_id]", auth.user.id);
     body.append("metadata[plan]", plan);

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
 
 type MessageKind = "service" | "marketing";
 type RecipientMode = "all" | "selected";
@@ -22,14 +23,24 @@ const serviceTemplate = `Vocab Print Proをご利用いただき、ありがと�
 
 const marketingTemplate = `Vocab Print Proをご利用いただき、ありがとうございます。
 
-期間限定で、Personalの月額プランを初回7日間0円でお試しいただけます。単語帳の範囲を選んで単語テストを印刷したり、聞き流しや忘却曲線に沿った復習を使ったりできます。
+通学中に聞いた単語を、帰宅後に紙のテストで解く。翌日は、忘れかけた単語から復習する。いつもの単語帳で、そんな勉強を始めてみませんか？
 
-対象は、Personalの初回特典をまだ利用していない方です。お申込みにはカードの登録が必要です。解約しない場合、7日間の終了後に月額1,580円（税込）で自動更新されます。
+通常、Personalの初回7日間は380円（税込）です。期間限定で、このメールを受け取った方は、初回7日間を0円でお試しいただけます。
 
-無料期間中にアカウント画面で解約すると、月額料金はかからず、Personalはその時点で終了します。
+■ 通学中は、スマホで聞き流し
+画面を見ずに聞けるモードで、移動中も単語をチェック。読み上げ間隔や繰り返す回数を、自分が意味を思い出せるペースに調整できます。
 
-お申込み・料金の確認はこちら
-https://www.vocabprint.com/pricing#personal
+■ 家では、今日の範囲だけを紙のテストに
+単語帳を選び、たとえば101〜150番をA4の単語テストに。Personalなら印刷回数に上限がないので、覚えるまで何度でも練習できます（1回20ページまで）。
+
+■ 翌日は、忘れかけた単語から復習
+忘却曲線に沿って、復習のタイミングが来た単語を出題できます。テスト前の短い時間でも、気になる単語を絞って確認できます。
+
+0円特典を使うには、下の専用リンクを開き、このメールを受け取ったアドレスのアカウントでログインしてください。通常の料金ページからお申し込みいただくと、初回7日間は380円（税込）です。
+
+${PERSONAL_EMAIL_OFFER_LINK}
+
+対象は、Personalの初回特典をまだ利用していない方です。お申し込みにはカード登録が必要です。無料期間中に解約しない場合は、8日目から月額1,580円（税込）で自動更新されます。無料期間中にアカウント画面から解約すると、月額料金はかからず、Personalの利用はその時点で終了します。
 
 Vocab Print Pro`;
 
@@ -72,7 +83,7 @@ export default function MarketingEmailPanel() {
     setConfirmation("");
     setServiceNoticeConfirmed(false);
     setContent(next === "service" ? serviceTemplate : marketingTemplate);
-    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【期間限定】Personalが初回7日間0円");
+    setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【メール受信者限定】聞き流しも印刷も。Personal初回7日間0円");
     setFirstTrialOnly(next === "marketing");
     if (next === "marketing") setRecipientMode("all");
   }
@@ -81,9 +92,10 @@ export default function MarketingEmailPanel() {
     setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   }
 
+  const hasPersonalOffer = messageKind === "marketing" && content.includes(PERSONAL_EMAIL_OFFER_LINK);
   const eligibleAccounts = useMemo(
-    () => (summary?.freeAccounts ?? []).filter((account) => messageKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
-    [summary, messageKind, firstTrialOnly]
+    () => (summary?.freeAccounts ?? []).filter((account) => messageKind === "service" || (account.marketingEmailOptIn && (!(firstTrialOnly || hasPersonalOffer) || account.firstTrialEligible))),
+    [summary, messageKind, firstTrialOnly, hasPersonalOffer]
   );
   const filteredAccounts = useMemo(
     () => eligibleAccounts.filter((account) => account.email.toLowerCase().includes(query.trim().toLowerCase())),
@@ -136,7 +148,7 @@ export default function MarketingEmailPanel() {
               </div>
 
               <h3 className="mt-6 font-black">2. 配信先</h3>
-              {messageKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
+              {messageKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly || hasPersonalOffer} disabled={hasPersonalOffer} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setRecipientMode("all")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "all" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>対象者へ一斉送信 ({eligibleAccounts.length}名)</button>
                 <button type="button" onClick={() => setRecipientMode("selected")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "selected" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>会員を選んで送信</button>
@@ -156,7 +168,7 @@ export default function MarketingEmailPanel() {
 
               <label className="mt-5 block text-sm font-bold text-slate-700">件名<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
               <label className="mt-4 block text-sm font-bold text-slate-700">本文<textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={8000} rows={13} className="mt-1 w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm leading-6" /></label>
-              <p className="mt-2 text-xs text-slate-400">新機能・学習ヒントには、受信者ごとの配信停止リンクを自動で追加します。</p>
+              <p className="mt-2 text-xs text-slate-400">新機能・学習ヒントには、配信停止リンクを追加します。本文の {PERSONAL_EMAIL_OFFER_LINK} は、送信時に受信者専用の申込みリンクへ置き換わります。</p>
             </div>
 
             <div className="space-y-4">

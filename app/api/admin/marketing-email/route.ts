@@ -2,6 +2,8 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { requireAdmin, resolveAdminUserFromBearerToken } from "@/lib/admin-auth";
 import { buildMarketingEmailHtml, createUnsubscribeUrl } from "@/lib/marketing-email";
+import { createPersonalEmailOfferUrl } from "@/lib/personal-email-offer";
+import { PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
 import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -113,6 +115,14 @@ export async function POST(request: Request) {
   );
   if (!subject || !content) return NextResponse.json({ ok: false, message: "件名と本文を入力してください。" }, { status: 400 });
 
+  const personalOffer = content.includes(PERSONAL_EMAIL_OFFER_LINK);
+  if (personalOffer && (messageKind !== "marketing" || !content.split(/\r?\n/).some((line) => line.trim() === PERSONAL_EMAIL_OFFER_LINK))) {
+    return NextResponse.json({ ok: false, message: "メール限定特典は広告メールを選び、本文の専用リンクを1行で入れてください。" }, { status: 400 });
+  }
+  if (messageKind === "marketing" && !personalOffer && /7日間(?:は)?0円/.test(subject + "\n" + content)) {
+    return NextResponse.json({ ok: false, message: "0円特典を案内するには、本文に受信者専用リンクを入れてください。" }, { status: 400 });
+  }
+
   const config = emailConfig();
   if (!config.enabled) return NextResponse.json({ ok: false, message: "RESEND_API_KEY と RESEND_FROM_EMAIL をVercel環境変数に設定してください。" }, { status: 503 });
 
@@ -122,12 +132,20 @@ export async function POST(request: Request) {
       if (!validEmail(testEmail)) return NextResponse.json({ ok: false, message: "テスト送信先メールアドレスを確認してください。" }, { status: 400 });
       const unsubscribeUrl = messageKind === "marketing" ? createUnsubscribeUrl(config.appUrl, testEmail) : null;
       if (messageKind === "marketing" && !unsubscribeUrl) return NextResponse.json({ ok: false, message: "配信停止URL用の署名鍵を設定してください。" }, { status: 503 });
+      const recipient = personalOffer
+        ? (await loadFreeRecipients()).find((entry) => entry.email === testEmail && entry.firstTrialEligible && entry.marketingEmailOptIn)
+        : undefined;
+      const personalOfferUrl = recipient ? createPersonalEmailOfferUrl(config.appUrl, recipient) : null;
+      if (personalOffer && !personalOfferUrl) {
+        return NextResponse.json({ ok: false, message: "0円特典のテストは、受信希望かつ初回特典が未利用のFree会員宛てのみに送れます。" }, { status: 400 });
+      }
+      const recipientContent = personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
       await sendWithResend([{
         from: config.from,
         to: [testEmail],
         subject: `[テスト] ${subject}`,
-        text: messageKind === "marketing" ? `${content}\n\n配信停止: ${unsubscribeUrl}` : content,
-        html: buildMarketingEmailHtml(content, { kind: messageKind, unsubscribeUrl }),
+        text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
+        html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl }),
         ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
         tags: [{ name: "kind", value: `${messageKind}-test` }],
       }], `marketing-test-${crypto.randomUUID()}`);
@@ -148,7 +166,7 @@ export async function POST(request: Request) {
     const admin = await resolveAdminUserFromBearerToken(request);
 
     const freeRecipients = await loadFreeRecipients();
-    const firstTrialOnly = messageKind === "marketing" && body.firstTrialOnly === true;
+    const firstTrialOnly = messageKind === "marketing" && (body.firstTrialOnly === true || personalOffer);
     const eligibleRecipients = messageKind === "marketing"
       ? freeRecipients.filter((recipient) => recipient.marketingEmailOptIn && (!firstTrialOnly || recipient.firstTrialEligible))
       : freeRecipients;
@@ -157,6 +175,11 @@ export async function POST(request: Request) {
       : eligibleRecipients;
     if (recipients.length === 0) return NextResponse.json({ ok: false, message: messageKind === "marketing" ? "受信を許可したFree会員がまだいません。" : "配信するFree会員を選択してください。" }, { status: 400 });
     if (recipients.length > 500) return NextResponse.json({ ok: false, message: "一度に送信できるのは500件までです。配信対象を分けてください。" }, { status: 400 });
+
+    const offerUrls = personalOffer ? recipients.map((recipient) => createPersonalEmailOfferUrl(config.appUrl, recipient)) : [];
+    if (offerUrls.some((url) => !url)) {
+      return NextResponse.json({ ok: false, message: "受信者専用リンクを発行できません。キャンペーン期限と署名設定を確認してください。" }, { status: 503 });
+    }
 
     const supabase = getSupabaseAdmin();
     const { data: campaign, error: campaignError } = await supabase
@@ -170,15 +193,17 @@ export async function POST(request: Request) {
       const deliveries: Array<Record<string, unknown>> = [];
       for (let index = 0; index < recipients.length; index += 100) {
         const chunk = recipients.slice(index, index + 100);
-        const messages = chunk.map((recipient) => {
+        const messages = chunk.map((recipient, itemIndex) => {
+          const personalOfferUrl = offerUrls[index + itemIndex];
+          const recipientContent = personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
           const unsubscribeUrl = messageKind === "marketing" ? createUnsubscribeUrl(config.appUrl, recipient.email) : null;
           if (messageKind === "marketing" && !unsubscribeUrl) throw new Error("配信停止URL用の署名鍵を設定してください。");
           return {
             from: config.from,
             to: [recipient.email],
             subject,
-            text: messageKind === "marketing" ? `${content}\n\n配信停止: ${unsubscribeUrl}` : content,
-            html: buildMarketingEmailHtml(content, { kind: messageKind, unsubscribeUrl }),
+            text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
+            html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl }),
             ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
             tags: [{ name: "kind", value: messageKind }, { name: "campaign", value: campaign.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) }],
           };

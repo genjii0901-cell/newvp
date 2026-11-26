@@ -36,14 +36,14 @@ function normalizePlan(value: unknown): Plan {
 }
 
 // 申込内容の説明（確認ポップアップで使う）。税込。
-function describeSelection(selection: Selection, introEligible: boolean) {
+function describeSelection(selection: Selection, introEligible: boolean, introPrice: number) {
   const { plan, interval } = selection;
   if (plan === "personal" && interval === "month" && introEligible) {
     return {
       title: `Personal ${PERSONAL_INTRO_DAYS}日間アクセス`,
-      today: yen(PERSONAL_INTRO_JPY),
+      today: yen(introPrice),
       lines: [
-        `今日のお支払い: ${yen(PERSONAL_INTRO_JPY)}（${PERSONAL_INTRO_DAYS}日間アクセス）`,
+        `今日のお支払い: ${yen(introPrice)}（${PERSONAL_INTRO_DAYS}日間アクセス）`,
         `${PERSONAL_INTRO_DAYS + 1}日目から自動で月${yen(PERSONAL_MONTHLY_JPY)}（毎月自動更新）`,
         "カード登録が必要です。初回期間中に解約すると、Personalはその時点で終了します。",
       ],
@@ -86,8 +86,48 @@ export default function PricingPage() {
   const [authOpen, setAuthOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [userReady, setUserReady] = useState(false);
+  const [offer, setOffer] = useState<string | null>(null);
+  const [verifiedOfferFor, setVerifiedOfferFor] = useState<string | null>(null);
+  const [verifyingOffer, setVerifyingOffer] = useState(false);
+
+  useEffect(() => {
+    setOffer(new URLSearchParams(window.location.search).get("offer"));
+  }, []);
+
 
   const introEligible = trialOffer === "first";
+  const emailOffer = Boolean(offer && user && verifiedOfferFor === user.id && introEligible);
+  const introPrice = emailOffer ? 0 : PERSONAL_INTRO_JPY;
+  const emailOfferUnavailable = offer !== null && Boolean(user) && !emailOffer;
+
+  useEffect(() => {
+    if (offer === null || !user || !supabase) return;
+    const controller = new AbortController();
+    setVerifyingOffer(true);
+    setVerifiedOfferFor(null);
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return;
+        const response = await fetch("/api/stripe/personal-email-offer", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+          body: JSON.stringify({ offer }),
+          signal: controller.signal,
+        });
+        const result = await response.json();
+        if (!controller.signal.aborted && response.ok && result.eligible === true) setVerifiedOfferFor(user.id);
+      } catch {
+        // The discounted checkout stays unavailable until the account can be verified.
+      } finally {
+        if (!controller.signal.aborted) setVerifyingOffer(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [offer, user, supabase]);
 
   useEffect(() => {
     trackPricingEvent("view", pricingVariant);
@@ -215,6 +255,8 @@ export default function PricingPage() {
 
   async function startCheckout() {
     if (checkoutBusy || !selection) return;
+    const emailCheckout = offer !== null && selection.plan === "personal" && selection.interval === "month";
+    if (emailCheckout && !emailOffer) return;
     if (!supabase) {
       setMessage("Supabaseの設定が未完了です。");
       return;
@@ -232,7 +274,7 @@ export default function PricingPage() {
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ plan: selection.plan, interval: selection.interval, pricingVariant }),
+        body: JSON.stringify({ plan: selection.plan, interval: selection.interval, pricingVariant, ...(emailCheckout ? { offer } : {}) }),
       });
       const result = await response.json().catch(() => ({}));
       if (response.ok && result.url) {
@@ -270,7 +312,7 @@ export default function PricingPage() {
     setMessage(result.error ?? "請求情報ページを開けませんでした。");
   }
 
-  const summary = selection ? describeSelection(selection, introEligible) : null;
+  const summary = selection ? describeSelection(selection, introEligible, introPrice) : null;
   const personalReady = configuredPlans.personal;
   const teacherReady = configuredPlans.teacher;
 
@@ -326,13 +368,26 @@ export default function PricingPage() {
 
           <div id="personal" className="order-1 scroll-mt-20 rounded-lg border border-blue-400 bg-white p-4 shadow-sm ring-2 ring-blue-100 sm:p-5 md:order-2">
             <h2 className="text-base font-black sm:text-xl">Personal</h2>
+            {offer !== null && (
+              <div className="mt-2 rounded-lg bg-blue-50 p-3 text-sm text-blue-900">
+                {emailOffer
+                  ? "期間限定・メール受信者特典を適用しました"
+                  : !user
+                    ? "初回7日間0円の対象確認のため、メールを受け取ったアカウントでログインしてください。"
+                    : verifyingOffer
+                      ? "メール限定特典の対象を確認しています。"
+                      : "このアカウントではメール限定特典を適用できません。メールを受け取ったアカウントでログインしてください。"}
+                {emailOfferUnavailable && !verifyingOffer && (
+                  <a className="mt-1 block font-bold underline" href="/pricing#personal">通常料金を確認する</a>
+                )}
+              </div>
+            )}
             {introEligible ? (
               <>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {PERSONAL_INTRO_JPY === 0 && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">期間限定</span>}
-                  <p className="text-sm font-bold text-slate-600">初回{PERSONAL_INTRO_DAYS}日間</p>
+                  <p className="text-sm font-bold text-slate-600">{offer !== null && !emailOffer ? "通常の" : ""}初回{PERSONAL_INTRO_DAYS}日間</p>
                 </div>
-                <p className="text-3xl font-black text-blue-600 sm:text-4xl">{yen(PERSONAL_INTRO_JPY)}</p>
+                <p className="text-3xl font-black text-blue-600 sm:text-4xl">{yen(introPrice)}</p>
                 <p className="mt-1 text-xs font-bold text-slate-600">以降 月{yen(PERSONAL_MONTHLY_JPY)}（自動更新・税込）</p>
               </>
             ) : (
@@ -348,8 +403,8 @@ export default function PricingPage() {
               <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-sm font-bold text-emerald-700">現在利用中</div>
             ) : (
               <>
-                <button type="button" onClick={() => chooseSelection({ plan: "personal", interval: "month" })} disabled={checkoutBusy || configState === "loading"} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500">
-                  {introEligible ? `${PERSONAL_INTRO_DAYS}日間${yen(PERSONAL_INTRO_JPY)}で始める` : "Personalに申し込む"}
+                <button type="button" onClick={() => chooseSelection({ plan: "personal", interval: "month" })} disabled={checkoutBusy || configState === "loading" || emailOfferUnavailable} className="mt-5 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-bold text-white hover:bg-blue-700 disabled:bg-slate-300 disabled:text-slate-500">
+                  {offer !== null && !user ? "ログインして0円特典を確認する" : introEligible ? `${PERSONAL_INTRO_DAYS}日間${yen(introPrice)}で始める` : "Personalに申し込む"}
                 </button>
                 <div className="mt-4 border-t pt-3">
                   <p className="text-xs font-bold text-slate-500">年間アクセス（一括払い）</p>
@@ -401,7 +456,7 @@ export default function PricingPage() {
           </button>
           <p className="text-xs text-slate-500">
             {introEligible
-              ? `申込時のお支払いは${yen(PERSONAL_INTRO_JPY)}です。カード登録が必要です。${PERSONAL_INTRO_DAYS}日間の終了後は月${yen(PERSONAL_MONTHLY_JPY)}（税込）で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
+              ? `申込時のお支払いは${yen(introPrice)}です。カード登録が必要です。${PERSONAL_INTRO_DAYS}日間の終了後は月${yen(PERSONAL_MONTHLY_JPY)}（税込）で自動更新します。初回期間中に解約すると、Personalはその時点で終了します。`
               : "初回特典は利用済みです。既存の契約は現在の料金のまま継続します。"}
           </p>
         </div>
@@ -411,7 +466,7 @@ export default function PricingPage() {
         open={authOpen && !user}
         supabase={supabase}
         reason="登録だけでは料金はかかりません。次の画面でお支払い内容を確認してから進みます。"
-        nextPath="/pricing"
+        nextPath={offer === null ? "/pricing" : `/pricing?offer=${encodeURIComponent(offer)}#personal`}
         onBeforeRedirect={rememberSelection}
         onAuthed={() => {
           setAuthOpen(false);
@@ -420,7 +475,7 @@ export default function PricingPage() {
         onClose={() => setAuthOpen(false)}
       />
 
-      {confirmOpen && summary && selection ? (
+      {confirmOpen && summary && selection && !(offer !== null && selection.plan === "personal" && selection.interval === "month" && !emailOffer) ? (
         <div className="fixed inset-0 z-[75] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm" onClick={checkoutBusy ? undefined : () => setConfirmOpen(false)}>
           <div role="dialog" aria-modal="true" aria-label="お支払い内容の確認" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl sm:p-7" onClick={(event) => event.stopPropagation()}>
             <p className="text-center text-xs font-black text-blue-700">ステップ 2 / 2</p>

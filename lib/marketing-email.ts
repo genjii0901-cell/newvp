@@ -64,11 +64,13 @@ export function escapeHtml(value: string) {
 
 export function buildMarketingEmailHtml(
   body: string,
-  options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null }
+  options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null; personalOfferUrl?: string | null }
 ) {
   const personalLink = "https://www.vocabprint.com/pricing#personal";
   const content = body.split(/\r?\n/).map((line) =>
-    options.kind === "marketing" && line.trim() === personalLink
+    options.personalOfferUrl && line.trim() === options.personalOfferUrl
+      ? `<a href="${escapeHtml(options.personalOfferUrl)}" style="display:inline-block;border-radius:8px;background:#1d4ed8;padding:10px 16px;color:#fff;font-weight:700;text-decoration:none">専用リンクで初回7日間0円を申し込む</a>`
+      : options.kind === "marketing" && line.trim() === personalLink
       ? `<a href="${personalLink}" style="display:inline-block;border-radius:8px;background:#1d4ed8;padding:10px 16px;color:#fff;font-weight:700;text-decoration:none">Personalの料金・申込みを確認する</a>`
       : escapeHtml(line)
   ).join("<br />");
