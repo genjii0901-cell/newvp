@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { loadCachedPublicCatalog } from "@/lib/cached-wordbooks";
-import { fallbackOfficialWordbooksForApi } from "@/lib/official-wordbooks";
-import { buildWordbookPath } from "@/lib/wordbook-slug";
+import { FeaturedWordbooks } from "../featured-wordbooks";
 
 export const metadata: Metadata = {
   title: "単語帳別に単語テスト・プリントを作成",
@@ -30,18 +28,7 @@ const examples = [
   ["かぶり調査", "複数の単語帳に共通する語や、片方にだけ出る語を調べ、印刷や保存につなげられます。"],
 ];
 
-async function loadSampleWordbooks() {
-  try {
-    const result = await loadCachedPublicCatalog();
-    if (result.ok && result.wordbooks.length > 0) return result.wordbooks.slice(0, 12);
-  } catch {
-    // Keep the guide indexable if the database is temporarily unavailable.
-  }
-  return fallbackOfficialWordbooksForApi().slice(0, 12);
-}
-
-export default async function WordbooksForPrintingGuidePage() {
-  const sampleWordbooks = await loadSampleWordbooks();
+export default function WordbooksForPrintingGuidePage() {
   return (
     <main className="bg-white">
       <section className="border-b bg-gradient-to-b from-blue-50 to-white">
@@ -54,7 +41,7 @@ export default async function WordbooksForPrintingGuidePage() {
           </h1>
           <p className="mt-5 max-w-3xl text-base leading-8 text-slate-600 sm:text-lg">
             Vocab Print Proでは、単語帳ごとの専用ページから、単語一覧、単語テスト印刷、聞き流し、単語チェックを使えます。
-            単語帳名入りのURLを用意しているため、検索やnoteの記事からも目的の単語帳ページに直接案内しやすくなります。
+            小テストや復習に使う範囲を番号で選び、問題と解答を印刷できます。
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link href="/wordbooks" className="rounded-2xl bg-blue-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/30 hover:bg-blue-700">
@@ -67,38 +54,7 @@ export default async function WordbooksForPrintingGuidePage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-5 py-14">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="text-sm font-black text-blue-700">単語帳リスト</p>
-            <h2 className="mt-2 text-2xl font-black text-slate-950 sm:text-3xl">画像付きカードで、使う単語帳を探しやすく</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
-              みんなの単語帳では、表紙画像・語数・プランを見ながら単語帳を選べます。選んだ単語帳ごとに、印刷・PDF作成・聞き流しを使えます。
-            </p>
-          </div>
-          <Link href="/wordbooks" className="rounded-2xl border px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">
-            みんなの単語帳へ
-          </Link>
-        </div>
-        <div className="mt-8 -mx-5 overflow-x-auto px-5 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:px-0 lg:grid-cols-3">
-          <div className="flex gap-3 sm:contents">
-            {sampleWordbooks.map((book) => (
-              <Link key={book.id} href={`${buildWordbookPath(book.id, book.title)}?tab=test`} className="w-44 shrink-0 overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
-                <div className="relative h-48 bg-slate-100 sm:h-36">
-                  <img src={book.coverImage ?? ""} alt={book.title} className="h-full w-full object-cover" loading="lazy" />
-                  <span className="absolute bottom-3 right-3 rounded-full bg-blue-600/90 px-2.5 py-1 text-xs font-black text-white">
-                    {("wordCount" in book ? book.wordCount : undefined) || book.words.length}語
-                  </span>
-                </div>
-                <div className="p-4">
-                  <h3 className="line-clamp-2 font-black text-slate-950">{book.title}</h3>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{book.description}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+      <FeaturedWordbooks limit={7} />
 
       <section className="mx-auto max-w-5xl px-5 py-14">
         <h2 className="text-2xl font-black text-slate-950 sm:text-3xl">対応しやすい単語帳・教材</h2>
