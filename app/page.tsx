@@ -26,6 +26,7 @@ import { FREE_ACCOUNT_LABEL, FREE_STUDY_DESCRIPTION, registrationIntentForPlan, 
 import { normalizeLocalRedirectPath } from "@/lib/safe-redirect";
 import ResendConfirmButton from "@/components/resend-confirm-button";
 import WordbookShelf, { type ShelfBook } from "@/components/wordbook-shelf";
+import { splitWordbookShelves } from "@/lib/wordbook-popularity";
 import { wordbookShelfCategory } from "@/lib/wordbook-category";
 
 type Word = {
@@ -507,6 +508,7 @@ export default function Home() {
   const [licenseWordbookIds, setLicenseWordbookIds] = useState<string[]>([]);
   const [hasPersonalLicense, setHasPersonalLicense] = useState(false);
   const [books, setBooks] = useState<WordBook[]>([]);
+  const [officialShelfIds, setOfficialShelfIds] = useState(() => new Set(sharedInitialBooks.map((book) => book.id)));
   const [expandedBookDescriptionId, setExpandedBookDescriptionId] = useState("");
   const [booksLoaded, setBooksLoaded] = useState(false);
   const [booksLoadFailed, setBooksLoadFailed] = useState(false);
@@ -894,6 +896,7 @@ export default function Home() {
         return;
       }
 
+      setOfficialShelfIds(new Set(officialBooks.map((book) => book.id)));
       setBooks((prev) => {
         const customBooks = prev.filter((book) => book.id.startsWith("custom-") || book.id.startsWith("wb-"));
         return [...customBooks, ...officialBooks];
@@ -1135,7 +1138,7 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
   const shelves = useMemo(() => {
-    const items: Array<ShelfBook & { category: ReturnType<typeof wordbookShelfCategory> }> = books.map((book, index) => ({
+    const items: Array<ShelfBook & { category: ReturnType<typeof wordbookShelfCategory> }> = books.filter((book) => officialShelfIds.has(book.id)).map((book, index) => ({
       id: book.id,
       title: book.title,
       href: buildWordbookPath(book.id, book.title),
@@ -1147,18 +1150,14 @@ export default function Home() {
       creator: book.creator && book.creator !== "非公開" && !book.creator.includes("@") ? book.creator : undefined,
       category: wordbookShelfCategory(book),
     }));
-    // 人気順（同じ人数なら元の並び）
-    const byPopularity = [...items].sort((a, b) => b.users - a.users);
-    const ranking = byPopularity.filter((item) => item.users > 0).slice(0, 10);
-    const rankingIds = new Set(ranking.map((item) => item.id));
+    const { ranking, remaining } = splitWordbookShelves(items, popularity);
     return {
       ranking,
-      // 人気ランキングに載っている単語帳は、英語・国語の棚には重ねて出さない
-      english: byPopularity.filter((item) => item.category === "english" && !rankingIds.has(item.id)),
-      japanese: byPopularity.filter((item) => item.category === "japanese" && !rankingIds.has(item.id)),
-      languages: byPopularity.filter((item) => item.category === "languages" && !rankingIds.has(item.id)),
+      english: remaining.filter((item) => item.category === "english"),
+      japanese: remaining.filter((item) => item.category === "japanese"),
+      languages: remaining.filter((item) => item.category === "languages"),
     };
-  }, [books, popularity]);
+  }, [books, officialShelfIds, popularity]);
   const searchableBooks = useMemo(() => {
     const query = bookSearch.trim().toLowerCase();
     if (!query) return books;

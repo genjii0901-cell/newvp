@@ -5,10 +5,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { loadProgress, summarize, type BookProgress } from "@/lib/srs";
 import WordbookDetail from "../wordbooks/[id]/wordbook-detail-client";
+import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { WordbookCover } from "@/components/wordbook-cover";
 
 type MyWord = { no: number; english: string; japanese: string; unit: string | null };
-type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null; requiredPlan?: "free" | "personal" | "teacher" };
+type MyBook = { id: string; title: string; description: string; wordCount: number; words: MyWord[]; coverImage: string | null; copied?: boolean; sourceId?: string | null; published?: boolean; requiredPlan?: "free" | "personal" | "teacher" };
 type CatalogBook = { id: string; title: string; wordCount: number; coverImage: string | null; description: string; requiredPlan?: string };
 
 
@@ -274,12 +275,24 @@ export default function MyWordbooksHub() {
   }
 
   if (viewing && book && token) {
+    const sourceId = syncId(book);
+    const original = book.copied ? catalog.find((item) => item.id === sourceId) : undefined;
+    const sharePath = original
+      ? buildWordbookPath(original.id, original.title)
+      : book.published
+        ? `/shared/${encodeURIComponent(book.id)}`
+        : book.copied && sourceId !== book.id
+          ? /^[0-9]+$/.test(sourceId)
+            ? buildWordbookPath(sourceId, book.title)
+            : `/shared/${encodeURIComponent(sourceId)}`
+          : undefined;
     return (
       <WordbookDetail
         key={book.id}
         savedBook={{
           data: { ...book, coverImage: displayCover(book), requiredPlan: book.requiredPlan ?? "free" },
-          progressId: syncId(book),
+          progressId: sourceId,
+          sharePath,
           copied: Boolean(book.copied),
           onBack: closeBook,
           onRemove: () => void deleteBook(book),

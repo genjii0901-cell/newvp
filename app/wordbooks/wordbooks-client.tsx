@@ -7,7 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { buildWordbookPath } from "@/lib/wordbook-slug";
 import { defaultCommunityCover, type CommunitySubject } from "@/lib/community-wordbook-types";
-import { POPULARITY_DISPLAY_MIN } from "@/lib/wordbook-popularity";
+import { wordbookShelfCategory } from "@/lib/wordbook-category";
+import { POPULARITY_DISPLAY_MIN, splitWordbookShelves } from "@/lib/wordbook-popularity";
 import { WordbookCover } from "@/components/wordbook-cover";
 import { loadProgress, retention, summarize } from "@/lib/srs";
 
@@ -101,7 +102,11 @@ export default function WordbooksClient({
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "my") setTab("my");
+    if (params.get("tab") === "my") {
+      setTab("my");
+      const id = params.get("book");
+      if (id) setSelectedMyBookId(id);
+    }
   }, []);
 
   useEffect(() => {
@@ -259,21 +264,25 @@ export default function WordbooksClient({
 
   function subjectOf(book: OfficialWordbook): CommunitySubject {
     if (book.subject) return book.subject;
-    return /古文|漢文|漢字|国語|現代文|四字熟語|ことわざ/.test(book.title) ? "国語" : "英語";
+    const category = wordbookShelfCategory(book);
+    return category === "japanese" ? "国語" : category === "languages" ? "多言語" : "英語";
   }
 
   const sections = useMemo(() => {
     const all = filteredOfficialBooks.filter((book) => subjectFilter === "all" || subjectOf(book) === subjectFilter);
     const searching = officialSearch.trim().length > 0 || filterActive;
     if (searching) return [{ key: "result", title: `検索結果 ${all.length}件`, books: all, flat: true }];
+    const { ranking, remaining } = splitWordbookShelves(officialBooks, popularity);
+    const categorized = [...remaining, ...all.filter((book) => book.community)];
     const defs = [
-      { key: "popular", title: "🔥 人気ランキング", books: all },
-      { key: "english", title: "英語", books: all.filter((book) => subjectOf(book) === "英語") },
-      { key: "japanese", title: "国語", books: all.filter((book) => subjectOf(book) === "国語") },
+      { key: "popular", title: "🔥 人気ランキング", books: ranking },
+      { key: "english", title: "英語", books: categorized.filter((book) => subjectOf(book) === "英語") },
+      { key: "japanese", title: "国語", books: categorized.filter((book) => subjectOf(book) === "国語") },
+      { key: "languages", title: "多言語", books: categorized.filter((book) => subjectOf(book) === "多言語") },
+      { key: "other", title: "その他", books: categorized.filter((book) => subjectOf(book) === "その他") },
     ].filter((section) => section.books.length > 0);
     return defs.map((section) => ({ ...section, flat: expanded === section.key }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredOfficialBooks, subjectFilter, officialSearch, filterActive, expanded]);
+  }, [filteredOfficialBooks, subjectFilter, officialSearch, filterActive, expanded, officialBooks, popularity]);
 
   function renderCard(book: OfficialWordbook) {
     const words = Array.isArray(book.words) ? book.words : [];
@@ -636,11 +645,11 @@ export default function WordbooksClient({
             <section key={section.key} className="mt-5">
               <div className="flex items-end justify-between gap-2">
                 <h2 className="text-base font-black text-slate-900 sm:text-lg">{section.title}</h2>
-                {!section.flat && section.books.length > 0 ? (
-                  <button type="button" onClick={() => setExpanded(section.key)} className="text-xs font-black text-blue-700 hover:underline">すべて見る（{section.books.length}）</button>
+                {section.key !== "result" && section.books.length > 0 ? (
+                  <button type="button" onClick={() => setExpanded(section.flat ? "" : section.key)} className="text-xs font-black text-blue-700 hover:underline">{section.flat ? "閉じる" : `すべて見る（${section.books.length}）`}</button>
                 ) : null}
               </div>
-              <div className={`mt-2 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-4 sm:gap-x-3 lg:grid-cols-6 ${section.flat ? "" : "[&>*:nth-child(n+4)]:hidden sm:[&>*:nth-child(n+4)]:block sm:[&>*:nth-child(n+5)]:hidden lg:[&>*:nth-child(n+5)]:block lg:[&>*:nth-child(n+7)]:hidden"}`}>
+              <div className={`mt-2 grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-5 sm:gap-x-3 lg:grid-cols-7 ${section.flat ? "" : "[&>*:nth-child(n+4)]:hidden sm:[&>*:nth-child(n+4)]:block sm:[&>*:nth-child(n+6)]:hidden lg:[&>*:nth-child(n+6)]:block lg:[&>*:nth-child(n+8)]:hidden"}`}>
                 {section.books.map(renderCard)}
               </div>
             </section>

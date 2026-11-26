@@ -57,3 +57,16 @@ export function estimateWordbookPopularity(rows: PopularityRow[]): Record<string
 
 /** これ未満の推定人数は表示しない（「新着」などにする）。 */
 export const POPULARITY_DISPLAY_MIN = 5;
+
+export function splitWordbookShelves<T extends { id: string }>(
+  books: T[],
+  popularity: Record<string, number>,
+) {
+  const count = (id: string) => popularity[id] ?? 0;
+  const ordered = [...books].sort((a, b) =>
+    count(b.id) - count(a.id) || a.id.localeCompare(b.id, "en", { numeric: true })
+  );
+  const ranking = ordered.filter((book) => count(book.id) > 0).slice(0, 10);
+  const ranked = new Set(ranking.map((book) => book.id));
+  return { ranking, remaining: ordered.filter((book) => !ranked.has(book.id)) };
+}

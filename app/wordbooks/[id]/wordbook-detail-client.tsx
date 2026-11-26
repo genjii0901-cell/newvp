@@ -18,7 +18,7 @@ import ListenPanel from "./listen-panel";
 import PrintGateModal from "../../print-gate-modal";
 import { getPricingVariant, trackPricingEvent } from "@/lib/pricing-experiment";
 import { personalOfferText } from "@/lib/personal-pricing";
-import { downloadWordbookCsv } from "@/lib/teacher-csv";
+import { downloadWordbookCsv, OWN_WORDBOOK_ONLY_MESSAGE } from "@/lib/teacher-csv";
 
 type Plan = "free" | "personal" | "teacher";
 type DetailTab = "overview" | "test" | "quiz" | "listen" | "memory";
@@ -335,6 +335,7 @@ export default function WordbookDetailPage({
     data: OfficialWordbook;
     progressId: string;
     copied: boolean;
+    sharePath?: string;
     onBack: () => void;
     onRemove: () => void;
     notice?: string;
@@ -478,7 +479,12 @@ export default function WordbookDetailPage({
 
   async function shareWordbook() {
     if (typeof window === "undefined" || !book) return;
-    const path = source === "community" ? `/shared/${encodeURIComponent(String(lookupId))}` : window.location.pathname;
+    if (savedBook && !savedBook.sharePath) {
+      if (savedBook.copied) setShareMessage("共有元のリンクが見つかりません。");
+      else window.location.assign(`/wordbooks?tab=my&book=${encodeURIComponent(book.id)}`);
+      return;
+    }
+    const path = savedBook?.sharePath ?? (source === "community" ? `/shared/${encodeURIComponent(String(lookupId))}` : window.location.pathname);
     const url = `${window.location.origin}${path}`;
     const text = `${book.title}（${book.wordCount ?? book.words.length}語）を Vocab Print Pro で学習しよう`;
     try {
@@ -1168,9 +1174,9 @@ export default function WordbookDetailPage({
       {savedBook?.notice && <p role="status" className="mt-2 text-sm text-slate-600">{savedBook.notice}</p>}
 
       <section className="mt-3 overflow-hidden rounded-2xl border bg-white shadow-sm sm:mt-4 sm:rounded-3xl">
-        <div className="grid grid-cols-[110px_1fr] gap-0 sm:grid-cols-[180px_1fr]">
-          <div className="relative self-start overflow-hidden rounded-br-xl">
-            <WordbookCover title={book.title} image={book.coverImage} crop />
+        <div className="grid grid-cols-[minmax(106px,30%)_1fr] gap-0 sm:grid-cols-[minmax(190px,25%)_1fr]">
+          <div className="relative min-h-40 overflow-hidden self-stretch sm:min-h-52">
+            <WordbookCover title={book.title} image={book.coverImage} fill />
             <div className="absolute left-2 top-2 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-black text-blue-700 shadow-sm sm:left-3 sm:top-3 sm:px-3 sm:py-1 sm:text-xs">
               {planLabel(book.requiredPlan)}
             </div>
@@ -1180,7 +1186,7 @@ export default function WordbookDetailPage({
             <p className="hidden text-xs font-black text-blue-700 sm:block">{planCopy(book.requiredPlan)}</p>
             <div className="flex items-start justify-between gap-2">
               <h1 className="min-w-0 text-base font-black leading-tight text-slate-950 sm:mt-2 sm:text-3xl">{book.title}</h1>
-              {isLoggedIn && <MemoryRing percent={summarize(book.words, progress).memoryPercent} size={64} />}
+              {isLoggedIn && <MemoryRing percent={summarize(book.words, progress).memoryPercent} size={108} />}
             </div>
             {adminAccess && !savedBook ? <Link href={`/admin?tab=content&wordbookId=${encodeURIComponent(String(book.id))}`} className="mt-2 inline-block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">📝 例文を追加・編集（管理者）</Link> : null}
             <p className={`mt-1 text-[11px] leading-4 text-slate-600 sm:mt-3 sm:text-sm sm:leading-7 ${showFullDescription ? "" : "line-clamp-2"}`}>
@@ -1196,40 +1202,25 @@ export default function WordbookDetailPage({
               {units.length > 0 ? <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">{units.length}ユニット</span> : null}
               {!savedBook && <span className="rounded-full bg-slate-100 px-2 py-0.5 sm:px-3 sm:py-1">作成者: {book.creator ?? "非公開"}</span>}
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5 sm:mt-5 sm:flex sm:flex-wrap sm:gap-2">
+            <div className="mt-3 flex flex-wrap items-center gap-1.5 sm:mt-4 sm:gap-2">
               {savedBook ? (
-                <>
-                  <button type="button" onClick={savedBook.onRemove} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-500 hover:text-red-700 sm:text-sm">単語帳を削除</button>
-                  {!savedBook.copied && (
-                    <button type="button" onClick={() => accessPlan === "teacher" ? downloadWordbookCsv(book.title, book.words) : showUpgrade("CSV出力はTeacherプランで使えます。")} className="rounded-xl border bg-white px-3 py-2 text-xs font-bold text-slate-700 sm:text-sm">CSV出力{accessPlan === "teacher" ? "" : " 🔒"}</button>
-                  )}
-                </>
+                <button type="button" onClick={savedBook.onRemove} className="rounded-xl border bg-white px-2.5 py-2 text-xs font-bold text-slate-500 hover:text-red-700 sm:px-4 sm:text-sm">削除</button>
               ) : (
-                <>
-              <button
-                type="button"
-                onClick={saveOfficialToMyWordbooks}
-                disabled={savingToMyBook}
-                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:bg-blue-100 disabled:bg-slate-100 disabled:text-slate-400 sm:rounded-2xl sm:px-4 sm:text-sm"
-              >
-                {savingToMyBook ? "追加中..." : "マイ追加"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void shareWordbook()}
-                className="rounded-xl border bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 sm:rounded-2xl sm:px-4 sm:text-sm"
-              >
+                <button type="button" onClick={saveOfficialToMyWordbooks} disabled={savingToMyBook} className="rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100 sm:px-4 sm:text-sm">
+                  {savingToMyBook ? "追加中…" : "マイ追加"}
+                </button>
+              )}
+              <button type="button" onClick={() => void shareWordbook()} className="rounded-xl border bg-white px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:px-4 sm:text-sm">
                 🔗 共有
               </button>
-              <button
-                type="button"
-                onClick={() => (isLoggedIn ? showUpgrade("CSV出力はTeacherプランで使えます。") : guideToRegister("CSV出力はTeacherプランの機能です。"))}
-                className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-black text-slate-600 sm:rounded-2xl sm:px-4 sm:text-sm"
-              >
-                CSV出力 🔒
+              <button type="button" onClick={() => {
+                if (!isLoggedIn) guideToRegister("自作単語帳のCSV出力はTeacherプランで使えます。");
+                else if (!savedBook || savedBook.copied) setShareMessage(OWN_WORDBOOK_ONLY_MESSAGE);
+                else if (accessPlan === "teacher") downloadWordbookCsv(book.title, book.words);
+                else showUpgrade("CSV出力はTeacherプランで使えます。");
+              }} className="rounded-xl border bg-white px-2.5 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 sm:px-4 sm:text-sm">
+                CSV出力{savedBook && !savedBook.copied && accessPlan === "teacher" ? "" : " 🔒"}
               </button>
-                </>
-              )}
               {shareMessage ? <span role="status" className="col-span-3 self-center break-all text-xs font-bold text-emerald-700">{shareMessage}</span> : null}
             </div>
           </div>
@@ -1398,18 +1389,7 @@ export default function WordbookDetailPage({
       {activeTab === "test" && (
         <section className="mt-4 grid gap-4 lg:grid-cols-[400px_1fr]">
           <div id="pdf-builder" className="min-w-0 rounded-3xl border bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="text-lg font-black">単語テスト印刷</h3>
-              {!savedBook && (
-              <button
-                type="button"
-                onClick={() => (isLoggedIn ? showUpgrade("CSV出力はTeacherプランで使えます。") : guideToRegister("CSV出力はTeacherプランの機能です。"))}
-                className="flex min-h-9 items-center rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-black text-slate-700"
-              >
-                CSV出力 🔒
-              </button>
-              )}
-            </div>
+            <h3 className="text-lg font-black">単語テスト印刷</h3>
 
             <label className="mt-4 block text-sm font-bold">印刷タイトル（任意）</label>
             <input

@@ -7,7 +7,7 @@ export function MemoryRing({ percent, size = 96, label = "記憶度" }: { percen
   const circumference = 2 * Math.PI * radius;
   const tone = percent >= 70 ? "#059669" : percent >= 35 ? "#2563eb" : "#d97706";
   return (
-    <div className="relative flex-none" style={{ width: size, height: size }} role="img" aria-label={`${label} ${percent}%`}>
+    <div className="relative flex-none" style={{ width: `clamp(78px, 16vw, ${size}px)`, height: `clamp(78px, 16vw, ${size}px)` }} role="img" aria-label={`${label} ${percent}%`}>
       <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
         <circle cx="50" cy="50" r={radius} fill="none" stroke="#e2e8f0" strokeWidth="9" />
         <circle
@@ -24,8 +24,8 @@ export function MemoryRing({ percent, size = 96, label = "記憶度" }: { percen
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-xl font-black leading-none text-slate-900">{percent}<span className="text-xs">%</span></span>
-        <span className="mt-0.5 text-[10px] font-bold text-slate-400">{label}</span>
+        <span className="text-[26px] font-black leading-none text-slate-900 sm:text-4xl">{percent}<span className="text-sm sm:text-lg">%</span></span>
+        <span className="mt-0.5 text-[11px] font-bold text-slate-500 sm:text-xs">{label}</span>
       </div>
     </div>
   );
@@ -57,7 +57,7 @@ export function StatusBar({ summary }: { summary: BookSummary }) {
   );
 }
 
-export function ForecastChart({ points }: { points: Array<{ day: number; percent: number }> }) {
+export function ForecastChart({ points, preview = false }: { points: Array<{ day: number; percent: number }>; preview?: boolean }) {
   const w = 320;
   const h = 150;
   const pad = { l: 30, r: 10, t: 10, b: 24 };
@@ -68,7 +68,7 @@ export function ForecastChart({ points }: { points: Array<{ day: number; percent
   const at = (day: number) => points.find((point) => point.day === day)?.percent ?? 0;
   return (
     <div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" role="img" aria-label="今から復習しなかった場合の記憶度の予測">
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" role="img" aria-label={preview ? "忘却曲線の見本" : "今から復習しなかった場合の記憶度の予測"}>
         {[0, 50, 100].map((tick) => (
           <g key={tick}>
             <line x1={pad.l} x2={w - pad.r} y1={y(tick)} y2={y(tick)} stroke="#e2e8f0" strokeWidth="1" />
@@ -77,18 +77,18 @@ export function ForecastChart({ points }: { points: Array<{ day: number; percent
         ))}
         <line x1={pad.l} x2={w - pad.r} y1={y(70)} y2={y(70)} stroke="#10b981" strokeWidth="1" strokeDasharray="4 3" />
         <text x={w - pad.r} y={y(70) - 3} textAnchor="end" fontSize="9" fill="#059669">定着ライン70%</text>
-        <polygon points={area} fill="#3b82f6" opacity="0.12" />
-        <polyline points={line} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinejoin="round" />
+        {!preview && <polygon points={area} fill="#3b82f6" opacity="0.12" />}
+        <polyline points={line} fill="none" stroke={preview ? "#93b4df" : "#2563eb"} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" strokeDasharray={preview ? "1 5" : undefined} />
         {[0, 7, 14, 30].map((day) => (
           <g key={day}>
-            <circle cx={x(day)} cy={y(at(day))} r="3.5" fill="#2563eb" />
+            {!preview && <circle cx={x(day)} cy={y(at(day))} r="3.5" fill="#2563eb" />}
             <text x={x(day)} y={h - 8} textAnchor="middle" fontSize="9" fill="#64748b">{day === 0 ? "今日" : `${day}日後`}</text>
           </g>
         ))}
       </svg>
-      <p className="mt-1 text-center text-xs font-bold text-slate-500">
+      {!preview && <p className="mt-1 text-center text-xs font-bold text-slate-500">
         このまま復習しないと…今日 {at(0)}% → 7日後 {at(7)}% → 30日後 {at(30)}%
-      </p>
+      </p>}
     </div>
   );
 }
@@ -130,7 +130,13 @@ export function MemoryReviewPanel({
           {isPaid ? (
             learned.length > 0 ? <ForecastChart points={forecast(words, progress, 30, now)} /> : <p className="mt-2 text-sm text-slate-500">学習記録はまだありません</p>
           ) : (
-            <button type="button" onClick={() => onLocked("忘却曲線の予測はPersonalで使えます。")} className="mt-2 text-sm font-bold text-blue-700">🔒 Personalで見る</button>
+            <>
+              <ForecastChart preview points={Array.from({ length: 31 }, (_, day) => ({ day, percent: 95 * Math.exp(-day / 18) }))} />
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="text-slate-500">見本</span>
+                <button type="button" onClick={() => onLocked("忘却曲線の予測はPersonalで使えます。")} className="font-bold text-blue-700">🔒 Personalで見る</button>
+              </div>
+            </>
           )}
         </section>
         <section className="rounded-2xl border bg-white p-4">
