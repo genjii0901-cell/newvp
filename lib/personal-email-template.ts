@@ -17,19 +17,18 @@ function isOfferLinkLine(line: string) {
 }
 
 export function advertisesPersonalEmailOffer(subject: string, content: string) {
-  const offerText = /(?:[7７]\s*日間|[1１一]\s*週間)\s*(?:は|が|を)?\s*(?:[0０]\s*円|無料)|[0０]\s*円特典|メール(?:受信者)?限定の特典/;
+  const offerText = /(?:[7７]\s*日間|[1１一]\s*週間)\s*(?:は|が|を)?\s*(?:[0０]\s*円|無料)(?=$|[\s!！。]|です|でお試し|で始め)|[0０]\s*円(?:でお試し|特典を使って申し込)/;
   return offerText.test(subject + "\n" + content);
 }
 
-export function hasPersonalEmailOfferLink(kind: "marketing" | "service", subject: string, content: string) {
-  return (kind === "marketing" || advertisesPersonalEmailOffer(subject, content))
-    && content.split(/\r?\n/).some(isOfferLinkLine);
+export function hasPersonalEmailOfferLink(content: string) {
+  return content.split(/\r?\n/).some(isOfferLinkLine);
 }
 
 export function replacePersonalEmailOfferLink(content: string, url: string) {
   return content.split(/\r?\n/).map((line) => isOfferLinkLine(line) ? url : line).join("\n");
 }
 
-export function emailKindForDelivery(kind: "marketing" | "service", hasOfferLink: boolean) {
-  return hasOfferLink ? "marketing" : kind;
+export function emailKindForDelivery(kind: "marketing" | "service", subject: string, content: string) {
+  return kind === "marketing" || advertisesPersonalEmailOffer(subject, content) ? "marketing" : "service";
 }

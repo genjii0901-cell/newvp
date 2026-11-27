@@ -107,8 +107,9 @@ export async function POST(request: Request) {
   const content = stringValue(body.content, 8000);
   const action = stringValue(body.action, 20);
   const selectedKind = body.messageKind === "service" ? "service" : "marketing";
-  const personalOffer = hasPersonalEmailOfferLink(selectedKind, subject, content);
-  const messageKind: MessageKind = emailKindForDelivery(selectedKind, personalOffer);
+  const messageKind: MessageKind = emailKindForDelivery(selectedKind, subject, content);
+  const personalOffer = messageKind === "marketing" && hasPersonalEmailOfferLink(content);
+  const personalCampaign = personalOffer || advertisesPersonalEmailOffer(subject, content);
   const recipientMode: RecipientMode = body.recipientMode === "selected" ? "selected" : "all";
   const selectedIds = new Set(
     Array.isArray(body.selectedProfileIds)
@@ -116,10 +117,6 @@ export async function POST(request: Request) {
       : []
   );
   if (!subject || !content) return NextResponse.json({ ok: false, message: "件名と本文を入力してください。" }, { status: 400 });
-
-  if (!personalOffer && advertisesPersonalEmailOffer(subject, content)) {
-    return NextResponse.json({ ok: false, message: "0円特典を案内するには、本文に受信者専用リンクを入れてください。" }, { status: 400 });
-  }
 
   const config = emailConfig();
   if (!config.enabled) return NextResponse.json({ ok: false, message: "RESEND_API_KEY と RESEND_FROM_EMAIL をVercel環境変数に設定してください。" }, { status: 503 });
@@ -168,7 +165,7 @@ export async function POST(request: Request) {
     const admin = await resolveAdminUserFromBearerToken(request);
 
     const freeRecipients = await loadFreeRecipients();
-    const firstTrialOnly = messageKind === "marketing" && body.firstTrialOnly !== false && (body.firstTrialOnly === true || personalOffer);
+    const firstTrialOnly = messageKind === "marketing" && body.firstTrialOnly !== false && (body.firstTrialOnly === true || personalCampaign);
     const eligibleRecipients = messageKind === "marketing"
       ? freeRecipients.filter((recipient) => recipient.marketingEmailOptIn && (!firstTrialOnly || recipient.firstTrialEligible))
       : freeRecipients;
@@ -199,7 +196,7 @@ export async function POST(request: Request) {
         const chunk = recipients.slice(index, index + 100);
         const messages = chunk.map((recipient, itemIndex) => {
           const personalOfferUrl = offerUrls[index + itemIndex];
-          const featuresOnly = personalOffer && !recipient.firstTrialEligible;
+          const featuresOnly = personalCampaign && !recipient.firstTrialEligible;
           const recipientContent = featuresOnly
             ? PERSONAL_FEATURES_EMAIL.content
             : personalOfferUrl ? replacePersonalEmailOfferLink(content, personalOfferUrl) : content;

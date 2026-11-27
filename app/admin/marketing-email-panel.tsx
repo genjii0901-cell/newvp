@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
+import { advertisesPersonalEmailOffer, emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
 
 type MessageKind = "service" | "marketing";
 type RecipientMode = "all" | "selected";
@@ -95,8 +95,9 @@ export default function MarketingEmailPanel() {
     setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   }
 
-  const hasPersonalOffer = hasPersonalEmailOfferLink(messageKind, subject, content);
-  const deliveryKind = emailKindForDelivery(messageKind, hasPersonalOffer);
+  const deliveryKind = emailKindForDelivery(messageKind, subject, content);
+  const hasPersonalOffer = deliveryKind === "marketing" && hasPersonalEmailOfferLink(content);
+  const personalCampaign = hasPersonalOffer || advertisesPersonalEmailOffer(subject, content);
   const eligibleAccounts = useMemo(
     () => (summary?.freeAccounts ?? []).filter((account) => deliveryKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
     [summary, deliveryKind, firstTrialOnly]
@@ -151,10 +152,10 @@ export default function MarketingEmailPanel() {
                 <button type="button" onClick={() => changeKind("marketing")} className={`rounded-xl border p-3 text-left ${messageKind === "marketing" ? "border-blue-600 bg-blue-50" : "border-slate-200"}`}><strong className="block text-sm">新機能・学習ヒント</strong><span className="mt-1 block text-xs leading-5 text-slate-500">プラン案内を含められます。受信希望をオンにした方だけへ配信停止リンク付きで送ります。</span></button>
               </div>
 
-              {hasPersonalOffer && messageKind === "service" && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">専用リンク入りのため、キャンペーンとして受信希望者に配信します。</p>}
+              {deliveryKind === "marketing" && messageKind === "service" && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">0円特典の案内があるため、キャンペーンとして受信希望者に配信します。</p>}
               <h3 className="mt-6 font-black">2. 配信先</h3>
               {deliveryKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
-              {hasPersonalOffer && !firstTrialOnly && <p className="mt-2 text-xs text-slate-600">初回特典を利用済みの会員には、機能紹介と通常の料金ページのリンクを送ります。</p>}
+              {personalCampaign && !firstTrialOnly && <p className="mt-2 text-xs text-slate-600">初回特典を利用済みの会員には、機能紹介と通常の料金ページのリンクを送ります。</p>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setRecipientMode("all")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "all" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>対象者へ一斉送信 ({eligibleAccounts.length}名)</button>
                 <button type="button" onClick={() => setRecipientMode("selected")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "selected" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>会員を選んで送信</button>
@@ -174,7 +175,7 @@ export default function MarketingEmailPanel() {
 
               <label className="mt-5 block text-sm font-bold text-slate-700">件名<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
               <label className="mt-4 block text-sm font-bold text-slate-700">本文<textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={8000} rows={13} className="mt-1 w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm leading-6" /></label>
-              <p className="mt-2 text-xs text-slate-400">URLを単独の行に貼ると、クリックできるリンクになります。{deliveryKind === "marketing" && <> {PERSONAL_EMAIL_OFFER_LINK} を単独の行に置くと、送信時に受信者専用の申込みリンクに変わり、配信停止リンクも付きます。</>}</p>
+              <p className="mt-2 text-xs text-slate-400">リンクの挿入は任意です。URLを単独の行に貼ると、クリックできるリンクになります。{deliveryKind === "marketing" && <> {PERSONAL_EMAIL_OFFER_LINK} を単独の行に置くと、送信時に受信者専用の申込みリンクに変わり、配信停止リンクも付きます。</>}</p>
             </div>
 
             <div className="space-y-4">
