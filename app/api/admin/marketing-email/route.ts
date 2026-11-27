@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, resolveAdminUserFromBearerToken } from "@/lib/admin-auth";
 import { buildMarketingEmailHtml, createUnsubscribeUrl } from "@/lib/marketing-email";
 import { createPersonalEmailOfferUrl } from "@/lib/personal-email-offer";
-import { emailKindForDelivery, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
+import { emailKindForDelivery, PERSONAL_EMAIL_OFFER_LINK, PERSONAL_FEATURES_EMAIL } from "@/lib/personal-email-template";
 import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -133,13 +133,17 @@ export async function POST(request: Request) {
       const unsubscribeUrl = messageKind === "marketing" ? createUnsubscribeUrl(config.appUrl, testEmail) : null;
       if (messageKind === "marketing" && !unsubscribeUrl) return NextResponse.json({ ok: false, message: "配信停止URL用の署名鍵を設定してください。" }, { status: 503 });
       const recipient = personalOffer
-        ? (await loadFreeRecipients()).find((entry) => entry.email === testEmail && entry.firstTrialEligible && entry.marketingEmailOptIn)
+        ? (await loadFreeRecipients()).find((entry) => entry.email === testEmail && entry.firstTrialEligible)
         : undefined;
-      const personalOfferUrl = recipient ? createPersonalEmailOfferUrl(config.appUrl, recipient) : null;
-      if (personalOffer && !personalOfferUrl) {
-        return NextResponse.json({ ok: false, message: "0円特典のテストは、受信希望かつ初回特典が未利用のFree会員宛てのみに送れます。" }, { status: 400 });
-      }
-      const recipientContent = personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
+      const liveOfferUrl = recipient ? createPersonalEmailOfferUrl(config.appUrl, recipient) : null;
+      const previewOffer = personalOffer && !liveOfferUrl;
+      const personalOfferUrl = previewOffer
+        ? new URL("/pricing?offer=preview-only#personal", config.appUrl).toString()
+        : liveOfferUrl;
+      const previewNotice = previewOffer ? "【テスト配信】申込みボタンは表示確認用です。0円特典は適用されません。\n\n" : "";
+      const recipientContent = personalOfferUrl
+        ? previewNotice + content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl)
+        : content;
       await sendWithResend([{
         from: config.from,
         to: [testEmail],
@@ -166,7 +170,7 @@ export async function POST(request: Request) {
     const admin = await resolveAdminUserFromBearerToken(request);
 
     const freeRecipients = await loadFreeRecipients();
-    const firstTrialOnly = messageKind === "marketing" && (body.firstTrialOnly === true || personalOffer);
+    const firstTrialOnly = messageKind === "marketing" && body.firstTrialOnly !== false && (body.firstTrialOnly === true || personalOffer);
     const eligibleRecipients = messageKind === "marketing"
       ? freeRecipients.filter((recipient) => recipient.marketingEmailOptIn && (!firstTrialOnly || recipient.firstTrialEligible))
       : freeRecipients;
@@ -176,8 +180,10 @@ export async function POST(request: Request) {
     if (recipients.length === 0) return NextResponse.json({ ok: false, message: messageKind === "marketing" ? "受信を許可したFree会員がまだいません。" : "配信するFree会員を選択してください。" }, { status: 400 });
     if (recipients.length > 500) return NextResponse.json({ ok: false, message: "一度に送信できるのは500件までです。配信対象を分けてください。" }, { status: 400 });
 
-    const offerUrls = personalOffer ? recipients.map((recipient) => createPersonalEmailOfferUrl(config.appUrl, recipient)) : [];
-    if (offerUrls.some((url) => !url)) {
+    const offerUrls = personalOffer ? recipients.map((recipient) => recipient.firstTrialEligible
+      ? createPersonalEmailOfferUrl(config.appUrl, recipient)
+      : null) : [];
+    if (personalOffer && recipients.some((recipient, index) => recipient.firstTrialEligible && !offerUrls[index])) {
       return NextResponse.json({ ok: false, message: "受信者専用リンクを発行できません。キャンペーン期限と署名設定を確認してください。" }, { status: 503 });
     }
 
@@ -195,13 +201,17 @@ export async function POST(request: Request) {
         const chunk = recipients.slice(index, index + 100);
         const messages = chunk.map((recipient, itemIndex) => {
           const personalOfferUrl = offerUrls[index + itemIndex];
-          const recipientContent = personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
+          const featuresOnly = personalOffer && !recipient.firstTrialEligible;
+          const recipientContent = featuresOnly
+            ? PERSONAL_FEATURES_EMAIL.content
+            : personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
+          const recipientSubject = featuresOnly ? PERSONAL_FEATURES_EMAIL.subject : subject;
           const unsubscribeUrl = messageKind === "marketing" ? createUnsubscribeUrl(config.appUrl, recipient.email) : null;
           if (messageKind === "marketing" && !unsubscribeUrl) throw new Error("配信停止URL用の署名鍵を設定してください。");
           return {
             from: config.from,
             to: [recipient.email],
-            subject,
+            subject: recipientSubject,
             text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
             html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl }),
             ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),

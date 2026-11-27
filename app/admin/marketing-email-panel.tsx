@@ -48,7 +48,7 @@ export default function MarketingEmailPanel() {
   const supabase = useMemo(() => createClient(), []);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [messageKind, setMessageKind] = useState<MessageKind>("service");
-  const [firstTrialOnly, setFirstTrialOnly] = useState(false);
+  const [firstTrialOnly, setFirstTrialOnly] = useState(true);
   const [recipientMode, setRecipientMode] = useState<RecipientMode>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -87,7 +87,7 @@ export default function MarketingEmailPanel() {
       setContent(next === "service" ? serviceTemplate : marketingTemplate);
       setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【メール受信者限定】聞き流しも印刷も。Personal初回7日間0円");
     }
-    setFirstTrialOnly(next === "marketing");
+    setFirstTrialOnly(true);
     if (next === "marketing") setRecipientMode("all");
   }
 
@@ -98,8 +98,8 @@ export default function MarketingEmailPanel() {
   const hasPersonalOffer = content.includes(PERSONAL_EMAIL_OFFER_LINK);
   const deliveryKind = emailKindForDelivery(messageKind, content);
   const eligibleAccounts = useMemo(
-    () => (summary?.freeAccounts ?? []).filter((account) => deliveryKind === "service" || (account.marketingEmailOptIn && (!(firstTrialOnly || hasPersonalOffer) || account.firstTrialEligible))),
-    [summary, deliveryKind, firstTrialOnly, hasPersonalOffer]
+    () => (summary?.freeAccounts ?? []).filter((account) => deliveryKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
+    [summary, deliveryKind, firstTrialOnly]
   );
   const filteredAccounts = useMemo(
     () => eligibleAccounts.filter((account) => account.email.toLowerCase().includes(query.trim().toLowerCase())),
@@ -153,7 +153,8 @@ export default function MarketingEmailPanel() {
 
               {hasPersonalOffer && messageKind === "service" && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">専用リンク入りのため、キャンペーンとして受信希望者に配信します。</p>}
               <h3 className="mt-6 font-black">2. 配信先</h3>
-              {deliveryKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly || hasPersonalOffer} disabled={hasPersonalOffer} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
+              {deliveryKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
+              {hasPersonalOffer && !firstTrialOnly && <p className="mt-2 text-xs text-slate-600">初回特典を利用済みの会員には、機能紹介と通常の料金ページのリンクを送ります。</p>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <button type="button" onClick={() => setRecipientMode("all")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "all" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>対象者へ一斉送信 ({eligibleAccounts.length}名)</button>
                 <button type="button" onClick={() => setRecipientMode("selected")} className={`rounded-xl px-4 py-2 text-sm font-bold ${recipientMode === "selected" ? "bg-blue-600 text-white" : "border bg-white text-slate-700"}`}>会員を選んで送信</button>
@@ -179,6 +180,7 @@ export default function MarketingEmailPanel() {
             <div className="space-y-4">
               <div className="rounded-2xl border bg-white p-5 shadow-sm">
                 <h3 className="font-black">3. 自分宛てにテスト</h3>
+                {hasPersonalOffer && <p className="mt-2 text-xs text-slate-600">指定したアドレスに送信できます。特典対象外のアドレスでは申込みボタンは表示確認用です。</p>}
                 <input value={testEmail} onChange={(event) => setTestEmail(event.target.value)} type="email" placeholder="確認用メールアドレス" className="mt-3 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" />
                 <button onClick={() => void submit("test")} disabled={sending || !testEmail || !summary.emailReady} className="mt-3 w-full rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 disabled:opacity-50">テストメールを送る</button>
               </div>
