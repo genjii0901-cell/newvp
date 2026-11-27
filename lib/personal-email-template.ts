@@ -12,6 +12,24 @@ export const PERSONAL_FEATURES_EMAIL = {
   ].join("\n\n"),
 };
 
-export function emailKindForDelivery(kind: "marketing" | "service", content: string) {
-  return content.includes(PERSONAL_EMAIL_OFFER_LINK) ? "marketing" : kind;
+function isOfferLinkLine(line: string) {
+  return line.trim() === PERSONAL_EMAIL_OFFER_LINK;
+}
+
+export function advertisesPersonalEmailOffer(subject: string, content: string) {
+  const offerText = /(?:[7７]\s*日間|[1１一]\s*週間)\s*(?:は|が|を)?\s*(?:[0０]\s*円|無料)|[0０]\s*円特典|メール(?:受信者)?限定の特典/;
+  return offerText.test(subject + "\n" + content);
+}
+
+export function hasPersonalEmailOfferLink(kind: "marketing" | "service", subject: string, content: string) {
+  return (kind === "marketing" || advertisesPersonalEmailOffer(subject, content))
+    && content.split(/\r?\n/).some(isOfferLinkLine);
+}
+
+export function replacePersonalEmailOfferLink(content: string, url: string) {
+  return content.split(/\r?\n/).map((line) => isOfferLinkLine(line) ? url : line).join("\n");
+}
+
+export function emailKindForDelivery(kind: "marketing" | "service", hasOfferLink: boolean) {
+  return hasOfferLink ? "marketing" : kind;
 }

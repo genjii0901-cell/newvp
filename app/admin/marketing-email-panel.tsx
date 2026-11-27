@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { emailKindForDelivery, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
+import { emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
 
 type MessageKind = "service" | "marketing";
 type RecipientMode = "all" | "selected";
@@ -95,8 +95,8 @@ export default function MarketingEmailPanel() {
     setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   }
 
-  const hasPersonalOffer = content.includes(PERSONAL_EMAIL_OFFER_LINK);
-  const deliveryKind = emailKindForDelivery(messageKind, content);
+  const hasPersonalOffer = hasPersonalEmailOfferLink(messageKind, subject, content);
+  const deliveryKind = emailKindForDelivery(messageKind, hasPersonalOffer);
   const eligibleAccounts = useMemo(
     () => (summary?.freeAccounts ?? []).filter((account) => deliveryKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
     [summary, deliveryKind, firstTrialOnly]
@@ -174,7 +174,7 @@ export default function MarketingEmailPanel() {
 
               <label className="mt-5 block text-sm font-bold text-slate-700">件名<input value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={160} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" /></label>
               <label className="mt-4 block text-sm font-bold text-slate-700">本文<textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={8000} rows={13} className="mt-1 w-full resize-y rounded-xl border border-slate-200 px-3 py-2 text-sm leading-6" /></label>
-              <p className="mt-2 text-xs text-slate-400">URLを単独の行に貼ると、クリックできるリンクになります。{deliveryKind === "marketing" && <> {PERSONAL_EMAIL_OFFER_LINK} は送信時に受信者専用の申込みリンクに変わり、配信停止リンクも付きます。</>}</p>
+              <p className="mt-2 text-xs text-slate-400">URLを単独の行に貼ると、クリックできるリンクになります。{deliveryKind === "marketing" && <> {PERSONAL_EMAIL_OFFER_LINK} を単独の行に置くと、送信時に受信者専用の申込みリンクに変わり、配信停止リンクも付きます。</>}</p>
             </div>
 
             <div className="space-y-4">

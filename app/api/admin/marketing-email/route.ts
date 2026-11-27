@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, resolveAdminUserFromBearerToken } from "@/lib/admin-auth";
 import { buildMarketingEmailHtml, createUnsubscribeUrl } from "@/lib/marketing-email";
 import { createPersonalEmailOfferUrl } from "@/lib/personal-email-offer";
-import { emailKindForDelivery, PERSONAL_EMAIL_OFFER_LINK, PERSONAL_FEATURES_EMAIL } from "@/lib/personal-email-template";
+import { advertisesPersonalEmailOffer, emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_FEATURES_EMAIL, replacePersonalEmailOfferLink } from "@/lib/personal-email-template";
 import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -106,7 +106,9 @@ export async function POST(request: Request) {
   const subject = stringValue(body.subject, 160);
   const content = stringValue(body.content, 8000);
   const action = stringValue(body.action, 20);
-  const messageKind: MessageKind = emailKindForDelivery(body.messageKind === "service" ? "service" : "marketing", content);
+  const selectedKind = body.messageKind === "service" ? "service" : "marketing";
+  const personalOffer = hasPersonalEmailOfferLink(selectedKind, subject, content);
+  const messageKind: MessageKind = emailKindForDelivery(selectedKind, personalOffer);
   const recipientMode: RecipientMode = body.recipientMode === "selected" ? "selected" : "all";
   const selectedIds = new Set(
     Array.isArray(body.selectedProfileIds)
@@ -115,11 +117,7 @@ export async function POST(request: Request) {
   );
   if (!subject || !content) return NextResponse.json({ ok: false, message: "件名と本文を入力してください。" }, { status: 400 });
 
-  const personalOffer = content.includes(PERSONAL_EMAIL_OFFER_LINK);
-  if (personalOffer && !content.split(/\r?\n/).some((line) => line.trim() === PERSONAL_EMAIL_OFFER_LINK)) {
-    return NextResponse.json({ ok: false, message: "本文に {{personal_offer_url}} だけの行を入れてください。配信時に専用リンクへ置き換わります。" }, { status: 400 });
-  }
-  if (!personalOffer && /7日間(?:は)?0円/.test(subject + "\n" + content)) {
+  if (!personalOffer && advertisesPersonalEmailOffer(subject, content)) {
     return NextResponse.json({ ok: false, message: "0円特典を案内するには、本文に受信者専用リンクを入れてください。" }, { status: 400 });
   }
 
@@ -142,7 +140,7 @@ export async function POST(request: Request) {
         : liveOfferUrl;
       const previewNotice = previewOffer ? "【テスト配信】申込みボタンは表示確認用です。0円特典は適用されません。\n\n" : "";
       const recipientContent = personalOfferUrl
-        ? previewNotice + content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl)
+        ? previewNotice + replacePersonalEmailOfferLink(content, personalOfferUrl)
         : content;
       await sendWithResend([{
         from: config.from,
@@ -204,7 +202,7 @@ export async function POST(request: Request) {
           const featuresOnly = personalOffer && !recipient.firstTrialEligible;
           const recipientContent = featuresOnly
             ? PERSONAL_FEATURES_EMAIL.content
-            : personalOfferUrl ? content.replaceAll(PERSONAL_EMAIL_OFFER_LINK, personalOfferUrl) : content;
+            : personalOfferUrl ? replacePersonalEmailOfferLink(content, personalOfferUrl) : content;
           const recipientSubject = featuresOnly ? PERSONAL_FEATURES_EMAIL.subject : subject;
           const unsubscribeUrl = messageKind === "marketing" ? createUnsubscribeUrl(config.appUrl, recipient.email) : null;
           if (messageKind === "marketing" && !unsubscribeUrl) throw new Error("配信停止URL用の署名鍵を設定してください。");
