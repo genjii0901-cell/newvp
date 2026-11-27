@@ -91,7 +91,7 @@ export default function PricingPage() {
   const [verifyingOffer, setVerifyingOffer] = useState(false);
 
   useEffect(() => {
-    setOffer(new URLSearchParams(window.location.search).get("offer"));
+    if (PERSONAL_INTRO_JPY > 0) setOffer(new URLSearchParams(window.location.search).get("offer"));
   }, []);
 
 

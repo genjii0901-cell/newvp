@@ -6,7 +6,7 @@ function envInt(raw: string | undefined, fallback: number, min: number, max: num
 }
 
 export const PERSONAL_INTRO_DAYS = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_DAYS, 7, 1, 30);
-export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_INTRO_JPY, 380, 50, 100_000);
+export const PERSONAL_INTRO_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_CAMPAIGN_INTRO_JPY, 0, 0, 100_000);
 export const PERSONAL_MONTHLY_JPY = envInt(process.env.NEXT_PUBLIC_PERSONAL_MONTHLY_JPY, 1580, 50, 100_000);
 export const PRINT_PAGE_JPY = 50;
 

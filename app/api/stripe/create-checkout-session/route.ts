@@ -7,7 +7,7 @@ import {
 } from "@/lib/supabase/admin";
 import { getTrialOffer } from "@/lib/trial-offers";
 import { isPersonalEmailOfferEligible } from "@/lib/personal-email-offer";
-import { appendInlinePlanPrice, appendPersonalCheckoutPrices } from "@/lib/personal-pricing";
+import { appendInlinePlanPrice, appendPersonalCheckoutPrices, PERSONAL_INTRO_JPY } from "@/lib/personal-pricing";
 
 type CheckoutPlan = "personal" | "teacher";
 // 2026-11-10 Teacher（塾プラン）の新規申込を再開。新料金は決済ページへ金額を直接渡す（Stripe側のPrice作成は不要）。
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     // Introductory pricing is once per account. Existing subscriptions keep their old Stripe price.
     const introductoryWeek = plan === "personal" && interval === "month" && Boolean(profile && getTrialOffer(profile) === "first");
 
-    const emailOffer = offer !== undefined;
+    const emailOffer = PERSONAL_INTRO_JPY > 0 && offer !== undefined;
     if (emailOffer && (!introductoryWeek || !isPersonalEmailOfferEligible(offer, auth.user, profile))) {
       return NextResponse.json(
         { ok: false, error: "このメール限定特典を適用できません。メールを受け取ったアカウントでログインし、専用リンクからお申し込みください。" },

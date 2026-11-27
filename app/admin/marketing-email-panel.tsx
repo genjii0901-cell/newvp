@@ -25,7 +25,7 @@ const marketingTemplate = `Vocab Print Proをご利用いただき、ありが�
 
 通学中に聞いた単語を、帰宅後に紙のテストで解く。翌日は、忘れかけた単語から復習する。いつもの単語帳で、そんな勉強を始めてみませんか？
 
-通常、Personalの初回7日間は380円（税込）です。期間限定で、このメールを受け取った方は、初回7日間を0円でお試しいただけます。
+Personalの月額プランを、初回7日間0円でお試しいただけます。
 
 ■ 通学中は、スマホで聞き流し
 画面を見ずに聞けるモードで、移動中も単語をチェック。読み上げ間隔や繰り返す回数を、自分が意味を思い出せるペースに調整できます。
@@ -36,9 +36,9 @@ const marketingTemplate = `Vocab Print Proをご利用いただき、ありが�
 ■ 翌日は、忘れかけた単語から復習
 忘却曲線に沿って、復習のタイミングが来た単語を出題できます。テスト前の短い時間でも、気になる単語を絞って確認できます。
 
-0円特典を使うには、下の専用リンクを開き、このメールを受け取ったアドレスのアカウントでログインしてください。通常の料金ページからお申し込みいただくと、初回7日間は380円（税込）です。
+Personalの料金・お申し込みはこちら
 
-${PERSONAL_EMAIL_OFFER_LINK}
+https://www.vocabprint.com/pricing#personal
 
 対象は、Personalの初回特典をまだ利用していない方です。お申し込みにはカード登録が必要です。無料期間中に解約しない場合は、8日目から月額1,580円（税込）で自動更新されます。無料期間中にアカウント画面から解約すると、月額料金はかからず、Personalの利用はその時点で終了します。
 
@@ -85,7 +85,7 @@ export default function MarketingEmailPanel() {
     setMessage("");
     if (content === serviceTemplate || content === marketingTemplate) {
       setContent(next === "service" ? serviceTemplate : marketingTemplate);
-      setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "【メール受信者限定】聞き流しも印刷も。Personal初回7日間0円");
+      setSubject(next === "service" ? "Vocab Print Proからのお知らせ" : "聞き流しも印刷も。Personal初回7日間0円");
     }
     setFirstTrialOnly(true);
     if (next === "marketing") setRecipientMode("all");
