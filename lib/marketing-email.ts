@@ -69,6 +69,15 @@ function renderEmailButton(url: string, label: string) {
   return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:4px 0 20px"><tr><td bgcolor="#2563eb" style="border-radius:8px"><a href="${escapeHtml(url)}" style="display:inline-block;padding:12px 18px;border:1px solid #2563eb;border-radius:8px;color:#ffffff;font-size:15px;font-weight:700;line-height:1.4;text-decoration:none">${label}</a></td></tr></table>`;
 }
 
+function renderEmailLine(line: string) {
+  const escaped = escapeHtml(line);
+  if (!/^https?:\/\/[^\s<>"']+$/i.test(line) || !URL.canParse(line)) return escaped;
+
+  const url = new URL(line);
+  if (url.username || url.password) return escaped;
+  return `<a href="${escapeHtml(url.href)}" style="color:#1d4ed8;text-decoration:underline;overflow-wrap:anywhere">${escaped}</a>`;
+}
+
 export function buildMarketingEmailHtml(
   body: string,
   options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null; personalOfferUrl?: string | null }
@@ -95,10 +104,10 @@ export function buildMarketingEmailHtml(
       const [firstLine, ...rest] = paragraph.split("\n");
       if (firstLine.startsWith("■ ")) {
         const title = escapeHtml(firstLine.slice(2));
-        const description = rest.map(escapeHtml).join("<br />");
+        const description = rest.map(renderEmailLine).join("<br />");
         return `<p style="margin:0 0 18px"><strong style="color:#1e40af">${title}</strong>${description ? `<br />${description}` : ""}</p>`;
       }
-      return `<p style="margin:0 0 18px">${paragraph.split("\n").map(escapeHtml).join("<br />")}</p>`;
+      return `<p style="margin:0 0 18px">${paragraph.split("\n").map(renderEmailLine).join("<br />")}</p>`;
     })
     .join("");
 
