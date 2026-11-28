@@ -21,7 +21,7 @@ const cancellationReasons: Array<{ value: CancellationReason; label: string }> =
   { value: "skip", label: "回答しない" },
 ];
 
-const planInfo: Record<Plan, { label: string; color: string; limit: string; price: string }> = {
+const planInfo: Record<Plan, { label: string; color: string; limit: string; price?: string }> = {
   free: {
     label: "無料会員（都度購入）",
     color: "bg-slate-100 text-slate-700",
@@ -444,9 +444,9 @@ export default function AccountPage() {
       <section className="mt-6 rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <h2 className="text-lg font-black">現在のプラン</h2>
         <div className="mt-3 flex flex-col items-start gap-2 sm:mt-4 sm:flex-row sm:items-center sm:gap-4">
-          <span className={`rounded-xl px-3 py-1.5 text-base font-black break-keep ${info.color}`}>{info.label}</span>
+          <span className={`rounded-xl px-3 py-1.5 text-base font-black shrink-0 whitespace-nowrap ${info.color}`}>{info.label}</span>
           <div>
-            <p className="font-bold text-slate-700">{info.price}</p>
+            {info.price && <p className="font-bold text-slate-700">{info.price}</p>}
             <p className="text-sm text-slate-500">{info.limit}</p>
           </div>
         </div>
