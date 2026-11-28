@@ -1,5 +1,5 @@
 export const PERSONAL_EMAIL_OFFER_LINK = "{{personal_offer_url}}";
-const PERSONAL_PRICING_URL = "https://www.vocabprint.com/pricing#personal";
+export const PERSONAL_PRICING_URL = "https://www.vocabprint.com/pricing#personal";
 
 export const PERSONAL_FEATURES_EMAIL = {
   subject: "Vocab Print Proで聞き流し・単語テスト印刷・かぶり調査",

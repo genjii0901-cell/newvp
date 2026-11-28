@@ -87,7 +87,7 @@ export function buildMarketingEmailHtml(
     .map((line) => {
       const trimmed = line.trim();
       const isOfferLink = trimmed === options.personalOfferUrl;
-      const isPricingLink = options.kind === "marketing" && trimmed === personalPricingUrl;
+      const isPricingLink = (options.kind === "marketing" || options.personalCampaign) && trimmed === personalPricingUrl;
       return isOfferLink || isPricingLink ? ["", trimmed, ""].join("\n") : trimmed;
     })
     .join("\n")
@@ -98,7 +98,7 @@ export function buildMarketingEmailHtml(
       if (options.personalOfferUrl && paragraph === options.personalOfferUrl) {
         return renderEmailButton(paragraph, "専用リンクで初回7日間0円を申し込む");
       }
-      if (options.kind === "marketing" && paragraph === personalPricingUrl) {
+      if ((options.kind === "marketing" || options.personalCampaign) && paragraph === personalPricingUrl) {
         return renderEmailButton(paragraph, options.personalCampaign ? "7日間0円キャンペーンを見る" : "Personalの料金・申込みを確認する");
       }
       const [firstLine, ...rest] = paragraph.split("\n");

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, resolveAdminUserFromBearerToken } from "@/lib/admin-auth";
 import { buildMarketingEmailHtml, createUnsubscribeUrl } from "@/lib/marketing-email";
 import { createPersonalEmailOfferUrl } from "@/lib/personal-email-offer";
-import { advertisesPersonalEmailOffer, hasPersonalEmailOfferLink, PERSONAL_FEATURES_EMAIL, replacePersonalEmailOfferLink } from "@/lib/personal-email-template";
+import { advertisesPersonalEmailOffer, hasPersonalEmailOfferLink, PERSONAL_FEATURES_EMAIL, PERSONAL_PRICING_URL, replacePersonalEmailOfferLink } from "@/lib/personal-email-template";
 import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -104,10 +104,13 @@ export async function POST(request: Request) {
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const subject = stringValue(body.subject, 160);
-  const content = stringValue(body.content, 8000);
+  const draft = stringValue(body.content, 8000);
   const action = stringValue(body.action, 20);
   const messageKind: MessageKind = body.messageKind === "service" ? "service" : "marketing";
-  const personalOffer = messageKind === "marketing" && hasPersonalEmailOfferLink(content);
+  const hasOfferLink = hasPersonalEmailOfferLink(draft);
+  const personalOffer = messageKind === "marketing" && hasOfferLink;
+  const publicOfferLink = messageKind === "service" && hasOfferLink;
+  const content = publicOfferLink ? replacePersonalEmailOfferLink(draft, PERSONAL_PRICING_URL) : draft;
   const personalCampaign = messageKind === "marketing" && (personalOffer || advertisesPersonalEmailOffer(subject, content));
   const recipientMode: RecipientMode = body.recipientMode === "selected" ? "selected" : "all";
   const selectedIds = new Set(
@@ -143,7 +146,7 @@ export async function POST(request: Request) {
         to: [testEmail],
         subject: `[テスト] ${subject}`,
         text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
-        html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign }),
+        html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign: personalCampaign || publicOfferLink }),
         ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
         tags: [{ name: "kind", value: `${messageKind}-test` }],
       }], `marketing-test-${crypto.randomUUID()}`);
@@ -207,7 +210,7 @@ export async function POST(request: Request) {
             to: [recipient.email],
             subject: recipientSubject,
             text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
-            html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign: personalCampaign && !featuresOnly }),
+            html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign: (personalCampaign && !featuresOnly) || publicOfferLink }),
             ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
             tags: [{ name: "kind", value: messageKind }, { name: "campaign", value: campaign.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) }],
           };
