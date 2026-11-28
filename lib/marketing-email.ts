@@ -80,7 +80,7 @@ function renderEmailLine(line: string) {
 
 export function buildMarketingEmailHtml(
   body: string,
-  options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null; personalOfferUrl?: string | null }
+  options: { kind: "marketing" | "service"; unsubscribeUrl?: string | null; personalOfferUrl?: string | null; personalCampaign?: boolean }
 ) {
   const content = body
     .split(/\r?\n/)
@@ -99,7 +99,7 @@ export function buildMarketingEmailHtml(
         return renderEmailButton(paragraph, "専用リンクで初回7日間0円を申し込む");
       }
       if (options.kind === "marketing" && paragraph === personalPricingUrl) {
-        return renderEmailButton(paragraph, "Personalの料金・申込みを確認する");
+        return renderEmailButton(paragraph, options.personalCampaign ? "7日間0円キャンペーンを見る" : "Personalの料金・申込みを確認する");
       }
       const [firstLine, ...rest] = paragraph.split("\n");
       if (firstLine.startsWith("■ ")) {

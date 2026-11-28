@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         to: [testEmail],
         subject: `[テスト] ${subject}`,
         text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
-        html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl }),
+        html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign }),
         ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
         tags: [{ name: "kind", value: `${messageKind}-test` }],
       }], `marketing-test-${crypto.randomUUID()}`);
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
             to: [recipient.email],
             subject: recipientSubject,
             text: messageKind === "marketing" ? `${recipientContent}\n\n配信停止: ${unsubscribeUrl}` : recipientContent,
-            html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl }),
+            html: buildMarketingEmailHtml(recipientContent, { kind: messageKind, unsubscribeUrl, personalOfferUrl, personalCampaign: personalCampaign && !featuresOnly }),
             ...(messageKind === "marketing" && unsubscribeUrl ? { headers: { "List-Unsubscribe": `<${unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } } : {}),
             tags: [{ name: "kind", value: messageKind }, { name: "campaign", value: campaign.id.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 80) }],
           };
