@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { advertisesPersonalEmailOffer, emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
+import { advertisesPersonalEmailOffer, hasPersonalEmailOfferLink, PERSONAL_EMAIL_OFFER_LINK } from "@/lib/personal-email-template";
 
 type MessageKind = "service" | "marketing";
 type RecipientMode = "all" | "selected";
@@ -95,9 +95,9 @@ export default function MarketingEmailPanel() {
     setSelectedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   }
 
-  const deliveryKind = emailKindForDelivery(messageKind, subject, content);
+  const deliveryKind = messageKind;
   const hasPersonalOffer = deliveryKind === "marketing" && hasPersonalEmailOfferLink(content);
-  const personalCampaign = hasPersonalOffer || advertisesPersonalEmailOffer(subject, content);
+  const personalCampaign = deliveryKind === "marketing" && (hasPersonalOffer || advertisesPersonalEmailOffer(subject, content));
   const eligibleAccounts = useMemo(
     () => (summary?.freeAccounts ?? []).filter((account) => deliveryKind === "service" || (account.marketingEmailOptIn && (!firstTrialOnly || account.firstTrialEligible))),
     [summary, deliveryKind, firstTrialOnly]
@@ -152,7 +152,6 @@ export default function MarketingEmailPanel() {
                 <button type="button" onClick={() => changeKind("marketing")} className={`rounded-xl border p-3 text-left ${messageKind === "marketing" ? "border-blue-600 bg-blue-50" : "border-slate-200"}`}><strong className="block text-sm">新機能・学習ヒント</strong><span className="mt-1 block text-xs leading-5 text-slate-500">プラン案内を含められます。受信希望をオンにした方だけへ配信停止リンク付きで送ります。</span></button>
               </div>
 
-              {deliveryKind === "marketing" && messageKind === "service" && <p className="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-900">0円特典の案内があるため、キャンペーンとして受信希望者に配信します。</p>}
               <h3 className="mt-6 font-black">2. 配信先</h3>
               {deliveryKind === "marketing" && <label className="mt-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={firstTrialOnly} onChange={(event) => { setFirstTrialOnly(event.target.checked); setConfirmation(""); }} />初回特典を未利用のFree会員のみ</label>}
               {personalCampaign && !firstTrialOnly && <p className="mt-2 text-xs text-slate-600">初回特典を利用済みの会員には、機能紹介と通常の料金ページのリンクを送ります。</p>}

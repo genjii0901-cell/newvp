@@ -28,7 +28,3 @@ export function hasPersonalEmailOfferLink(content: string) {
 export function replacePersonalEmailOfferLink(content: string, url: string) {
   return content.split(/\r?\n/).map((line) => isOfferLinkLine(line) ? url : line).join("\n");
 }
-
-export function emailKindForDelivery(kind: "marketing" | "service", subject: string, content: string) {
-  return kind === "marketing" || advertisesPersonalEmailOffer(subject, content) ? "marketing" : "service";
-}

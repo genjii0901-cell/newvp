@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin, resolveAdminUserFromBearerToken } from "@/lib/admin-auth";
 import { buildMarketingEmailHtml, createUnsubscribeUrl } from "@/lib/marketing-email";
 import { createPersonalEmailOfferUrl } from "@/lib/personal-email-offer";
-import { advertisesPersonalEmailOffer, emailKindForDelivery, hasPersonalEmailOfferLink, PERSONAL_FEATURES_EMAIL, replacePersonalEmailOfferLink } from "@/lib/personal-email-template";
+import { advertisesPersonalEmailOffer, hasPersonalEmailOfferLink, PERSONAL_FEATURES_EMAIL, replacePersonalEmailOfferLink } from "@/lib/personal-email-template";
 import { getSupabaseAdmin, isSupabaseServerConfigured, readableError } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -106,10 +106,9 @@ export async function POST(request: Request) {
   const subject = stringValue(body.subject, 160);
   const content = stringValue(body.content, 8000);
   const action = stringValue(body.action, 20);
-  const selectedKind = body.messageKind === "service" ? "service" : "marketing";
-  const messageKind: MessageKind = emailKindForDelivery(selectedKind, subject, content);
+  const messageKind: MessageKind = body.messageKind === "service" ? "service" : "marketing";
   const personalOffer = messageKind === "marketing" && hasPersonalEmailOfferLink(content);
-  const personalCampaign = personalOffer || advertisesPersonalEmailOffer(subject, content);
+  const personalCampaign = messageKind === "marketing" && (personalOffer || advertisesPersonalEmailOffer(subject, content));
   const recipientMode: RecipientMode = body.recipientMode === "selected" ? "selected" : "all";
   const selectedIds = new Set(
     Array.isArray(body.selectedProfileIds)
