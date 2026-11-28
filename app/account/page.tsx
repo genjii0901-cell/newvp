@@ -223,7 +223,58 @@ export default function AccountPage() {
     setShowContractManagement(true);
   }
 
+  const [actionCode, setActionCode] = useState("");
+  const [codeSentFor, setCodeSentFor] = useState<"cancel" | "delete" | null>(null);
+  const [sendingActionCode, setSendingActionCode] = useState(false);
+  const [actionCodeMessage, setActionCodeMessage] = useState("");
+
+  function resetActionCode() {
+    setActionCode("");
+    setCodeSentFor(null);
+    setActionCodeMessage("");
+  }
+
+  async function sendActionCode(action: "cancel" | "delete") {
+    if (!supabase || sendingActionCode) return;
+    setSendingActionCode(true);
+    setActionCodeMessage("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      const response = await fetch("/api/me/account-action-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token ?? ""}` },
+        body: JSON.stringify({ action }),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setActionCodeMessage(result.error ?? "確認メールを送信できませんでした。");
+        return;
+      }
+      setActionCode("");
+      setCodeSentFor(action);
+      setActionCodeMessage("登録メールに確認コードを送信しました。");
+    } catch {
+      setActionCodeMessage("通信に失敗しました。もう一度お試しください。");
+    } finally {
+      setSendingActionCode(false);
+    }
+  }
+
+  function renderActionCode(action: "cancel" | "delete") {
+    return (
+      <div className="mt-4 space-y-2 rounded-xl border p-3">
+        <button type="button" disabled={sendingActionCode} onClick={() => void sendActionCode(action)} className="rounded-lg border px-3 py-2 text-sm font-bold disabled:opacity-50">
+          {sendingActionCode ? "送信中…" : codeSentFor === action ? "確認コードを再送する" : "登録メールに確認コードを送る"}
+        </button>
+        {codeSentFor === action && <label className="block text-sm">メールに届いた6桁の確認コード<input className="ml-2 rounded border p-2" inputMode="numeric" autoComplete="one-time-code" value={actionCode} maxLength={6} onChange={(event) => setActionCode(event.target.value.replace(/\D/g, ""))} /></label>}
+        {actionCodeMessage && <p role="status" className="text-sm">{actionCodeMessage}</p>}
+      </div>
+    );
+  }
+
   function openCancellationFlow() {
+    resetActionCode();
     setAccountManagementView("cancel-reason");
   }
 
@@ -238,6 +289,7 @@ export default function AccountPage() {
       method: "POST",
       headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify({
+        emailCode: actionCode,
         reason: cancellationReason || "skip",
         feedback: cancellationFeedback.trim().slice(0, 500),
       }),
@@ -250,7 +302,7 @@ export default function AccountPage() {
       setShowContractManagement(false);
       setAccountManagementView("overview");
     } else {
-      setMsg(result.error ?? "解約処理に失敗しました。時間をおいて再度お試しください。");
+      setActionCodeMessage(result.error ?? "解約処理に失敗しました。時間をおいて再度お試しください。");
     }
     setCancelLoading(false);
   }
@@ -340,11 +392,12 @@ export default function AccountPage() {
         "Content-Type": "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
+      body: JSON.stringify({ emailCode: actionCode }),
     });
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      setMsg(result.error ?? "アカウント削除に失敗しました。");
+      setActionCodeMessage(result.error ?? "アカウント削除に失敗しました。");
       setDeleteLoading(false);
       return;
     }
@@ -486,6 +539,7 @@ export default function AccountPage() {
                     type="button"
                     onClick={() => {
                       setDeleteAcknowledged(false);
+                      resetActionCode();
                       setAccountManagementView("delete");
                     }}
                     className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 hover:bg-red-100"
@@ -498,6 +552,7 @@ export default function AccountPage() {
 
             {accountManagementView === "cancel-reason" && (
               <>
+                {plan === "personal" && <p className="mb-3 rounded-xl border-2 border-red-300 bg-red-50 p-3 font-bold text-red-900">初回7日間の無料体験中は、解約するとその時点でPersonalが使えなくなります。</p>}
                 <h3 className="font-black text-slate-900">解約理由を教えてください</h3>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
                   今後の改善の参考にします。回答しないことを選んでも、解約手続きは進められます。
@@ -568,6 +623,7 @@ export default function AccountPage() {
                 <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-slate-500">
                   選択した理由: {cancellationReasons.find((reason) => reason.value === cancellationReason)?.label ?? "回答しない"}
                 </p>
+                {renderActionCode("cancel")}
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
@@ -580,7 +636,7 @@ export default function AccountPage() {
                   <button
                     type="button"
                     onClick={cancelSubscription}
-                    disabled={cancelLoading || portalLoading}
+                    disabled={cancelLoading || portalLoading || codeSentFor !== "cancel" || actionCode.length !== 6}
                     className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
                   >
                     {cancelLoading ? "解約処理中..." : "契約を解約する"}
@@ -610,6 +666,7 @@ export default function AccountPage() {
                   />
                   <span>削除後はアカウントと保存データを復元できないことを理解しました。</span>
                 </label>
+                {plan === "free" && deleteAcknowledged && renderActionCode("delete")}
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                   <button
                     type="button"
@@ -622,7 +679,7 @@ export default function AccountPage() {
                   <button
                     type="button"
                     onClick={deleteAccount}
-                    disabled={plan !== "free" || !deleteAcknowledged || deleteLoading}
+                    disabled={plan !== "free" || !deleteAcknowledged || deleteLoading || codeSentFor !== "delete" || actionCode.length !== 6}
                     className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:bg-red-300"
                   >
                     {deleteLoading ? "削除中..." : "アカウントを削除する"}

@@ -1,3 +1,4 @@
+import { requireAccountActionCode } from "@/lib/account-action-email";
 import { NextResponse } from "next/server";
 import { ensureProfile, getSupabaseAdmin, readableError, requireSupabaseUser } from "@/lib/supabase/admin";
 import { getWinbackEligibleAt } from "@/lib/trial-offers";
@@ -177,6 +178,8 @@ export async function POST(request: Request) {
 
   try {
     const requestBody = await request.json().catch(() => ({}));
+    const denied = await requireAccountActionCode(request, auth.user, "cancel", requestBody.emailCode);
+    if (denied) return denied;
     const cancellationReason = getCancellationReason(requestBody?.reason);
     const cancellationFeedback = getCancellationFeedback(requestBody?.feedback);
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;

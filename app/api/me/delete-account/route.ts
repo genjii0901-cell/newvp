@@ -1,3 +1,4 @@
+import { requireAccountActionCode } from "@/lib/account-action-email";
 import { NextResponse } from "next/server";
 import { hasMobilePurchase } from "@/lib/mobile-paid-access";
 import {
@@ -21,6 +22,9 @@ function isMissingTableError(error: unknown, tableName: string) {
 export async function POST(request: Request) {
   const auth = await requireSupabaseUser(request);
   if (auth.response) return auth.response;
+  const { emailCode } = await request.json().catch(() => ({}));
+  const denied = await requireAccountActionCode(request, auth.user, "delete", emailCode);
+  if (denied) return denied;
 
   if (!isSupabaseServerConfigured()) {
     return supabaseServerConfigResponse();
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           ok: false,
-          error: "有料契約またはトライアルが残っています。先に請求ポータルで解約してから削除してください。",
+          error: "有料契約またはトライアルが残っています。先に契約管理画面で解約してから削除してください。",
           needsCancellation: true,
         },
         { status: 409 }
